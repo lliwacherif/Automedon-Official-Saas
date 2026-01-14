@@ -57,17 +57,39 @@ export function useCars() {
     });
 
     // Helper to map DB result to Car interface
-    const mapCar = (dbCar: any): Car => ({
-        id: dbCar.id,
-        brand: dbCar.brand,
-        model: dbCar.model,
-        plate_number: dbCar.license_plate, // Map license_plate to plate_number
-        status: dbCar.status,
-        image_url: dbCar.image_url,
-        mileage: dbCar.mileage,
-        auto_manage_status: dbCar.auto_manage_status,
-        created_at: dbCar.created_at
-    });
+    const mapCar = (dbCar: any): Car => {
+        let imageUrl = dbCar.image_url;
+
+        // Fix for image URL display across environments:
+        // If the URL looks like it's from our storage bucket, regenerate it using the current env's Supabase URL.
+        // This fixes issues where dev/prod URLs are mixed in the DB.
+        if (imageUrl && imageUrl.includes('/storage/v1/object/public/car-images/')) {
+            try {
+                // Extract the file path (e.g. "folder/file.jpg" or "file.jpg")
+                const path = imageUrl.split('/storage/v1/object/public/car-images/')[1];
+                if (path) {
+                    const { data } = supabase.storage
+                        .from('car-images')
+                        .getPublicUrl(path);
+                    imageUrl = data.publicUrl;
+                }
+            } catch (e) {
+                console.warn('Error rewriting image URL:', e);
+            }
+        }
+
+        return {
+            id: dbCar.id,
+            brand: dbCar.brand,
+            model: dbCar.model,
+            plate_number: dbCar.license_plate, // Map license_plate to plate_number
+            status: dbCar.status,
+            image_url: imageUrl,
+            mileage: dbCar.mileage,
+            auto_manage_status: dbCar.auto_manage_status,
+            created_at: dbCar.created_at
+        };
+    };
 
     // Fetch cars for the current tenant
     async function fetchCars() {
