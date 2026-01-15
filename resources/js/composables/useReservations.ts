@@ -187,6 +187,12 @@ export function useReservations() {
                 reservation_number: `RES-${Date.now()}`
             };
 
+            // Remove user_id if it exists in the payload but not expected by DB
+            // (or if it's causing issues as the error suggests)
+            if ('user_id' in reservationWithTenant) {
+                delete (reservationWithTenant as any).user_id;
+            }
+
             if (!reservationWithTenant.reservation_number) {
                 reservationWithTenant.reservation_number = `RES-${Math.floor(Math.random() * 1000000)}`;
             }
