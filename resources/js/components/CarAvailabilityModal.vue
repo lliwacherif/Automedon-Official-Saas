@@ -89,11 +89,12 @@ function isDateReserved(date: Date) {
 }
 
 const activeReservation = computed(() => {
-    const today = new Date();
+    const now = new Date();
     return reservations.value.find(res => {
-        const startDate = startOfDay(parseISO(res.start_date));
-        const endDate = endOfDay(parseISO(res.end_date));
-        return isWithinInterval(today, { start: startDate, end: endDate });
+        // Use exact timestamps for precise 'Active' status
+        const startDate = parseISO(res.start_date);
+        const endDate = parseISO(res.end_date);
+        return isWithinInterval(now, { start: startDate, end: endDate });
     });
 });
 
