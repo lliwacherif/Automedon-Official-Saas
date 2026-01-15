@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue';
 import { supabase } from '@/lib/supabase';
 import { useTenantStore } from '@/stores/tenant';
+import { format } from 'date-fns';
 
 export type CarBrand = 'Renault' | 'Dacia' | 'Skoda' | 'Hyundai' | 'Seat' | 'MG' | 'Mahindra' | 'Kia' | 'Honda' | 'Peugeot' | 'Cherry' | 'Geely';
 export type CarStatus = 'disponible' | 'loue' | 'maintenance';
@@ -118,23 +119,68 @@ export function useCars() {
 
             // Fetch future reservations (also scoped by tenant implicitly via RLS, or explicit filter)
             // Ideally add .eq('tenant_id', tenantId) to reservations too, but RLS might cover it.
-            const now = new Date().toISOString();
+            const nowIso = new Date().toISOString();
+            const todayDate = format(new Date(), 'yyyy-MM-dd'); // For maintenance check
+
+            // Fetch active and future reservations
             const { data: reservationsData, error: resError } = await (supabase
                 .from('reservations')
                 .select('car_id, start_date, end_date')
                 .eq('tenant_id', tenantId)
                 .in('status', ['confirmed', 'active'])
-                .gt('start_date', now)
+                // We need 'active' (now overlap) AND 'future' (start > now)
+                // Sending a broader query to filter in JS or more complex OR logic.
+                // Simplest here: fetch all future OR currently active.
+                .gte('end_date', nowIso)
                 .order('start_date', { ascending: true }) as any);
 
             if (resError) throw resError;
+
+            // Fetch active maintenance
+            const { data: maintenanceData, error: maintError } = await (supabase
+                .from('maintenance_records')
+                .select('car_id')
+                .eq('tenant_id', tenantId)
+                .eq('maintenance_date', todayDate) as any);
+
+            if (maintError) throw maintError;
+
+            const maintenanceCarIds = new Set((maintenanceData || []).map((m: any) => m.car_id));
 
             // Map reservations to cars
             const mappedCars = (carsData || []).map((dbCar: any) => {
                 const car = mapCar(dbCar);
 
-                // Find nearest future reservation for this car
-                const futureRes = (reservationsData || []).find((r: any) => r.car_id === car.id);
+                // Check for ACTIVE reservation (currently happening)
+                const activeRes = (reservationsData || []).find((r: any) =>
+                    r.car_id === car.id &&
+                    r.start_date <= nowIso &&
+                    r.end_date >= nowIso
+                );
+
+                // Check for ACTIVE maintenance
+                const isUnderMaintenance = maintenanceCarIds.has(car.id);
+
+                // Override status if active event exists
+                if (activeRes) {
+                    car.status = 'loue';
+                } else if (isUnderMaintenance) {
+                    car.status = 'maintenance';
+                } else {
+                    // If no active event, fallback to DB status or default to 'available' if 'loue'/'maintenance' was stale
+                    // However, we should probably trust the DB status 'disponible' if there are no events.
+                    // But if DB says 'loue' and there is NO active reservation, unmark it? 
+                    // To be safe and self-healing: if status is 'loue' or 'maintenance' but no active event found, force 'disponible'.
+                    if (car.status === 'loue' || car.status === 'maintenance') {
+                        car.status = 'disponible';
+                    }
+                }
+
+                // Find nearest future reservation for this car (start > now)
+                const futureRes = (reservationsData || []).find((r: any) =>
+                    r.car_id === car.id && r.start_date > nowIso
+                );
+
                 if (futureRes) {
                     car.next_reservation = {
                         start_date: futureRes.start_date,

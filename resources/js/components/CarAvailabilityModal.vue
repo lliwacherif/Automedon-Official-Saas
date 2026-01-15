@@ -55,7 +55,7 @@ async function fetchReservations(carId: number) {
         
         // Filter out past reservations (those that ended before today)
         const today = startOfDay(new Date());
-        reservations.value = (data || []).filter(res => {
+        reservations.value = (data || []).filter((res: any) => {
             const endDate = endOfDay(parseISO(res.end_date));
             return compareAsc(endDate, today) >= 0;
         });
