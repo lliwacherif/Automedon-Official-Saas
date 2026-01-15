@@ -101,6 +101,11 @@ const futureReservations = computed(() => {
     const today = startOfDay(new Date());
     // Filter for reservations starting today or later
     const future = reservations.value.filter(res => {
+        // Exclude the currently active reservation from the upcoming list
+        if (activeReservation.value && res.id === activeReservation.value.id) {
+            return false;
+        }
+
         const startDate = startOfDay(parseISO(res.start_date));
         return compareAsc(startDate, today) >= 0; // startDate >= today
     });

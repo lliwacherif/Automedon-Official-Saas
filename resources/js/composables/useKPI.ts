@@ -106,7 +106,9 @@ export function useKPI() {
     }
 
     const fetchFleetStatus = async () => {
-        const today = format(new Date(), 'yyyy-MM-dd')
+        // Use full ISO string to compare against timestamps in DB
+        const nowIso = new Date().toISOString()
+        const todayDate = format(new Date(), 'yyyy-MM-dd')
 
         // 1. Fetch all cars (ID and manual status as fallback or reference)
         let carQuery = supabase
@@ -120,14 +122,13 @@ export function useKPI() {
         const { data: cars, error: err } = await carQuery
         if (err) throw err
 
-        // 2. Fetch active reservations for today
-        // We look for reservations that include 'today' in their range
+        // 2. Fetch active reservations (currently happening)
         let resQuery = supabase
             .from('reservations')
             .select('car_id')
             .neq('status', 'cancelled')
-            .lte('start_date', today)
-            .gte('end_date', today)
+            .lte('start_date', nowIso) // Started before or exactly now
+            .gte('end_date', nowIso)   // Ends after or exactly now
 
         if (tenantStore.currentTenant?.id) {
             resQuery = resQuery.eq('tenant_id', tenantStore.currentTenant.id)
@@ -139,11 +140,11 @@ export function useKPI() {
         const rentedCarIds = new Set(activeReservations?.map((r: any) => r.car_id))
 
         // 3. Fetch active maintenance for today
-        // Assuming single-day maintenance based on schema
+        // Assuming single-day maintenance based on schema or date column
         let maintQuery = supabase
             .from('maintenance_records')
             .select('car_id')
-            .eq('maintenance_date', today)
+            .eq('maintenance_date', todayDate)
 
         if (tenantStore.currentTenant?.id) {
             maintQuery = maintQuery.eq('tenant_id', tenantStore.currentTenant.id)
