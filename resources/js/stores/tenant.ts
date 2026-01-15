@@ -11,7 +11,8 @@ export interface Tenant {
 }
 
 // Helper: SHA-256 for password hashing (matches Auth Store)
-async function hashPassword(password: string): Promise<string> {
+// Helper: SHA-256 for password hashing (matches Auth Store)
+export async function hashPassword(password: string): Promise<string> {
     const msgBuffer = new TextEncoder().encode(password);
     const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -120,12 +121,44 @@ export const useTenantStore = defineStore('tenant', () => {
         }
     }
 
+    // Create a new user for the current tenant
+    async function createTenantUser(username: string, password: string, role: 'user' | 'assistant' = 'user') {
+        if (!currentTenant.value?.id) throw new Error("No tenant selected");
+
+        loading.value = true;
+        try {
+            const passwordHash = await hashPassword(password);
+
+            const { data, error: userError } = await (supabase
+                .from('tenant_users') as any)
+                .insert([
+                    {
+                        tenant_id: currentTenant.value.id,
+                        username,
+                        password_hash: passwordHash,
+                        role
+                    }
+                ])
+                .select()
+                .single();
+
+            if (userError) throw userError;
+            return data;
+        } catch (e: any) {
+            console.error('Error creating tenant user:', e);
+            throw e;
+        } finally {
+            loading.value = false;
+        }
+    }
+
     return {
         currentTenant,
         loading,
         error,
         fetchTenantBySlug,
         createTenant,
-        deleteTenant
+        deleteTenant,
+        createTenantUser
     };
 });
