@@ -39,8 +39,18 @@ const loading = ref(false);
 const tenantStore = useTenantStore();
 
 // Fetch Cars
+// Fetch Cars
 onMounted(async () => {
-    await fetchCars();
+    if (tenantStore.currentTenant) {
+        await fetchCars();
+    }
+});
+
+// Watch for tenant changes (e.g. on page refresh when tenant loads async)
+watch(() => tenantStore.currentTenant, async (newTenant) => {
+    if (newTenant) {
+        await fetchCars();
+    }
 });
 
 async function fetchCars() {
