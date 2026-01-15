@@ -106,32 +106,80 @@ export function useKPI() {
     }
 
     const fetchFleetStatus = async () => {
-        let query = supabase
+        const today = format(new Date(), 'yyyy-MM-dd')
+
+        // 1. Fetch all cars (ID and manual status as fallback or reference)
+        let carQuery = supabase
             .from('cars')
-            .select('status')
+            .select('id, status')
 
         if (tenantStore.currentTenant?.id) {
-            query = query.eq('tenant_id', tenantStore.currentTenant.id)
+            carQuery = carQuery.eq('tenant_id', tenantStore.currentTenant.id)
         }
 
-        const { data: cars, error: err } = await query
-
+        const { data: cars, error: err } = await carQuery
         if (err) throw err
+
+        // 2. Fetch active reservations for today
+        // We look for reservations that include 'today' in their range
+        let resQuery = supabase
+            .from('reservations')
+            .select('car_id')
+            .neq('status', 'cancelled')
+            .lte('start_date', today)
+            .gte('end_date', today)
+
+        if (tenantStore.currentTenant?.id) {
+            resQuery = resQuery.eq('tenant_id', tenantStore.currentTenant.id)
+        }
+
+        const { data: activeReservations, error: resError } = await resQuery
+        if (resError) throw resError
+
+        const rentedCarIds = new Set(activeReservations?.map((r: any) => r.car_id))
+
+        // 3. Fetch active maintenance for today
+        // Assuming single-day maintenance based on schema
+        let maintQuery = supabase
+            .from('maintenance_records')
+            .select('car_id')
+            .eq('maintenance_date', today)
+
+        if (tenantStore.currentTenant?.id) {
+            maintQuery = maintQuery.eq('tenant_id', tenantStore.currentTenant.id)
+        }
+
+        const { data: activeMaintenance, error: maintError } = await maintQuery
+        if (maintError) throw maintError
+
+        const maintenanceCarIds = new Set(activeMaintenance?.map((m: any) => m.car_id))
+
+        // 4. Calculate counts dynamically
+        let availableCount = 0
+        let rentedCount = 0
+        let maintenanceCount = 0
 
         const carData = cars as any[]
         const total = carData.length
-        const available = carData.filter(c => c.status === 'disponible').length
-        const rented = carData.filter(c => c.status === 'loue').length
-        const maintenance = carData.filter(c => c.status === 'maintenance').length
 
-        fleetStatus.value = { total, available, rented, maintenance }
+        carData.forEach(car => {
+            if (rentedCarIds.has(car.id)) {
+                rentedCount++
+            } else if (maintenanceCarIds.has(car.id)) {
+                maintenanceCount++
+            } else {
+                availableCount++
+            }
+        })
+
+        fleetStatus.value = { total, available: availableCount, rented: rentedCount, maintenance: maintenanceCount }
 
         // Update Status Chart
         statusChartData.value = {
             labels: ['Disponible', 'Loué', 'Maintenance'],
             datasets: [{
                 label: 'Fleet Status',
-                data: [available, rented, maintenance],
+                data: [availableCount, rentedCount, maintenanceCount],
                 backgroundColor: ['#10B981', '#3B82F6', '#EF4444']
             }]
         }
