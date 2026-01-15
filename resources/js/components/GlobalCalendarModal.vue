@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
 import { supabase } from '@/lib/supabase';
+import { useTenantStore } from '@/stores/tenant';
 import { 
     format, 
     addMonths, 
@@ -35,6 +36,7 @@ const selectedCarId = ref<number | null>(null);
 const cars = ref<any[]>([]);
 const reservations = ref<any[]>([]);
 const loading = ref(false);
+const tenantStore = useTenantStore();
 
 // Fetch Cars
 onMounted(async () => {
@@ -42,7 +44,13 @@ onMounted(async () => {
 });
 
 async function fetchCars() {
-    const { data } = await supabase.from('cars').select('id, brand, model, license_plate');
+    if (!tenantStore.currentTenant?.id) return;
+
+    const { data } = await supabase
+        .from('cars')
+        .select('id, brand, model, license_plate')
+        .eq('tenant_id', tenantStore.currentTenant.id);
+        
     cars.value = data || [];
 }
 
