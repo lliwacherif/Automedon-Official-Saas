@@ -403,7 +403,7 @@ import DateTimeInput from '@/components/DateTimeInput.vue';
                         <input 
                             v-model.number="reservation.price_per_day"
                             type="number"
-                            step="0.01"
+                            step="0.0001"
                             required
                             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         >
@@ -416,7 +416,7 @@ import DateTimeInput from '@/components/DateTimeInput.vue';
                         <input 
                             v-model="reservation.total_price"
                             type="number"
-                            step="0.01"
+                            step="0.0001"
                             readonly
                             class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-lg font-semibold"
                         >
@@ -435,7 +435,7 @@ import DateTimeInput from '@/components/DateTimeInput.vue';
                             <input 
                                 v-model.number="reservation.advance_payment"
                                 type="number"
-                                step="0.01"
+                                step="0.0001"
                                 class="w-full px-3 py-2 border border-indigo-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
                                 placeholder="0.00"
                             >
