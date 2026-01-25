@@ -24,12 +24,16 @@ import { fr } from 'date-fns/locale';
 import { X, ChevronLeft, ChevronRight, Check, AlertCircle, Calendar as CalendarIcon, Clock } from 'lucide-vue-next';
 import { formatDateTime } from '@/utils/date';
 
+import { useAuthStore } from '@/stores/auth';
+
 const props = defineProps<{
     show: boolean;
     car: Car | null;
 }>();
 
 const emit = defineEmits(['close']);
+
+const authStore = useAuthStore();
 
 const currentMonth = ref(new Date());
 const reservations = ref<any[]>([]);
@@ -163,6 +167,9 @@ const weekdaysDesktop = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
                             <div class="min-w-0">
                                 <h3 class="text-sm sm:text-lg font-semibold text-gray-900 truncate">
                                     {{ car?.brand }} {{ car?.model }}
+                                    <span v-if="authStore.isAdmin" class="ml-2 text-gray-500 font-normal text-sm">
+                                        {{ car?.plate_number }}
+                                    </span>
                                 </h3>
                                 <p class="text-xs text-gray-500 hidden sm:block">Calendrier de disponibilité</p>
                             </div>
