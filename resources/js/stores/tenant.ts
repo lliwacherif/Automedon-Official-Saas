@@ -59,7 +59,7 @@ export const useTenantStore = defineStore('tenant', () => {
         try {
             // 1. Create Tenant
             const { data: tenant, error: tenantError } = await (supabase
-                .from('tenants')
+                .from('tenants') as any)
                 .insert([{
                     name,
                     slug,
@@ -67,7 +67,7 @@ export const useTenantStore = defineStore('tenant', () => {
                     status: 'active'
                 }])
                 .select()
-                .single() as any);
+                .single();
 
             if (tenantError) throw tenantError;
 
