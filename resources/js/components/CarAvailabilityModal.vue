@@ -47,7 +47,7 @@ async function fetchReservations(carId: number) {
     try {
         const { data, error } = await supabase
             .from('reservations')
-            .select('start_date, end_date, status')
+            .select('id, start_date, end_date, status')
             .eq('car_id', carId)
             .in('status', ['confirmed', 'active']);
 
