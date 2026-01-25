@@ -17,7 +17,7 @@ const error = ref('');
 const selectedFile = ref<File | null>(null);
 const previewUrl = ref<string>('');
 
-const brands: CarBrand[] = ['Renault', 'Dacia', 'Skoda', 'Hyundai', 'Seat', 'MG', 'Mahindra', 'Kia', 'Honda', 'Peugeot', 'Cherry', 'Geely', 'Volkswagen'];
+const brands: CarBrand[] = ['Renault', 'Dacia', 'Skoda', 'Hyundai', 'Seat', 'MG', 'Mahindra', 'Kia', 'Honda', 'Peugeot', 'Cherry', 'Geely', 'Volkswagen', 'Suzuki'];
 
 const form = ref({
     brand: '' as CarBrand,
