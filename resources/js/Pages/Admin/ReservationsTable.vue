@@ -3,10 +3,13 @@ import { ref, onMounted } from 'vue';
 import { useReservations } from '@/composables/useReservations';
 import { useI18n } from 'vue-i18n';
 import { formatDateTime } from '@/utils/date';
-import { Loader2 } from 'lucide-vue-next';
+import { Loader2, Edit } from 'lucide-vue-next';
+import { useTenantLink } from '@/composables/useTenantLink';
+import { RouterLink } from 'vue-router';
 
 const { t } = useI18n();
 const { reservations, loading, fetchReservations } = useReservations();
+const { tenantPath } = useTenantLink();
 
 onMounted(() => {
     fetchReservations(); // Load all reservations
@@ -44,11 +47,14 @@ onMounted(() => {
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Contract ID
                             </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Modifier
+                            </th>
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
                         <tr v-if="reservations.length === 0">
-                            <td colspan="6" class="px-6 py-4 text-center text-gray-500">
+                            <td colspan="7" class="px-6 py-4 text-center text-gray-500">
                                 Aucune réservation trouvée.
                             </td>
                         </tr>
@@ -75,6 +81,15 @@ onMounted(() => {
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
                                 NAN
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                 <RouterLink 
+                                    :to="tenantPath(`/admin/reservations/${res.id}`)" 
+                                    class="text-indigo-600 hover:text-indigo-900 flex items-center justify-center p-2 rounded-full hover:bg-indigo-50"
+                                    title="Modifier"
+                                >
+                                    <Edit class="h-4 w-4" />
+                                </RouterLink>
                             </td>
                         </tr>
                     </tbody>
