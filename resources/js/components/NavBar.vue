@@ -6,7 +6,7 @@ import { useTenantStore } from '@/stores/tenant';
 import { useTenantLink } from '@/composables/useTenantLink';
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue';
 import GlobalCalendarModal from '@/components/GlobalCalendarModal.vue';
-import { History, Calendar } from 'lucide-vue-next';
+import { History, Calendar, Table } from 'lucide-vue-next';
 
 const authStore = useAuthStore();
 const tenantStore = useTenantStore();
@@ -107,6 +107,14 @@ async function handleLogout() {
 
                 <!-- Desktop Right Side -->
                 <div class="hidden lg:flex items-center">
+                    <button 
+                        v-if="tenantStore.currentTenant" 
+                        @click="router.push(tenantPath('/admin/reservations-table'))"
+                        class="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 rounded-full mr-2 transition-colors"
+                        title="Tableau Admin"
+                    >
+                        <Table class="w-5 h-5" />
+                    </button>
                     <button 
                         v-if="tenantStore.currentTenant" 
                         @click="showCalendarModal = true"
@@ -223,6 +231,15 @@ async function handleLogout() {
                             </svg>
                             {{ $t('nav.fleet') }}
                         </RouterLink>
+
+                        <button 
+                            v-if="tenantStore.currentTenant"
+                            @click="() => { router.push(tenantPath('/admin/reservations-table')); closeMobileMenu(); }"
+                            class="w-full flex items-center px-4 py-3 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 text-left"
+                        >
+                            <Table class="w-5 h-5 mr-3" />
+                            Tableau Admin
+                        </button>
 
                         <button 
                             v-if="tenantStore.currentTenant"

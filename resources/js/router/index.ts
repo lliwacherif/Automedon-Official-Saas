@@ -113,6 +113,12 @@ const routes = [
                 meta: { requiresAuth: true, requiresAdmin: true }
             },
             {
+                path: 'admin/reservations-table',
+                component: () => import('../Pages/Admin/ReservationsTable.vue'),
+                name: 'admin.reservations.table',
+                meta: { requiresAuth: true, requiresAdmin: true }
+            },
+            {
                 path: 'admin/maintenance',
                 component: () => import('../Pages/Admin/Maintenance/Index.vue'),
                 name: 'admin.maintenance.index',
