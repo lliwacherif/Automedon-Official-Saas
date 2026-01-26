@@ -80,7 +80,7 @@ onMounted(() => {
                                 {{ res.total_price.toFixed(2) }} TND
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
-                                NAN
+                                {{ res.contract_number || '-' }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                  <RouterLink 

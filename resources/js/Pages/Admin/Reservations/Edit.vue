@@ -37,6 +37,7 @@ const reservation = ref<Partial<Reservation>>({
     pickup_location: '',
     return_location: '',
     notes: '',
+    contract_number: '',
 });
 
 // Helper function to format ISO date to datetime-local format
@@ -143,6 +144,7 @@ async function handleSubmit() {
             pickup_location: reservation.value.pickup_location || null,
             return_location: reservation.value.return_location || null,
             notes: reservation.value.notes || null,
+            contract_number: reservation.value.contract_number || null,
         };
 
         // Check availability
@@ -348,6 +350,19 @@ import DateTimeInput from '@/components/DateTimeInput.vue';
                             {{ car.brand }} {{ car.model }} - {{ car.plate_number }}
                         </option>
                     </select>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Numéro de Contrat (Max 4 chars)
+                    </label>
+                    <input 
+                        v-model="reservation.contract_number"
+                        type="text"
+                        maxlength="4"
+                        placeholder="Ex: 1234"
+                        class="uppercase w-full md:w-1/3 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -26,6 +26,7 @@ export interface Reservation {
     // Status
     status: string;
     // Optional
+    contract_number: string | null;
     pickup_location: string | null;
     return_location: string | null;
     notes: string | null;
