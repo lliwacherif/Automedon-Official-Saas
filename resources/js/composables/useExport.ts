@@ -8,7 +8,7 @@ export function useExport() {
             return;
         }
 
-        const separator = ',';
+        const separator = ';';
         const keys = Object.keys(rows[0]);
 
         const csvContent = [

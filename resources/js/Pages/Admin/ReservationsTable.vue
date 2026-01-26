@@ -15,18 +15,12 @@ const { exportToCsv } = useExport();
 
 function handleExport() {
     const data = reservations.value.map(res => ({
-        'Numéro': res.reservation_number,
+        'Voiture & Plaque': `${res.car?.brand} ${res.car?.model}\n${res.car?.plate_number}`, // Intentionally using newline if supported by Excel CSV import, otherwise it will just be a space or handle specially. Standard CSV handles newlines in quotes.
+        'Date Début': formatDateTime(res.start_date),
+        'Date Fin': formatDateTime(res.end_date),
         'Client': res.client_name,
-        'CIN': res.client_cin,
-        'Téléphone': res.client_phone,
-        'Email': res.client_email,
-        'Voiture': `${res.car?.brand} ${res.car?.model} (${res.car?.plate_number})`,
-        'Début': formatDateTime(res.start_date),
-        'Fin': formatDateTime(res.end_date),
-        'Durée (Jours)': res.duration_days,
-        'Prix Total': res.total_price,
-        'Statut': res.status,
-        'Contrat': res.contract_number || ''
+        'Coût Total': `${res.total_price.toFixed(2)} TND`,
+        'Contract ID': res.contract_number || ''
     }));
     exportToCsv(`reservations_${new Date().toISOString().split('T')[0]}.csv`, data);
 }
