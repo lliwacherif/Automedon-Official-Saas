@@ -3,13 +3,33 @@ import { ref, onMounted } from 'vue';
 import { useReservations } from '@/composables/useReservations';
 import { useI18n } from 'vue-i18n';
 import { formatDateTime } from '@/utils/date';
-import { Loader2, Edit } from 'lucide-vue-next';
+import { Loader2, Edit, FileDown } from 'lucide-vue-next';
 import { useTenantLink } from '@/composables/useTenantLink';
 import { RouterLink } from 'vue-router';
+import { useExport } from '@/composables/useExport';
 
 const { t } = useI18n();
 const { reservations, loading, fetchReservations } = useReservations();
 const { tenantPath } = useTenantLink();
+const { exportToCsv } = useExport();
+
+function handleExport() {
+    const data = reservations.value.map(res => ({
+        'Numéro': res.reservation_number,
+        'Client': res.client_name,
+        'CIN': res.client_cin,
+        'Téléphone': res.client_phone,
+        'Email': res.client_email,
+        'Voiture': `${res.car?.brand} ${res.car?.model} (${res.car?.plate_number})`,
+        'Début': formatDateTime(res.start_date),
+        'Fin': formatDateTime(res.end_date),
+        'Durée (Jours)': res.duration_days,
+        'Prix Total': res.total_price,
+        'Statut': res.status,
+        'Contrat': res.contract_number || ''
+    }));
+    exportToCsv(`reservations_${new Date().toISOString().split('T')[0]}.csv`, data);
+}
 
 onMounted(() => {
     fetchReservations(); // Load all reservations
@@ -18,7 +38,17 @@ onMounted(() => {
 
 <template>
     <div class="p-6">
-        <h1 class="text-2xl font-bold mb-6 text-gray-800">Tableau des Réservations</h1>
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-bold text-gray-800">Tableau des Réservations</h1>
+            <button 
+                @click="handleExport"
+                :disabled="loading || reservations.length === 0"
+                class="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+                <FileDown class="w-4 h-4 mr-2" />
+                Télécharger Excel
+            </button>
+        </div>
         
         <div v-if="loading" class="flex justify-center py-12">
             <Loader2 class="animate-spin h-8 w-8 text-indigo-600" />
