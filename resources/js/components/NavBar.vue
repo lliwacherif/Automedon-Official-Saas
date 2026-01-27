@@ -124,7 +124,7 @@ async function handleLogout() {
                 <!-- Desktop Right Side -->
                 <div class="hidden lg:flex items-center">
                     <button 
-                        v-if="tenantStore.currentTenant" 
+                        v-if="authStore.isAdmin && tenantStore.currentTenant" 
                         @click="router.push(tenantPath('/admin/reservations-table'))"
                         class="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 rounded-full mr-2 transition-colors"
                         title="Tableau Admin"
@@ -249,7 +249,7 @@ async function handleLogout() {
                         </RouterLink>
 
                         <button 
-                            v-if="tenantStore.currentTenant"
+                            v-if="authStore.isAdmin && tenantStore.currentTenant"
                             @click="() => { router.push(tenantPath('/admin/reservations-table')); closeMobileMenu(); }"
                             class="w-full flex items-center px-4 py-3 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 text-left"
                         >
