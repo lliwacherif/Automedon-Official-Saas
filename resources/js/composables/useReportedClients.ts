@@ -43,8 +43,8 @@ export function useReportedClients() {
         loading.value = true;
         error.value = null;
         try {
-            const { error: err } = await supabase
-                .from('reported_clients')
+            const { error: err } = await (supabase
+                .from('reported_clients') as any)
                 .insert([{
                     ...client,
                     tenant_id: tenantStore.currentTenant.id
