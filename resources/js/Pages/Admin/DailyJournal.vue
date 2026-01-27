@@ -1,38 +1,31 @@
 <script setup lang="ts">
-import { onMounted, computed } from 'vue';
-import { useReservations } from '@/composables/useReservations';
+import { onMounted } from 'vue';
+import { useCars } from '@/composables/useCars';
 import { useI18n } from 'vue-i18n';
 import { formatDateTime } from '@/utils/date';
 import { Loader2, CalendarClock } from 'lucide-vue-next';
 
 const { t } = useI18n();
-const { reservations, loading, fetchReservations } = useReservations();
-
-// Filter for only 'active' (Loué) reservations
-// "Loué" cars are those with status 'active' OR 'confirmed' but currently ongoing (start_date <= now)
-const activeReservations = computed(() => {
-    const now = new Date();
-    return reservations.value.filter(res => {
-        if (res.status === 'active') return true;
-        
-        if (res.status === 'confirmed') {
-             const startDate = new Date(res.start_date);
-             // If start date is in the past (or now), it's considered active/loué
-             return startDate <= now;
-        }
-        
-        return false;
-    });
-});
+const { cars, loading, fetchCars } = useCars();
 
 onMounted(() => {
-    fetchReservations(); 
+    fetchCars(); 
 });
 
 // Helper to determine status display
-function getDailyStatus(res: any) {
+function getDailyStatus(car: any) {
+    // If not rented, show Available
+    if (car.status !== 'loue' || !car.active_reservation) {
+        return {
+            text: t('admin.fleet.disponible'), // "Disponible"
+            class: 'bg-green-100 text-green-800 border border-green-200 font-bold'
+        };
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    
+    const res = car.active_reservation;
     
     // Safety check for end_date
     if (!res.end_date) return { text: '-', class: '' };
@@ -58,8 +51,10 @@ function getDailyStatus(res: any) {
         };
     } else if (diffDays > 2) {
         // Returns later (show date)
-         return {
-            text: formatDateTime(res.end_date), 
+        // Extract date part only for cleaner display? formatDateTime includes time usually.
+        // Assuming formatDateTime handles it well or we prefer date string.
+        return {
+            text: new Date(res.end_date).toLocaleDateString('fr-FR'), 
             class: 'bg-green-100 text-green-800 border border-green-200 font-bold'
         };
     } else if (diffDays === 0) {
@@ -69,18 +64,12 @@ function getDailyStatus(res: any) {
             class: 'bg-red-600 text-white font-bold animate-pulse'
         };
     } else {
-        // Overdue?
+        // Overdue
          return {
             text: t('daily_journal.late'), 
             class: 'bg-red-800 text-white font-bold'
         };
     }
-    
-    // Fallback logic
-    return {
-        text: t(`admin.reservations.status_${res.status}`),
-        class: 'bg-gray-100 text-gray-800'
-    };
 }
 </script>
 
@@ -123,38 +112,40 @@ function getDailyStatus(res: any) {
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
-                        <tr v-if="activeReservations.length === 0">
+                        <tr v-if="cars.length === 0">
                             <td colspan="6" class="px-6 py-4 text-center text-gray-500">
-                                Aucune voiture louée actuellement.
+                                Aucun véhicule dans la flotte.
                             </td>
                         </tr>
-                        <tr v-for="res in activeReservations" :key="res.id" class="hover:bg-gray-50">
+                        <tr v-for="car in cars" :key="car.id" class="hover:bg-gray-50">
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm font-medium text-gray-900">
-                                    {{ res.car?.brand }} {{ res.car?.model }}
+                                    {{ car.brand }} {{ car.model }}
                                 </div>
                                 <div class="text-xs text-gray-500">
-                                    {{ res.car?.plate_number }}
+                                    {{ car.plate_number }}
                                 </div>
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {{ formatDateTime(res.start_date) }}
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-bold">
+                                {{ (car.active_reservation || car.last_reservation)?.start_date ? formatDateTime((car.active_reservation || car.last_reservation)!.start_date) : '-' }}
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {{ formatDateTime(res.end_date) }}
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-bold">
+                                {{ (car.active_reservation || car.last_reservation)?.end_date ? formatDateTime((car.active_reservation || car.last_reservation)!.end_date) : '-' }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm font-medium text-gray-900">{{ res.client_name }}</div>
+                                <div class="text-sm font-medium text-gray-900">
+                                    {{ (car.active_reservation || car.last_reservation)?.client_name || '-' }}
+                                </div>
                             </td>
                              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
-                                {{ res.contract_number || '-' }}
+                                {{ (car.active_reservation || car.last_reservation)?.contract_number || '-' }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm">
                                 <span 
-                                    :class="getDailyStatus(res).class"
+                                    :class="getDailyStatus(car).class"
                                     class="px-2 py-1 inline-flex text-xs leading-5 rounded-full"
                                 >
-                                    {{ getDailyStatus(res).text }}
+                                    {{ getDailyStatus(car).text }}
                                 </span>
                             </td>
                         </tr>
