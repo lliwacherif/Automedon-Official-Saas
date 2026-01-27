@@ -122,7 +122,7 @@ function getDailyStatus(car: any) {
                                 <div class="text-sm font-medium text-gray-900">
                                     {{ car.brand }} {{ car.model }}
                                 </div>
-                                <div class="text-xs text-gray-500">
+                                <div class="text-sm font-bold text-gray-700">
                                     {{ car.plate_number }}
                                 </div>
                             </td>
