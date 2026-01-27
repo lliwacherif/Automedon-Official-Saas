@@ -27,13 +27,6 @@ export interface Car {
         contract_number: string | null;
         status: string;
     };
-    last_reservation?: {
-        start_date: string;
-        end_date: string;
-        client_name: string;
-        contract_number: string | null;
-        status: string;
-    };
 }
 
 export interface CarsByBrand {
@@ -143,9 +136,9 @@ export function useCars() {
                 .from('reservations')
                 .select('car_id, start_date, end_date, client_name, contract_number, status')
                 .eq('tenant_id', tenantId)
-                .in('status', ['confirmed', 'active', 'completed']) // Include completed
-                // Removed .gte('end_date', nowIso) to get past reservations too (for last_reservation)
-                .order('end_date', { ascending: false }) as any);
+                .in('status', ['confirmed', 'active'])
+                .gte('end_date', nowIso)
+                .order('start_date', { ascending: true }) as any);
 
             if (resError) throw resError;
 
@@ -184,26 +177,10 @@ export function useCars() {
                         contract_number: activeRes.contract_number,
                         status: activeRes.status
                     };
+                } else if (isUnderMaintenance) {
+                    car.status = 'maintenance';
                 } else {
-                    // If no active reservation, find the LAST completed/past reservation
-                    const lastRes = (reservationsData || []).find((r: any) =>
-                        r.car_id === car.id &&
-                        r.end_date < nowIso
-                    );
-
-                    if (lastRes) {
-                        car.last_reservation = {
-                            start_date: lastRes.start_date,
-                            end_date: lastRes.end_date,
-                            client_name: lastRes.client_name,
-                            contract_number: lastRes.contract_number,
-                            status: lastRes.status
-                        };
-                    }
-
-                    if (isUnderMaintenance) {
-                        car.status = 'maintenance';
-                    } else if (car.status === 'loue' || car.status === 'maintenance') {
+                    if (car.status === 'loue' || car.status === 'maintenance') {
                         car.status = 'disponible';
                     }
                 }

@@ -127,18 +127,18 @@ function getDailyStatus(car: any) {
                                 </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-bold">
-                                {{ (car.active_reservation || car.last_reservation)?.start_date ? formatDateTime((car.active_reservation || car.last_reservation)!.start_date) : '-' }}
+                                {{ car.active_reservation ? formatDateTime(car.active_reservation.start_date) : '-' }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-bold">
-                                {{ (car.active_reservation || car.last_reservation)?.end_date ? formatDateTime((car.active_reservation || car.last_reservation)!.end_date) : '-' }}
+                                {{ car.active_reservation ? formatDateTime(car.active_reservation.end_date) : '-' }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm font-medium text-gray-900">
-                                    {{ (car.active_reservation || car.last_reservation)?.client_name || '-' }}
+                                    {{ car.active_reservation ? car.active_reservation.client_name : '-' }}
                                 </div>
                             </td>
                              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
-                                {{ (car.active_reservation || car.last_reservation)?.contract_number || '-' }}
+                                {{ car.active_reservation ? (car.active_reservation.contract_number || '-') : '-' }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm">
                                 <span 
