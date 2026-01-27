@@ -4,6 +4,7 @@ import { useReservations, type Reservation } from '@/composables/useReservations
 import { useReservationDocuments } from '@/composables/useReservationDocuments';
 import { useCars } from '@/composables/useCars';
 import { useTenantLink } from '@/composables/useTenantLink';
+import { useReportedClients, type ReportedClient } from '@/composables/useReportedClients';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 
@@ -12,6 +13,7 @@ const { getReservation, createReservation, updateReservation, checkAvailability 
 const { documents, loading: docsLoading, fetchDocuments, uploadDocument, deleteDocument } = useReservationDocuments();
 const { cars, fetchCars, updateCar, fetchCarById } = useCars();
 const { tenantPath } = useTenantLink();
+const { checkClientStatus } = useReportedClients();
 const route = useRoute();
 const router = useRouter();
 
@@ -21,6 +23,12 @@ const initialLoading = ref(true);
 const previewFile = ref<File | null>(null);
 const previewUrl = ref<string | null>(null);
 const showPreview = ref(false);
+
+// Reported Client State
+const reportedClientWarning = ref<ReportedClient | null>(null);
+const showReportWarning = ref(false);
+const proceededWithReportedClient = ref(false);
+
 const reservation = ref<Partial<Reservation>>({
     client_name: '',
     client_cin: '',
@@ -98,6 +106,9 @@ watch([() => reservation.value.price_per_day, () => reservation.value.duration_d
     calculateTotal();
 });
 
+// Watcher removed as per user request (check only on submit)
+
+
 function calculateTotal() {
     const days = reservation.value.duration_days || 0;
     const pricePerDay = reservation.value.price_per_day || 0;
@@ -120,6 +131,17 @@ async function handleSubmit() {
             alert(t('admin.reservations.validation_error'));
             loading.value = false;
             return;
+        }
+
+        // Final check for reported client if not already proceeded
+        if (!proceededWithReportedClient.value && reservation.value.client_cin) {
+             const report = await checkClientStatus(reservation.value.client_cin);
+             if (report) {
+                 reportedClientWarning.value = report;
+                 showReportWarning.value = true;
+                 loading.value = false;
+                 return;
+             }
         }
 
         if ((reservation.value.duration_days || 0) <= 0) {
@@ -686,6 +708,46 @@ import DateTimeInput from '@/components/DateTimeInput.vue';
                             {{ docsLoading ? 'Téléversement...' : 'Confirmer' }}
                         </button>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reported Client Warning Modal -->
+        <div v-if="showReportWarning" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-lg w-full p-6 border-l-4 border-red-500">
+                <div class="flex items-center mb-4">
+                    <svg class="h-8 w-8 text-red-600 mr-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <h3 class="text-xl font-bold text-red-600">{{ t('reports.warning_title') }}</h3>
+                </div>
+                
+                <p class="text-gray-800 font-medium mb-2">
+                    {{ t('reports.warning_message', { cin: reportedClientWarning?.client_cin }) }}
+                </p>
+                
+                <div class="bg-red-50 p-3 rounded mb-4 text-sm text-gray-700">
+                    <span class="font-bold">{{ t('reports.description') }}:</span> <br/>
+                    "{{ reportedClientWarning?.description }}"
+                </div>
+                
+                <p class="text-gray-600 mb-6 text-sm">
+                    {{ t('reports.warning_description', { reason: reportedClientWarning?.description }) }}
+                </p>
+                
+                <div class="flex justify-end space-x-3">
+                    <button 
+                        @click="showReportWarning = false; loading = false;"
+                        class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                    >
+                        {{ t('reports.cancel_reservation') }}
+                    </button>
+                    <button 
+                        @click="showReportWarning = false; proceededWithReportedClient = true; handleSubmit();"
+                        class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                    >
+                        {{ t('reports.confirm_anyway') }}
+                    </button>
                 </div>
             </div>
         </div>

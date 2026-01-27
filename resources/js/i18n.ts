@@ -13,6 +13,7 @@ const messages = {
             login: 'Login',
             register: 'Register',
             logout: 'Logout',
+            reports: 'Reports',
             hello: 'Hello',
         },
         home: {
@@ -34,8 +35,8 @@ const messages = {
         },
         about: {
             title: 'About Us',
-            brand: 'Ben Salah Rent Car',
-            description: 'Experience the best car rental service Monastir has to offer. We provide a meticulously maintained fleet, transparent pricing, and a dedicated team committed to ensuring your journey is smooth, comfortable, and hassle-free. Get the key to your Tunisian adventure with Ben Salah Rent Car.',
+            brand: 'Automedon',
+            description: 'Welcome to Automedon, the #1 SaaS product for car rental management in Tunisia. Powered by advanced AI, Automedon is the first solution of its kind in the country—smart, powerful, and designed to elevate your business. Experience the future of fleet management with our cutting-edge technology.',
             visit_website: 'For more information, visit',
         },
         contact: {
@@ -196,6 +197,24 @@ const messages = {
                 user_created_success: 'User "{username}" created successfully.',
                 create_user_error: 'Failed to create user. Ensure username is unique.',
             }
+        },
+        reports: {
+            title: 'Client Reports',
+            subtitle: 'Manage and view reported clients (Blacklist).',
+            add_report: 'Report a Client',
+            list_title: 'Reported Clients List',
+            client_name: 'Client Name',
+            client_cin: 'CIN (ID)',
+            client_phone: 'Phone Number',
+            description: 'Reason for Report',
+            submit: 'Report Client',
+            search_placeholder: 'Search by Name or CIN...',
+            no_reports: 'No reported clients found.',
+            warning_title: '⚠️ Client Reported!',
+            warning_message: 'This client (CIN: {cin}) has been reported.',
+            warning_description: 'Reason: "{reason}". Are you sure you want to proceed?',
+            confirm_anyway: 'Proceed Anyway',
+            cancel_reservation: 'Cancel',
         }
     },
     fr: {
@@ -210,6 +229,7 @@ const messages = {
             login: 'Connexion',
             register: 'Inscription',
             logout: 'Déconnexion',
+            reports: 'Signalements',
             hello: 'Bonjour',
         },
         home: {
@@ -231,8 +251,8 @@ const messages = {
         },
         about: {
             title: 'À Propos de Nous',
-            brand: 'Ben Salah Rent Car',
-            description: "Découvrez le meilleur service de location de voitures que Monastir a à offrir. Nous fournissons une flotte méticuleusement entretenue, une tarification transparente et une équipe dévouée qui s'engage à rendre votre voyage fluide, confortable et sans tracas. Obtenez la clé de votre aventure tunisienne avec Ben Salah Rent Car.",
+            brand: 'Automedon',
+            description: "Bienvenue sur Automedon, le produit SaaS N°1 pour la gestion de location de voitures en Tunisie. Propulsé par une IA avancée, Automedon est la première solution du genre dans le pays — intelligente, puissante et conçue pour propulser votre activité. Découvrez le futur de la gestion de flotte avec notre technologie de pointe.",
             visit_website: "Pour plus d'informations, visitez",
         },
         contact: {
@@ -393,6 +413,24 @@ const messages = {
                 user_created_success: 'Utilisateur "{username}" créé avec succès.',
                 create_user_error: "Échec de la création de l'utilisateur. Vérifiez que le nom d'utilisateur est unique.",
             }
+        },
+        reports: {
+            title: 'Signalements Clients',
+            subtitle: 'Gérer et consulter les clients signalés (Liste Noire).',
+            add_report: 'Signaler un Client',
+            list_title: 'Liste des Clients Signalés',
+            client_name: 'Nom du Client',
+            client_cin: 'CIN',
+            client_phone: 'Numéro de Téléphone',
+            description: 'Motif du Signalement',
+            submit: 'Signaler le Client',
+            search_placeholder: 'Rechercher par Nom ou CIN...',
+            no_reports: 'Aucun client signalé trouvé.',
+            warning_title: '⚠️ Client Signalé !',
+            warning_message: 'Ce client (CIN : {cin}) a été signalé.',
+            warning_description: 'Motif : "{reason}". Êtes-vous sûr de vouloir continuer ?',
+            confirm_anyway: 'Continuer quand même',
+            cancel_reservation: 'Annuler',
         }
     }
 };

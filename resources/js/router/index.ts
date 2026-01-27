@@ -143,6 +143,12 @@ const routes = [
                 meta: { requiresAuth: true, requiresAdmin: true, requiresSuperAdmin: true }
             },
             {
+                path: 'admin/reports',
+                component: () => import('../Pages/Admin/Reports.vue'),
+                name: 'admin.reports',
+                meta: { requiresAuth: true, requiresAdmin: true }
+            },
+            {
                 path: 'admin/history/:id',
                 component: () => import('../Pages/Admin/History/Show.vue'),
                 name: 'admin.history.show',
