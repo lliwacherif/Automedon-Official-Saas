@@ -536,10 +536,12 @@ import DateTimeInput from '@/components/DateTimeInput.vue';
 
             <!-- Documents & Contracts (Only in Edit Mode) -->
             <div v-if="isEditMode" class="border-b pb-4">
-                <h2 class="text-lg font-medium text-gray-900 mb-4">Documents & Contrats</h2>
+                <h2 class="text-lg font-medium text-gray-900 mb-4">
+                    Documents & Contrats ({{ documents.length }}/3)
+                </h2>
                 
                 <!-- Upload Section -->
-                <div class="mb-6">
+                <div v-if="documents.length < 3" class="mb-6">
                     <label class="block text-sm font-medium text-gray-700 mb-2">
                         Capturer / Téléverser Contrat
                     </label>
@@ -558,6 +560,9 @@ import DateTimeInput from '@/components/DateTimeInput.vue';
                         />
                         <div v-if="docsLoading" class="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600"></div>
                     </div>
+                </div>
+                <div v-else class="mb-6 p-4 bg-yellow-50 text-yellow-800 rounded-md text-sm border border-yellow-200">
+                    Maximum de 3 documents atteint. Veuillez en supprimer un pour en ajouter un nouveau.
                 </div>
 
                 <!-- Documents List -->
