@@ -14,6 +14,7 @@ const messages = {
             register: 'Register',
             logout: 'Logout',
             reports: 'Reports',
+            daily_journal: 'Daily Journal',
             hello: 'Hello',
         },
         home: {
@@ -215,6 +216,13 @@ const messages = {
             warning_description: 'Reason: "{reason}". Are you sure you want to proceed?',
             confirm_anyway: 'Proceed Anyway',
             cancel_reservation: 'Cancel',
+        },
+        daily_journal: {
+            title: 'Daily Journal',
+            return_tomorrow: 'Return Tomorrow',
+            return_after_tomorrow: 'After Tomorrow',
+            return_today: 'Return Today',
+            late: 'Overdue',
         }
     },
     fr: {
@@ -230,6 +238,7 @@ const messages = {
             register: 'Inscription',
             logout: 'Déconnexion',
             reports: 'Signalements',
+            daily_journal: 'Tableau Journalier',
             hello: 'Bonjour',
         },
         home: {
@@ -431,6 +440,13 @@ const messages = {
             warning_description: 'Motif : "{reason}". Êtes-vous sûr de vouloir continuer ?',
             confirm_anyway: 'Continuer quand même',
             cancel_reservation: 'Annuler',
+        },
+        daily_journal: {
+            title: 'Tableau Journalier',
+            return_tomorrow: 'Retour Demain',
+            return_after_tomorrow: 'Après Demain',
+            return_today: 'Retour Aujourd\'hui',
+            late: 'En Retard',
         }
     }
 };

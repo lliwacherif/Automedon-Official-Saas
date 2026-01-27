@@ -113,6 +113,12 @@ const routes = [
                 meta: { requiresAuth: true, requiresAdmin: true }
             },
             {
+                path: 'admin/daily-journal',
+                component: () => import('../Pages/Admin/DailyJournal.vue'),
+                name: 'admin.daily_journal.index',
+                meta: { requiresAuth: true, requiresAdmin: true }
+            },
+            {
                 path: 'admin/reservations-table',
                 component: () => import('../Pages/Admin/ReservationsTable.vue'),
                 name: 'admin.reservations.table',
