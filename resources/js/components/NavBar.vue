@@ -397,12 +397,12 @@ async function handleLogout() {
                         <template v-if="authStore.user || authStore.isAdmin">
                             <button 
                                 @click="handleLogout"
-                                class="flex items-center justify-center w-full px-4 py-3 text-red-600 bg-red-50 rounded-lg hover:bg-red-100"
+                                class="flex items-center justify-center p-3 text-red-600 hover:bg-red-50 rounded-full mx-auto transition-colors"
+                                :title="$t('nav.logout')"
                             >
-                                <svg class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                                 </svg>
-                                {{ $t('nav.logout') }}
                             </button>
                         </template>
                         <template v-else>
