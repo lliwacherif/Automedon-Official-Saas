@@ -110,8 +110,11 @@ function getDailyStatus(car: any) {
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Client
                             </th>
-                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Contract ID
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Paiement
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Statut
@@ -144,8 +147,19 @@ function getDailyStatus(car: any) {
                                     {{ car.active_reservation ? car.active_reservation.client_name : '-' }}
                                 </div>
                             </td>
-                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
                                 {{ car.active_reservation ? (car.active_reservation.contract_number || '-') : '-' }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                <template v-if="car.active_reservation">
+                                    <span v-if="(car.active_reservation.total_price - car.active_reservation.advance_payment) <= 0" class="text-green-600 font-bold">
+                                        Payé
+                                    </span>
+                                    <span v-else class="text-red-600 font-bold">
+                                        Reste: {{ (car.active_reservation.total_price - car.active_reservation.advance_payment).toFixed(2) }} DT
+                                    </span>
+                                </template>
+                                <span v-else>-</span>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm">
                                 <span 

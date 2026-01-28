@@ -26,6 +26,8 @@ export interface Car {
         client_name: string;
         contract_number: string | null;
         status: string;
+        total_price: number;
+        advance_payment: number;
     };
 }
 
@@ -134,7 +136,7 @@ export function useCars() {
             // Fetch active and future reservations
             const { data: reservationsData, error: resError } = await (supabase
                 .from('reservations')
-                .select('car_id, start_date, end_date, client_name, contract_number, status')
+                .select('car_id, start_date, end_date, client_name, contract_number, status, total_price, advance_payment')
                 .eq('tenant_id', tenantId)
                 .in('status', ['confirmed', 'active'])
                 .gte('end_date', nowIso)
@@ -175,7 +177,9 @@ export function useCars() {
                         end_date: activeRes.end_date,
                         client_name: activeRes.client_name,
                         contract_number: activeRes.contract_number,
-                        status: activeRes.status
+                        status: activeRes.status,
+                        total_price: activeRes.total_price || 0,
+                        advance_payment: activeRes.advance_payment || 0
                     };
                 } else if (isUnderMaintenance) {
                     car.status = 'maintenance';
