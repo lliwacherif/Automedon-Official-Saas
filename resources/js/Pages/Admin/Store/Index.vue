@@ -1,15 +1,34 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
-import { useStore } from '@/composables/useStore';
-import { ShoppingBag, Loader2, Info } from 'lucide-vue-next';
+import { ref, onMounted } from 'vue';
+import { useStore, type StoreApp } from '@/composables/useStore';
+import { useTenantStore } from '@/stores/tenant';
+import { useAuthStore } from '@/stores/auth';
+import { ShoppingBag, Loader2, Info, Send, X } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n();
 const { apps, loading, fetchApps } = useStore();
+const tenantStore = useTenantStore();
+const authStore = useAuthStore();
+
+// Modal State
+const showOrderModal = ref(false);
+const selectedApp = ref<StoreApp | null>(null);
+const sending = ref(false);
 
 onMounted(() => {
     fetchApps();
 });
+
+function handleOrderClick(app: StoreApp) {
+    selectedApp.value = app;
+    showOrderModal.value = true;
+}
+
+function handleCloseModal() {
+    showOrderModal.value = false;
+    selectedApp.value = null;
+}
 </script>
 
 <template>
@@ -58,10 +77,94 @@ onMounted(() => {
                     </p>
 
                     <div class="mt-auto pt-4 border-t border-gray-100">
-                        <button class="w-full flex justify-center items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
-                            <Info class="w-4 h-4 mr-2" />
-                            Voir détails
+                        <button 
+                            @click="handleOrderClick(app)"
+                            class="w-full flex justify-center items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                        >
+                            <ShoppingBag class="w-4 h-4 mr-2" />
+                            Commander Application
                         </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Order Modal -->
+        <div v-if="showOrderModal && selectedApp" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+            <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" @click="handleCloseModal"></div>
+
+                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+                <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg w-full">
+                    <div class="bg-indigo-600 px-4 py-3 sm:px-6 flex justify-between items-center">
+                        <h3 class="text-lg leading-6 font-medium text-white" id="modal-title">Commander {{ selectedApp.name }}</h3>
+                        <button @click="handleCloseModal" class="text-white hover:text-gray-200">
+                            <X class="w-5 h-5" />
+                        </button>
+                    </div>
+                    
+                    <div class="p-6">
+                        <p class="text-gray-600 mb-6 text-sm">
+                            Veuillez confirmer votre demande pour commander l'application <strong>{{ selectedApp.name }}</strong>. 
+                            Une notification sera envoyée à l'administrateur principal.
+                        </p>
+
+                        <!-- FormSubmit Form -->
+                        <form 
+                            action="https://formsubmit.co/liwacherif200@gmail.com" 
+                            method="POST" 
+                            class="space-y-4"
+                        >
+                            <!-- Hidden Configuration Fields -->
+                            <input type="hidden" name="_subject" :value="`Nouvelle commande d'application: ${selectedApp.name}`">
+                            <input type="hidden" name="_next" :value="window?.location?.href"> <!-- Redirect back to same page -->
+                            <input type="hidden" name="_captcha" value="false">
+                            <input type="hidden" name="_template" value="table">
+
+                            <!-- Visual Read-only Fields -->
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Application</label>
+                                <input type="text" :value="selectedApp.name" readonly disabled class="mt-1 block w-full bg-gray-50 border-gray-300 rounded-md shadow-sm sm:text-sm p-2 border text-gray-500">
+                                <input type="hidden" name="Application" :value="selectedApp.name">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Client (Tenant)</label>
+                                <input type="text" :value="tenantStore.currentTenant?.name || 'Unknown'" readonly disabled class="mt-1 block w-full bg-gray-50 border-gray-300 rounded-md shadow-sm sm:text-sm p-2 border text-gray-500">
+                                <input type="hidden" name="Tenant" :value="tenantStore.currentTenant?.name">
+                                <input type="hidden" name="Tenant Slug" :value="tenantStore.currentTenant?.slug">
+                            </div>
+
+                            <!-- Optional Message -->
+                            <div>
+                                <label for="message" class="block text-sm font-medium text-gray-700">Message (Optionnel)</label>
+                                <textarea 
+                                    name="Message" 
+                                    id="message" 
+                                    rows="3" 
+                                    class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2 border" 
+                                    placeholder="Ajouter une note..."
+                                ></textarea>
+                            </div>
+
+                            <div class="mt-6 flex justify-end gap-3 pt-4 border-t border-gray-100">
+                                <button
+                                    type="button"
+                                    @click="handleCloseModal"
+                                    class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                >
+                                    Annuler
+                                </button>
+                                <button
+                                    type="submit"
+                                    class="px-4 py-2 bg-indigo-600 border border-transparent rounded-lg text-sm font-medium text-white hover:bg-indigo-700 flex items-center"
+                                >
+                                    <Send class="w-4 h-4 mr-2" />
+                                    Envoyer la demande
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             </div>
