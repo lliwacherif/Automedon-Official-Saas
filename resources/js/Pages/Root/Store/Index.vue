@@ -14,6 +14,7 @@ const newApp = ref({
 });
 const selectedIcon = ref<File | null>(null);
 const iconPreview = ref<string | null>(null);
+const fileInput = ref<HTMLInputElement | null>(null);
 
 onMounted(() => {
     fetchApps();
