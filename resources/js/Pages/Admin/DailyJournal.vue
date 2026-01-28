@@ -12,6 +12,13 @@ onMounted(() => {
     fetchCars(); 
 });
 
+
+// Helper to format plate number
+function formatPlate(plate: string): string {
+    if (!plate) return '';
+    return plate.replace(/(\d+)(TN)(\d+)/i, '$1 $2 $3');
+}
+
 // Helper to determine status display
 function getDailyStatus(car: any) {
     // If not rented, show Available
@@ -123,7 +130,7 @@ function getDailyStatus(car: any) {
                                     {{ car.brand }} {{ car.model }}
                                 </div>
                                 <div class="text-sm font-bold text-gray-700">
-                                    {{ car.plate_number }}
+                                    {{ formatPlate(car.plate_number) }}
                                 </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-bold">

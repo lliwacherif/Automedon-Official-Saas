@@ -1,1 +1,0 @@
-import{_ as o,e as t,o as n,D as c,Z as s}from"./index-C1y38dmy.js";const a={},r={class:"tenant-layout"};function _(i,l){const e=s("RouterView");return n(),t("div",r,[c(e)])}const d=o(a,[["render",_]]);export{d as default};
