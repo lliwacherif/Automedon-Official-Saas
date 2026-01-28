@@ -43,6 +43,12 @@ const routes = [
         meta: { requiresRoot: true }
     },
     {
+        path: '/root/store',
+        component: () => import('../Pages/Root/Store/Index.vue'),
+        name: 'root.store',
+        meta: { requiresRoot: true }
+    },
+    {
         path: '/root/settings',
         component: RootSettings,
         name: 'root.settings',
@@ -159,6 +165,12 @@ const routes = [
                 component: () => import('../Pages/Admin/History/Show.vue'),
                 name: 'admin.history.show',
                 meta: { requiresAuth: true, requiresAdmin: true, requiresSuperAdmin: true }
+            },
+            {
+                path: 'admin/store',
+                component: () => import('../Pages/Admin/Store/Index.vue'),
+                name: 'admin.store.index',
+                meta: { requiresAuth: true, requiresAdmin: true } // Visible to all admins (including assistants? or restrict?)
             },
         ]
     },

@@ -6,7 +6,7 @@ import { useTenantStore } from '@/stores/tenant';
 import { useTenantLink } from '@/composables/useTenantLink';
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue';
 import GlobalCalendarModal from '@/components/GlobalCalendarModal.vue';
-import { History, Calendar, Table, CalendarClock, Wrench } from 'lucide-vue-next';
+import { History, Calendar, Table, CalendarClock, Wrench, ShoppingBag } from 'lucide-vue-next';
 
 const authStore = useAuthStore();
 const tenantStore = useTenantStore();
@@ -139,6 +139,15 @@ async function handleLogout() {
                     >
                         <Calendar class="w-5 h-5" />
                     </button>
+                    <!-- Store Link for Tenant Admin -->
+                    <RouterLink 
+                        v-if="tenantStore.currentTenant"
+                        :to="tenantPath('/admin/store')"
+                        class="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 rounded-full mr-2 transition-colors"
+                        title="Store"
+                    >
+                        <ShoppingBag class="w-5 h-5" />
+                    </RouterLink>
                     <LanguageSwitcher class="mr-4" />
                     <template v-if="authStore.user || authStore.isAdmin">
                         <span v-if="authStore.isAdmin" class="text-gray-700 text-sm mr-4">{{ $t('common.admin') }}</span>
@@ -267,6 +276,16 @@ async function handleLogout() {
                             <Calendar class="w-5 h-5 mr-3" />
                             Calendrier Global
                         </button>
+
+                        <RouterLink 
+                            v-if="tenantStore.currentTenant"
+                            :to="tenantPath('/admin/store')"
+                            @click="closeMobileMenu"
+                            class="flex items-center px-4 py-3 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600"
+                        >
+                            <ShoppingBag class="w-5 h-5 mr-3" />
+                            Store
+                        </RouterLink>
                         
                         <RouterLink 
                             :to="tenantPath('/about')"

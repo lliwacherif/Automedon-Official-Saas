@@ -120,6 +120,9 @@ onMounted(() => {
                 </div>
                 <div class="flex items-center space-x-4">
                     <span class="text-gray-400">root@automedon</span>
+                    <RouterLink :to="{ name: 'root.store' }" class="text-sm bg-gray-800 hover:bg-gray-700 px-3 py-1 rounded transition">
+                        Store
+                    </RouterLink>
                     <RouterLink :to="{ name: 'root.settings' }" class="text-sm bg-gray-800 hover:bg-gray-700 px-3 py-1 rounded transition">
                         Settings
                     </RouterLink>
