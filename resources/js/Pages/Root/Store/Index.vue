@@ -153,7 +153,7 @@ async function handleDelete(id: number) {
                         
                         <form @submit.prevent="handleSubmit" class="p-6 space-y-5">
                             <!-- Icon Upload -->
-                            <div class="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer relative" @click="$refs.fileInput.click()">
+                            <div class="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer relative" @click="fileInput?.click()">
                                 <input
                                     ref="fileInput"
                                     type="file"
