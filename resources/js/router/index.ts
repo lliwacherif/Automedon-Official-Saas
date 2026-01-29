@@ -131,6 +131,12 @@ const routes = [
                 meta: { requiresAuth: true, requiresAdmin: true }
             },
             {
+                path: 'admin/invoices/:id/build',
+                component: () => import('../Pages/Admin/Invoices/InvoiceBuilderPage.vue'),
+                name: 'admin.invoices.build',
+                meta: { requiresAuth: true, requiresAdmin: true }
+            },
+            {
                 path: 'admin/maintenance',
                 component: () => import('../Pages/Admin/Maintenance/Index.vue'),
                 name: 'admin.maintenance.index',

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useStore, type StoreApp } from '@/composables/useStore';
-import { Plus, Trash2, Loader2, Upload, ShoppingBag, ArrowLeft } from 'lucide-vue-next';
+import { Plus, Trash2, Loader2, Upload, ShoppingBag, ArrowLeft, Users } from 'lucide-vue-next';
+import ClientAssignmentModal from '@/components/Store/ClientAssignmentModal.vue';
 
 const { apps, loading, error, fetchApps, addApp, deleteApp } = useStore();
 
@@ -15,6 +16,20 @@ const newApp = ref({
 const selectedIcon = ref<File | null>(null);
 const iconPreview = ref<string | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
+
+// Assignment Modal State
+const showAssignmentModal = ref(false);
+const selectedAppForAssignment = ref<StoreApp | null>(null);
+
+function openAssignmentModal(app: StoreApp) {
+    selectedAppForAssignment.value = app;
+    showAssignmentModal.value = true;
+}
+
+function closeAssignmentModal() {
+    showAssignmentModal.value = false;
+    selectedAppForAssignment.value = null;
+}
 
 onMounted(() => {
     fetchApps();
@@ -111,6 +126,13 @@ async function handleDelete(id: number) {
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                     {{ app.price > 0 ? `${app.price.toFixed(2)} DT` : 'Free' }}
                                 </span>
+                                <button
+                                    @click="openAssignmentModal(app)"
+                                    class="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
+                                    title="Assign to Clients"
+                                >
+                                    <Users class="h-4 w-4" />
+                                </button>
                                 <button
                                     @click="handleDelete(app.id)"
                                     class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
@@ -237,6 +259,13 @@ async function handleDelete(id: number) {
                     </div>
                 </div>
             </div>
+
+            <!-- Client Assignment Modal -->
+            <ClientAssignmentModal
+                :show="showAssignmentModal"
+                :app="selectedAppForAssignment"
+                @close="closeAssignmentModal"
+            />
         </div>
     </div>
 </template>

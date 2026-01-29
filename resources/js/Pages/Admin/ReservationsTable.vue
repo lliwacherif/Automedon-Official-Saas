@@ -3,19 +3,28 @@ import { ref, onMounted } from 'vue';
 import { useReservations } from '@/composables/useReservations';
 import { useI18n } from 'vue-i18n';
 import { formatDateTime } from '@/utils/date';
-import { Loader2, Edit, FileDown } from 'lucide-vue-next';
+import { Loader2, Edit, FileDown, Lock, FileText } from 'lucide-vue-next';
 import { useTenantLink } from '@/composables/useTenantLink';
-import { RouterLink } from 'vue-router';
+import { RouterLink, useRouter } from 'vue-router';
 import { useExport } from '@/composables/useExport';
+import { useAppAccess } from '@/composables/useAppAccess';
+import { useTenantStore } from '@/stores/tenant';
+import UpsellModal from '@/components/Store/UpsellModal.vue';
 
 const { t } = useI18n();
 const { reservations, loading, fetchReservations } = useReservations();
 const { tenantPath } = useTenantLink();
 const { exportToCsv } = useExport();
+const { hasAccess, fetchAssignedApps } = useAppAccess();
+const tenantStore = useTenantStore();
+const router = useRouter();
+
+// Modal State
+const showUpsell = ref(false);
 
 function handleExport() {
     const data = reservations.value.map(res => ({
-        'Voiture & Plaque': `${res.car?.brand} ${res.car?.model}\n${res.car?.plate_number}`, // Intentionally using newline if supported by Excel CSV import, otherwise it will just be a space or handle specially. Standard CSV handles newlines in quotes.
+        'Voiture & Plaque': `${res.car?.brand} ${res.car?.model}\n${res.car?.plate_number}`,
         'Date Début': formatDateTime(res.start_date),
         'Date Fin': formatDateTime(res.end_date),
         'Client': res.client_name,
@@ -25,8 +34,26 @@ function handleExport() {
     exportToCsv(`reservations_${new Date().toISOString().split('T')[0]}.csv`, data);
 }
 
-onMounted(() => {
-    fetchReservations(); // Load all reservations
+function handleInvoiceClick(reservation: any) {
+    if (hasAccess('Facture Pro')) {
+        // Navigate to Invoice Page
+        if (tenantStore.currentTenant?.slug) {
+            router.push({ 
+                name: 'admin.invoices.build', 
+                params: { 
+                    tenantSlug: tenantStore.currentTenant.slug,
+                    id: reservation.id 
+                } 
+            });
+        }
+    } else {
+        showUpsell.value = true;
+    }
+}
+
+onMounted(async () => {
+    fetchReservations();
+    await fetchAssignedApps();
 });
 </script>
 
@@ -65,11 +92,11 @@ onMounted(() => {
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Client
                             </th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Coût Total
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Contract ID
+                                Facture
                             </th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Modifier
@@ -103,8 +130,15 @@ onMounted(() => {
                              <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
                                 {{ res.total_price.toFixed(2) }} TND
                             </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
-                                {{ res.contract_number || '-' }}
+                            <td class="px-6 py-4 whitespace-nowrap text-center">
+                                <button 
+                                    @click="handleInvoiceClick(res)"
+                                    class="text-gray-500 hover:text-indigo-600 focus:outline-none transition-colors"
+                                    :title="hasAccess('Facture Pro') ? 'Générer Facture' : 'Facture Pro requis'"
+                                >
+                                    <FileText v-if="hasAccess('Facture Pro')" class="h-5 w-5" />
+                                    <Lock v-else class="h-4 w-4 text-gray-400" />
+                                </button>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                  <RouterLink 
@@ -120,5 +154,11 @@ onMounted(() => {
                 </table>
             </div>
         </div>
+
+        <UpsellModal 
+            :show="showUpsell" 
+            app-name="Facture Pro"
+            @close="showUpsell = false" 
+        />
     </div>
 </template>

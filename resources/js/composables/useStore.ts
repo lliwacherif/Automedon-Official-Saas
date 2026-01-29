@@ -14,6 +14,14 @@ export interface StoreApp {
     is_active: boolean; // Added is_active
 }
 
+export interface AppAssignment {
+    id: number;
+    app_id: number;
+    tenant_id: string;
+    created_at: string;
+    status: string;
+}
+
 export function useStore() {
     const apps = ref<StoreApp[]>([]);
     const loading = ref(false);
@@ -119,12 +127,78 @@ export function useStore() {
         }
     }
 
+    async function assignAppToTenant(appId: number, tenantId: string) {
+        loading.value = true;
+        error.value = null;
+
+        try {
+            const { error: insertError } = await (supabase
+                .from('app_assignments') as any)
+                .insert([
+                    {
+                        app_id: appId,
+                        tenant_id: tenantId,
+                        status: 'active'
+                    }
+                ]);
+
+            if (insertError) throw insertError;
+        } catch (e: any) {
+            error.value = e.message;
+            console.error('Error assigning app:', e);
+            throw e;
+        } finally {
+            loading.value = false;
+        }
+    }
+
+    // Root Admin: Unassign App from Tenant
+    async function unassignAppFromTenant(appId: number, tenantId: string) {
+        loading.value = true;
+        error.value = null;
+
+        try {
+            const { error: deleteError } = await supabase
+                .from('app_assignments')
+                .delete()
+                .eq('app_id', appId)
+                .eq('tenant_id', tenantId);
+
+            if (deleteError) throw deleteError;
+        } catch (e: any) {
+            error.value = e.message;
+            console.error('Error unassigning app:', e);
+            throw e;
+        } finally {
+            loading.value = false;
+        }
+    }
+
+    // Fetch assignments for a specific app
+    async function fetchAppAssignments(appId: number) {
+        try {
+            const { data, error: fetchError } = await (supabase
+                .from('app_assignments')
+                .select('*')
+                .eq('app_id', appId) as any);
+
+            if (fetchError) throw fetchError;
+            return data as AppAssignment[];
+        } catch (e: any) {
+            console.error('Error fetching assignments:', e);
+            return [];
+        }
+    }
+
     return {
         apps,
         loading,
         error,
         fetchApps,
         addApp,
-        deleteApp
+        deleteApp,
+        assignAppToTenant,
+        unassignAppFromTenant,
+        fetchAppAssignments
     };
 }

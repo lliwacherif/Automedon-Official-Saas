@@ -24,6 +24,24 @@ export const useTenantStore = defineStore('tenant', () => {
     const loading = ref(false);
     const error = ref<string | null>(null);
 
+    async function fetchAllTenants() {
+        loading.value = true;
+        try {
+            const { data, error: fetchError } = await supabase
+                .from('tenants')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (fetchError) throw fetchError;
+            return data as Tenant[];
+        } catch (e: any) {
+            console.error('Error fetching tenants:', e);
+            throw e;
+        } finally {
+            loading.value = false;
+        }
+    }
+
     async function fetchTenantBySlug(slug: string) {
         // If we already have the correct tenant loaded, skip
         if (currentTenant.value?.slug === slug) return currentTenant.value;
@@ -157,6 +175,7 @@ export const useTenantStore = defineStore('tenant', () => {
         loading,
         error,
         fetchTenantBySlug,
+        fetchAllTenants,
         createTenant,
         deleteTenant,
         createTenantUser
