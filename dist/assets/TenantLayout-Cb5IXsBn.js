@@ -1,1 +1,0 @@
-import{_ as o,e as t,o as n,C as c,Z as s}from"./index-6E32DxFF.js";const a={},r={class:"tenant-layout"};function _(i,l){const e=s("RouterView");return n(),t("div",r,[c(e)])}const d=o(a,[["render",_]]);export{d as default};
