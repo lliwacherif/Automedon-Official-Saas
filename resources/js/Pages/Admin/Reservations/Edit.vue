@@ -8,8 +8,55 @@ import { useReportedClients, type ReportedClient } from '@/composables/useReport
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 
+import { useFaithfulClients, type FaithfulClient } from '@/composables/useFaithfulClients';
+
 const { t } = useI18n();
+const { searchFaithfulClients } = useFaithfulClients();
 const { getReservation, createReservation, updateReservation, checkAvailability } = useReservations();
+
+// Autocomplete State
+const clientSuggestions = ref<FaithfulClient[]>([]);
+const showClientSuggestions = ref(false);
+const isSearchingClients = ref(false);
+
+const handleClientNameInput = async () => {
+    const query = reservation.value.client_name;
+    if (!query || query.length < 2) {
+        clientSuggestions.value = [];
+        showClientSuggestions.value = false;
+        return;
+    }
+
+    isSearchingClients.value = true;
+    try {
+        const results = await searchFaithfulClients(query);
+        clientSuggestions.value = results;
+        showClientSuggestions.value = results.length > 0;
+    } catch (e) {
+        console.error('Error searching clients:', e);
+    } finally {
+        isSearchingClients.value = false;
+    }
+};
+
+const selectClient = (client: FaithfulClient) => {
+    reservation.value.client_name = client.full_name;
+    reservation.value.client_cin = client.cin;
+    reservation.value.client_phone = client.phone;
+    if (client.email) {
+        reservation.value.client_email = client.email;
+    }
+    
+    showClientSuggestions.value = false;
+    clientSuggestions.value = [];
+};
+
+// Close suggestions when clicking outside (simple version relies on blur with delay)
+const closeSuggestionsWithDelay = () => {
+    setTimeout(() => {
+        showClientSuggestions.value = false;
+    }, 200);
+};
 const { documents, loading: docsLoading, fetchDocuments, uploadDocument, deleteDocument } = useReservationDocuments();
 const { cars, fetchCars, updateCar, fetchCarById } = useCars();
 const { tenantPath } = useTenantLink();
@@ -308,12 +355,35 @@ import DateTimeInput from '@/components/DateTimeInput.vue';
                         <label class="block text-sm font-medium text-gray-700 mb-1">
                             {{ t('admin.reservations.client_name') }} *
                         </label>
-                        <input 
-                            v-model="reservation.client_name"
-                            type="text"
-                            required
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        >
+                        <div class="relative">
+                            <input 
+                                v-model="reservation.client_name"
+                                type="text"
+                                required
+                                @input="handleClientNameInput"
+                                @focus="handleClientNameInput"
+                                @blur="closeSuggestionsWithDelay"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                autocomplete="off"
+                            >
+                            <!-- Autocomplete Dropdown -->
+                            <div v-if="showClientSuggestions" class="absolute z-10 w-full bg-white mt-1 border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto">
+                                <ul>
+                                    <li 
+                                        v-for="client in clientSuggestions" 
+                                        :key="client.id"
+                                        @mousedown="selectClient(client)" 
+                                        class="px-4 py-2 hover:bg-indigo-50 cursor-pointer border-b border-gray-100 last:border-0"
+                                    >
+                                        <div class="font-medium text-gray-900">{{ client.full_name }}</div>
+                                        <div class="text-xs text-gray-500 flex justify-between">
+                                            <span>{{ client.cin }}</span>
+                                            <span>{{ client.phone }}</span>
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
                     </div>
 
                     <div>
