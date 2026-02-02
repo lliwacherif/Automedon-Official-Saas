@@ -3,8 +3,11 @@ import { ref, onMounted } from 'vue';
 import { useReservations } from '@/composables/useReservations';
 import { useReservationDocuments } from '@/composables/useReservationDocuments';
 import { useTenantLink } from '@/composables/useTenantLink';
-import { RouterLink } from 'vue-router';
+import { RouterLink, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
+import { useAppAccess } from '@/composables/useAppAccess';
+import { useTenantStore } from '@/stores/tenant';
+import UpsellModal from '@/components/Store/UpsellModal.vue';
 import { 
     Search, 
     Filter, 
@@ -18,20 +21,26 @@ import {
     ChevronDown, 
     ChevronUp,
     Download,
-    Eye
+    Eye,
+    Lock
 } from 'lucide-vue-next';
 
 const { t } = useI18n();
 const { reservations, loading, fetchReservations, deleteReservation } = useReservations();
 const { documents, fetchDocuments } = useReservationDocuments();
 const { tenantPath } = useTenantLink();
+const { checkAppAccess, fetchAssignedApps } = useAppAccess();
+const tenantStore = useTenantStore();
+const router = useRouter();
 
 const search = ref('');
 const statusFilter = ref('all');
 const expandedReservation = ref<number | null>(null);
+const showUpsell = ref(false);
 
-onMounted(() => {
+onMounted(async () => {
     loadReservations();
+    await fetchAssignedApps();
 });
 
 async function loadReservations() {
@@ -68,6 +77,23 @@ async function toggleExpand(id: number) {
     } else {
         expandedReservation.value = id;
         await fetchDocuments(id);
+    }
+}
+
+function handleInvoiceClick(reservation: any) {
+    if (checkAppAccess('Facture Pro')) {
+        // Navigate to Invoice Page
+        if (tenantStore.currentTenant?.slug) {
+            router.push({ 
+                name: 'admin.invoices.build', 
+                params: { 
+                    tenantSlug: tenantStore.currentTenant.slug,
+                    id: reservation.id 
+                } 
+            });
+        }
+    } else {
+        showUpsell.value = true;
     }
 }
 
@@ -154,6 +180,9 @@ import { formatDate, formatDateTime } from '@/utils/date';
                         <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Documents
                         </th>
+                        <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Facture
+                        </th>
                         <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                             {{ t('common.actions') }}
                         </th>
@@ -161,7 +190,7 @@ import { formatDate, formatDateTime } from '@/utils/date';
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
                     <tr v-if="reservations.length === 0">
-                        <td colspan="8" class="px-6 py-4 text-center text-gray-500">
+                        <td colspan="9" class="px-6 py-4 text-center text-gray-500">
                             {{ t('admin.reservations.no_reservations') }}
                         </td>
                     </tr>
@@ -198,6 +227,16 @@ import { formatDate, formatDateTime } from '@/utils/date';
                                     </svg>
                                 </button>
                             </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-center" @click.stop>
+                                <button 
+                                    @click="handleInvoiceClick(res)"
+                                    class="text-gray-500 hover:text-indigo-600 focus:outline-none transition-colors"
+                                    :title="checkAppAccess('Facture Pro') ? 'Générer Facture' : 'Facture Pro requis'"
+                                >
+                                    <FileText v-if="checkAppAccess('Facture Pro')" class="h-5 w-5" />
+                                    <Lock v-else class="h-4 w-4 text-gray-400" />
+                                </button>
+                            </td>
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2" @click.stop>
                                 <RouterLink 
                                     :to="tenantPath(`/admin/reservations/${res.id}`)" 
@@ -216,7 +255,7 @@ import { formatDate, formatDateTime } from '@/utils/date';
                         
                         <!-- Expanded Documents Section -->
                         <tr v-if="expandedReservation === res.id">
-                            <td colspan="8" class="px-6 py-4 bg-gray-50">
+                            <td colspan="9" class="px-6 py-4 bg-gray-50">
                                 <div class="max-w-4xl">
                                     <h4 class="text-sm font-semibold text-gray-900 mb-3">Documents du Contrat</h4>
                                     <div v-if="documents.length > 0" class="space-y-2">
@@ -312,6 +351,14 @@ import { formatDate, formatDateTime } from '@/utils/date';
                     <!-- Actions -->
                     <div class="flex space-x-2">
                         <button 
+                            @click="handleInvoiceClick(res)"
+                            class="p-2 text-gray-400 hover:text-indigo-600 rounded-full hover:bg-gray-100"
+                            :title="checkAppAccess('Facture Pro') ? 'Générer Facture' : 'Facture Pro requis'"
+                        >
+                            <FileText v-if="checkAppAccess('Facture Pro')" class="h-4 w-4" />
+                            <Lock v-else class="h-4 w-4" />
+                        </button>
+                        <button 
                             @click="toggleExpand(res.id)" 
                             class="p-2 text-gray-400 hover:text-indigo-600 rounded-full hover:bg-gray-100"
                         >
@@ -355,5 +402,11 @@ import { formatDate, formatDateTime } from '@/utils/date';
             </div>
         </div>
         </div>
+        
+        <UpsellModal 
+            :show="showUpsell" 
+            app-name="Facture Pro"
+            @close="showUpsell = false" 
+        />
     </div>
 </template>

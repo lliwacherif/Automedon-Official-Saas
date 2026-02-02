@@ -15,7 +15,7 @@ const { t } = useI18n();
 const { reservations, loading, fetchReservations } = useReservations();
 const { tenantPath } = useTenantLink();
 const { exportToCsv } = useExport();
-const { hasAccess, fetchAssignedApps } = useAppAccess();
+const { checkAppAccess, fetchAssignedApps } = useAppAccess();
 const tenantStore = useTenantStore();
 const router = useRouter();
 
@@ -35,7 +35,7 @@ function handleExport() {
 }
 
 function handleInvoiceClick(reservation: any) {
-    if (hasAccess('Facture Pro')) {
+    if (checkAppAccess('Facture Pro')) {
         // Navigate to Invoice Page
         if (tenantStore.currentTenant?.slug) {
             router.push({ 
@@ -134,9 +134,9 @@ onMounted(async () => {
                                 <button 
                                     @click="handleInvoiceClick(res)"
                                     class="text-gray-500 hover:text-indigo-600 focus:outline-none transition-colors"
-                                    :title="hasAccess('Facture Pro') ? 'Générer Facture' : 'Facture Pro requis'"
+                                    :title="checkAppAccess('Facture Pro') ? 'Générer Facture' : 'Facture Pro requis'"
                                 >
-                                    <FileText v-if="hasAccess('Facture Pro')" class="h-5 w-5" />
+                                    <FileText v-if="checkAppAccess('Facture Pro')" class="h-5 w-5" />
                                     <Lock v-else class="h-4 w-4 text-gray-400" />
                                 </button>
                             </td>
