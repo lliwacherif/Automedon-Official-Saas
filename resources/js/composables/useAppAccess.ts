@@ -42,7 +42,7 @@ export function useAppAccess() {
         }
     }
 
-    function hasAccess(appName: string): boolean {
+    function checkAppAccess(appName: string): boolean {
         // If not loaded yet, maybe trigger load? Or rely on component to call fetch.
         // For simplicity, we assume fetchAssignedApps is called at layout/page level or on mount.
         return assignedApps.value.has(appName);
@@ -53,6 +53,6 @@ export function useAppAccess() {
         loading,
         loaded,
         fetchAssignedApps,
-        hasAccess
+        checkAppAccess
     };
 }
