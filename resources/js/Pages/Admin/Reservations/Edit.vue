@@ -81,6 +81,12 @@ const reservation = ref<Partial<Reservation>>({
     client_cin: '',
     client_phone: '',
     client_email: '',
+    client_permit_number: '',
+    second_driver_name: '',
+    second_driver_cin: '',
+    second_driver_phone: '',
+    second_driver_email: '',
+    second_driver_permit_number: '',
     start_date: '',
     end_date: '',
     duration_days: 0,
@@ -94,6 +100,8 @@ const reservation = ref<Partial<Reservation>>({
     notes: '',
     contract_number: '',
 });
+
+const showSecondDriver = ref(false);
 
 // Helper function to format ISO date to datetime-local format
 function formatDateForInput(isoDate: string): string {
@@ -125,6 +133,10 @@ onMounted(async () => {
                 start_date: formatDateForInput(data.start_date),
                 end_date: formatDateForInput(data.end_date),
             };
+            // Show second driver section if any second driver data exists
+            if (data.second_driver_name || data.second_driver_cin || data.second_driver_phone) {
+                showSecondDriver.value = true;
+            }
             // Fetch documents
             await fetchDocuments(Number(route.params.id));
         }
@@ -202,6 +214,12 @@ async function handleSubmit() {
             client_cin: reservation.value.client_cin!,
             client_phone: reservation.value.client_phone!,
             client_email: reservation.value.client_email || null,
+            client_permit_number: reservation.value.client_permit_number || null,
+            second_driver_name: showSecondDriver.value ? (reservation.value.second_driver_name || null) : null,
+            second_driver_cin: showSecondDriver.value ? (reservation.value.second_driver_cin || null) : null,
+            second_driver_phone: showSecondDriver.value ? (reservation.value.second_driver_phone || null) : null,
+            second_driver_email: showSecondDriver.value ? (reservation.value.second_driver_email || null) : null,
+            second_driver_permit_number: showSecondDriver.value ? (reservation.value.second_driver_permit_number || null) : null,
             car_id: reservation.value.car_id!,
             start_date: new Date(reservation.value.start_date!).toISOString(),
             end_date: new Date(reservation.value.end_date!).toISOString(),
@@ -420,7 +438,98 @@ import DateTimeInput from '@/components/DateTimeInput.vue';
                             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         >
                     </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Numéro de Permis
+                        </label>
+                        <input 
+                            v-model="reservation.client_permit_number"
+                            type="text"
+                            placeholder="Ex: 12345678"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                    </div>
                 </div>
+            </div>
+
+            <!-- Deuxième Conducteur -->
+            <div class="border-b pb-4">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-medium text-gray-900">Deuxième Conducteur</h2>
+                    <button 
+                        type="button"
+                        @click="showSecondDriver = !showSecondDriver"
+                        class="text-sm px-3 py-1 rounded-md transition-colors"
+                        :class="showSecondDriver 
+                            ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200' 
+                            : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'"
+                    >
+                        {{ showSecondDriver ? 'Retirer' : '+ Ajouter' }}
+                    </button>
+                </div>
+                
+                <div v-if="showSecondDriver" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Nom Complet
+                        </label>
+                        <input 
+                            v-model="reservation.second_driver_name"
+                            type="text"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            CIN
+                        </label>
+                        <input 
+                            v-model="reservation.second_driver_cin"
+                            type="text"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Téléphone
+                        </label>
+                        <input 
+                            v-model="reservation.second_driver_phone"
+                            type="tel"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Email
+                        </label>
+                        <input 
+                            v-model="reservation.second_driver_email"
+                            type="email"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Numéro de Permis
+                        </label>
+                        <input 
+                            v-model="reservation.second_driver_permit_number"
+                            type="text"
+                            placeholder="Ex: 12345678"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                    </div>
+                </div>
+
+                <p v-else class="text-sm text-gray-500 italic">
+                    Aucun deuxième conducteur ajouté. Cliquez sur "+ Ajouter" pour renseigner les informations.
+                </p>
             </div>
 
             <!-- Reservation Details -->

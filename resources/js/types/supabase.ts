@@ -96,6 +96,13 @@ export interface Database {
                     client_cin: string
                     client_phone: string
                     client_email: string | null
+                    client_permit_number: string | null
+                    // Second Driver
+                    second_driver_name: string | null
+                    second_driver_cin: string | null
+                    second_driver_phone: string | null
+                    second_driver_email: string | null
+                    second_driver_permit_number: string | null
                     // Reservation Details
                     car_id: number
                     start_date: string
@@ -124,6 +131,13 @@ export interface Database {
                     client_cin: string
                     client_phone: string
                     client_email?: string | null
+                    client_permit_number?: string | null
+                    // Second Driver
+                    second_driver_name?: string | null
+                    second_driver_cin?: string | null
+                    second_driver_phone?: string | null
+                    second_driver_email?: string | null
+                    second_driver_permit_number?: string | null
                     // Reservation Details
                     car_id: number
                     start_date: string
@@ -152,6 +166,13 @@ export interface Database {
                     client_cin?: string
                     client_phone?: string
                     client_email?: string | null
+                    client_permit_number?: string | null
+                    // Second Driver
+                    second_driver_name?: string | null
+                    second_driver_cin?: string | null
+                    second_driver_phone?: string | null
+                    second_driver_email?: string | null
+                    second_driver_permit_number?: string | null
                     // Reservation Details
                     car_id?: number
                     start_date?: string
