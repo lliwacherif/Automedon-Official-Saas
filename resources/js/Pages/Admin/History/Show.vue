@@ -5,14 +5,28 @@ import { supabase } from '@/lib/supabase';
 import { useTenantStore } from '@/stores/tenant';
 import { useTenantLink } from '@/composables/useTenantLink';
 import type { Database } from '@/types/supabase';
-import { ArrowLeft } from 'lucide-vue-next';
+import { 
+    ArrowLeft, 
+    Car, 
+    TrendingUp, 
+    TrendingDown, 
+    Wallet, 
+    ClipboardList, 
+    Wrench, 
+    Calendar, 
+    User, 
+    DollarSign, 
+    Loader2, 
+    X,
+    CircleCheck,
+} from 'lucide-vue-next';
 import { RouterLink } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 
 import { MAINTENANCE_TYPE_LABELS } from '@/composables/useMaintenanceRecords';
 
 // Types
-type Car = Database['public']['Tables']['cars']['Row'];
+type CarType = Database['public']['Tables']['cars']['Row'];
 type Reservation = Database['public']['Tables']['reservations']['Row'];
 type Maintenance = Database['public']['Tables']['maintenance_records']['Row'];
 
@@ -22,7 +36,7 @@ const { tenantPath } = useTenantLink();
 const route = useRoute();
 const carId = route.params.id as string;
 
-const car = ref<Car | null>(null);
+const car = ref<CarType | null>(null);
 const reservations = ref<Reservation[]>([]);
 const maintenanceRecords = ref<Maintenance[]>([]);
 const loading = ref(true);
@@ -129,47 +143,31 @@ const filteredMaintenance = computed(() => {
 });
 
 const grandTotal = computed(() => {
-    // If no filter is active, return sum of total prices
     if (!filterStartDate.value && !filterEndDate.value) {
         return filteredReservations.value.reduce((sum, res) => sum + (res.total_price || 0), 0);
     }
 
-    // Calculate revenue based on overlap with filter range
     return filteredReservations.value.reduce((sum, res) => {
         const resStart = toMidnight(res.start_date)!;
         const resEnd = toMidnight(res.end_date)!;
 
-        // Formula: TotalDuration = (MidnightResEnd - MidnightResStart) in days.
-        // We use Math.round to handle any floating point oddities, though differences of midnights should be clean.
         const msPerDay = 1000 * 60 * 60 * 24;
         const totalDurationDays = Math.round((resEnd.getTime() - resStart.getTime()) / msPerDay);
-        
-        // Guard against division by zero (single day or invalid range)
-        // If duration is 0 (start == end), we might consider it 1 day or handle gracefully.
-        // Assuming at least 1 day if totalDuration is 0 or less to allow price calculation.
         const durationForRate = totalDurationDays > 0 ? totalDurationDays : 1; 
-
-        // DailyRate = TotalPrice / TotalDuration.
         const dailyRate = (res.total_price || 0) / durationForRate;
 
-        // Calculate overlap
         const filterStart = toMidnight(filterStartDate.value) || new Date(-8640000000000000); 
         const filterEnd = toMidnight(filterEndDate.value) || new Date(8640000000000000); 
 
-        // Find overlap range
         const overlapStart = resStart < filterStart ? filterStart : resStart;
         const overlapEnd = resEnd > filterEnd ? filterEnd : resEnd;
 
         if (overlapStart > overlapEnd) return sum;
 
-        // Formula: OverlapDays = (MidnightOverlapEnd - MidnightOverlapStart) in days + 1.
         const overlapDays = Math.round((overlapEnd.getTime() - overlapStart.getTime()) / msPerDay) + 1;
-
         if (overlapDays <= 0) return sum;
 
-        // Revenue = DailyRate * OverlapDays.
         const revenue = dailyRate * overlapDays;
-        
         return sum + revenue;
     }, 0);
 });
@@ -184,160 +182,275 @@ const netRevenue = computed(() => {
 </script>
 
 <template>
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" v-if="!loading && car">
-        <!-- Back Button -->
-        <div class="mb-6 flex justify-between items-center">
-            <RouterLink :to="tenantPath('/admin/history')" class="flex items-center text-sm text-gray-500 hover:text-gray-700">
-                <ArrowLeft class="w-4 h-4 mr-1" />
-                {{ t('admin.history.back_to_list') }}
-            </RouterLink>
-
-            <!-- Date Filters -->
-            <div class="flex items-center space-x-4 bg-white p-3 rounded-lg shadow-sm border border-gray-200">
-                <div class="flex items-center space-x-2">
-                    <label class="text-sm font-medium text-gray-700">Du:</label>
-                    <input type="date" v-model="filterStartDate" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
-                </div>
-                <div class="flex items-center space-x-2">
-                    <label class="text-sm font-medium text-gray-700">Au:</label>
-                    <input type="date" v-model="filterEndDate" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" />
-                </div>
-                <button 
-                    v-if="filterStartDate || filterEndDate"
-                    @click="filterStartDate = ''; filterEndDate = ''"
-                    class="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-                >
-                    Réinitialiser
-                </button>
-            </div>
+    <!-- Loading -->
+    <div v-if="loading" class="min-h-screen bg-gray-50/50 flex flex-col items-center justify-center">
+        <div class="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center mb-4">
+            <Loader2 class="w-7 h-7 text-indigo-600 animate-spin" />
         </div>
-
-        <!-- Car Header Card -->
-        <div class="bg-white shadow overflow-hidden sm:rounded-lg mb-8">
-            <div class="px-4 py-5 sm:px-6 flex justify-between items-start">
-                <div>
-                    <h3 class="text-2xl font-bold leading-6 text-gray-900 flex items-center gap-2">
-                        {{ car.brand }} {{ car.model }} 
-                    </h3>
-                    <p class="mt-1 text-sm text-gray-500 flex items-center gap-2">
-                        <span class="bg-gray-100 px-2 py-0.5 rounded text-gray-700 font-mono">{{ car.license_plate }}</span>
-                        <span :class="{'text-green-600': car.status === 'disponible', 'text-blue-600': car.status === 'loue', 'text-red-600': car.status === 'maintenance'}">
-                            ● {{ car.status ? t(`admin.fleet.${car.status}`) : car.status }}
-                        </span>
-                    </p>
-                </div>
-                <div v-if="car.image_url" class="h-16 w-24 flex-shrink-0">
-                    <img :src="car.image_url" alt="" class="h-full w-full object-cover rounded-md">
-                </div>
-            </div>
-            <div class="border-t border-gray-200 px-4 py-5 sm:px-6">
-                <div class="flex items-center justify-end">
-                     <div class="text-xl font-bold" :class="netRevenue >= 0 ? 'text-green-600' : 'text-red-600'">
-                        Revenu Net: {{ formatCurrency(netRevenue) }}
-                     </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- Reservations Table -->
-            <div class="bg-white shadow overflow-hidden sm:rounded-lg">
-                <div class="px-4 py-5 sm:px-6 border-b border-gray-200 flex justify-between items-center">
-                    <h3 class="text-lg leading-6 font-medium text-gray-900">
-                        {{ t('admin.history.reservations_history') }}
-                    </h3>
-                    <div class="text-sm font-bold text-green-600">
-                        Total: {{ formatCurrency(grandTotal) }}
-                    </div>
-                </div>
-                
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-300">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">
-                                    {{ t('admin.reservations.client') }}
-                                </th>
-                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                                    {{ t('admin.reservations.dates') }}
-                                </th>
-                                <th scope="col" class="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">
-                                    {{ t('admin.reservations.total_price') }}
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-200 bg-white">
-                            <tr v-for="res in filteredReservations" :key="res.id">
-                                <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
-                                    {{ res.client_name }}
-                                </td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                                    {{ formatDate(res.start_date) }} - {{ formatDate(res.end_date) }}
-                                </td>
-                                <td class="whitespace-nowrap px-3 py-4 text-right text-sm text-gray-900 font-medium">
-                                    {{ formatCurrency(res.total_price) }}
-                                </td>
-                            </tr>
-                            <tr v-if="filteredReservations.length === 0">
-                                <td colspan="3" class="px-3 py-8 text-center text-sm text-gray-500">
-                                    {{ t('admin.history.no_reservations') }}
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Maintenance/Cost History Table -->
-            <div class="bg-white shadow overflow-hidden sm:rounded-lg">
-                <div class="px-4 py-5 sm:px-6 border-b border-gray-200 flex justify-between items-center">
-                    <h3 class="text-lg leading-6 font-medium text-gray-900">
-                        Historique des Coûts
-                    </h3>
-                    <div class="text-sm font-bold text-red-600">
-                        Total: {{ formatCurrency(totalMaintenanceCost) }}
-                    </div>
-                </div>
-                
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-300">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">
-                                    Type
-                                </th>
-                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                                    Date
-                                </th>
-                                <th scope="col" class="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">
-                                    Coût
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-200 bg-white">
-                            <tr v-for="rec in filteredMaintenance" :key="rec.id">
-                                <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
-                                    {{ MAINTENANCE_TYPE_LABELS[rec.maintenance_type] || rec.maintenance_type }}
-                                </td>
-                                <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                                    {{ formatDate(rec.maintenance_date) }}
-                                </td>
-                                <td class="whitespace-nowrap px-3 py-4 text-right text-sm text-gray-900 font-medium">
-                                    {{ formatCurrency(rec.cost) }}
-                                </td>
-                            </tr>
-                             <tr v-if="filteredMaintenance.length === 0">
-                                <td colspan="3" class="px-3 py-8 text-center text-sm text-gray-500">
-                                    Aucun entretien enregistré.
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+        <p class="text-gray-500 font-medium">Chargement de l'historique...</p>
     </div>
-    <div v-else class="flex justify-center items-center h-64">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+
+    <div v-else-if="car" class="min-h-screen bg-gray-50/50">
+        <div class="max-w-[1600px] mx-auto p-5 md:p-6 space-y-5">
+
+            <!-- Top Bar: Back + Date Filters -->
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <RouterLink 
+                    :to="tenantPath('/admin/history')" 
+                    class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 font-medium transition-colors"
+                >
+                    <ArrowLeft class="w-4 h-4" />
+                    {{ t('admin.history.back_to_list') }}
+                </RouterLink>
+
+                <div class="flex items-center gap-3 bg-white rounded-xl ring-1 ring-gray-100 shadow-sm p-2.5">
+                    <div class="flex items-center gap-1.5">
+                        <label class="text-xs font-bold text-gray-400 uppercase">Du</label>
+                        <input 
+                            type="date" 
+                            v-model="filterStartDate" 
+                            class="px-2.5 py-1.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all" 
+                        />
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <label class="text-xs font-bold text-gray-400 uppercase">Au</label>
+                        <input 
+                            type="date" 
+                            v-model="filterEndDate" 
+                            class="px-2.5 py-1.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all" 
+                        />
+                    </div>
+                    <button 
+                        v-if="filterStartDate || filterEndDate"
+                        @click="filterStartDate = ''; filterEndDate = ''"
+                        class="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        title="Réinitialiser"
+                    >
+                        <X class="w-4 h-4" />
+                    </button>
+                </div>
+            </div>
+
+            <!-- Car Header -->
+            <div class="bg-white rounded-2xl ring-1 ring-gray-100 shadow-sm overflow-hidden">
+                <div class="flex items-center gap-4 p-5">
+                    <div class="w-16 h-16 rounded-xl overflow-hidden shrink-0 bg-gray-100 ring-1 ring-gray-200 flex items-center justify-center">
+                        <img v-if="car.image_url" :src="car.image_url" alt="" class="w-full h-full object-cover">
+                        <Car v-else class="w-7 h-7 text-gray-400" />
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h2 class="text-xl font-bold text-gray-900 tracking-tight">{{ car.brand }} {{ car.model }}</h2>
+                        <div class="flex items-center gap-2 mt-1">
+                            <span class="inline-flex px-2.5 py-0.5 text-xs font-bold text-gray-600 bg-gray-50 rounded-lg ring-1 ring-gray-200 font-mono">
+                                {{ car.license_plate }}
+                            </span>
+                            <span 
+                                class="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-bold rounded-lg"
+                                :class="{
+                                    'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/50': car.status === 'disponible',
+                                    'bg-blue-50 text-blue-700 ring-1 ring-blue-200/50': car.status === 'loue',
+                                    'bg-red-50 text-red-700 ring-1 ring-red-200/50': car.status === 'maintenance',
+                                }"
+                            >
+                                <CircleCheck v-if="car.status === 'disponible'" class="w-3 h-3" />
+                                {{ car.status ? t(`admin.fleet.${car.status}`) : car.status }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <!-- Revenue -->
+                <div class="stat-card group">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-gray-500">Revenus</p>
+                            <h3 class="text-2xl font-extrabold text-emerald-600 mt-1 tracking-tight">{{ formatCurrency(grandTotal) }}</h3>
+                        </div>
+                        <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-100 group-hover:scale-110 transition-transform">
+                            <TrendingUp class="w-5 h-5 text-white" />
+                        </div>
+                    </div>
+                    <div class="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-400">
+                        {{ filteredReservations.length }} réservation{{ filteredReservations.length !== 1 ? 's' : '' }}
+                    </div>
+                </div>
+
+                <!-- Expenses -->
+                <div class="stat-card group">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-gray-500">Dépenses</p>
+                            <h3 class="text-2xl font-extrabold text-red-500 mt-1 tracking-tight">{{ formatCurrency(totalMaintenanceCost) }}</h3>
+                        </div>
+                        <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-red-400 to-red-600 flex items-center justify-center shadow-lg shadow-red-100 group-hover:scale-110 transition-transform">
+                            <TrendingDown class="w-5 h-5 text-white" />
+                        </div>
+                    </div>
+                    <div class="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-400">
+                        {{ filteredMaintenance.length }} opération{{ filteredMaintenance.length !== 1 ? 's' : '' }}
+                    </div>
+                </div>
+
+                <!-- Net -->
+                <div class="stat-card group">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-medium text-gray-500">Revenu Net</p>
+                            <h3 
+                                class="text-2xl font-extrabold mt-1 tracking-tight"
+                                :class="netRevenue >= 0 ? 'text-indigo-600' : 'text-red-600'"
+                            >
+                                {{ formatCurrency(netRevenue) }}
+                            </h3>
+                        </div>
+                        <div 
+                            class="w-11 h-11 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform"
+                            :class="netRevenue >= 0 
+                                ? 'bg-gradient-to-br from-indigo-400 to-indigo-600 shadow-indigo-100' 
+                                : 'bg-gradient-to-br from-red-400 to-red-600 shadow-red-100'"
+                        >
+                            <Wallet class="w-5 h-5 text-white" />
+                        </div>
+                    </div>
+                    <div class="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-400">
+                        Revenus - Dépenses
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tables -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+                <!-- Reservations -->
+                <div class="bg-white rounded-2xl ring-1 ring-gray-100 shadow-sm overflow-hidden">
+                    <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <ClipboardList class="w-4 h-4 text-gray-400" />
+                            <h3 class="text-base font-bold text-gray-900">{{ t('admin.history.reservations_history') }}</h3>
+                        </div>
+                        <span class="text-sm font-bold text-emerald-600">{{ formatCurrency(grandTotal) }}</span>
+                    </div>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full">
+                            <thead>
+                                <tr class="border-b border-gray-100">
+                                    <th class="px-5 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">{{ t('admin.reservations.client') }}</th>
+                                    <th class="px-5 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">{{ t('admin.reservations.dates') }}</th>
+                                    <th class="px-5 py-3 text-right text-[11px] font-bold text-gray-400 uppercase tracking-wider">{{ t('admin.reservations.total_price') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-if="filteredReservations.length === 0">
+                                    <td colspan="3" class="px-5 py-12 text-center">
+                                        <div class="flex flex-col items-center">
+                                            <ClipboardList class="w-6 h-6 text-gray-300 mb-2" />
+                                            <p class="text-gray-400 text-sm">{{ t('admin.history.no_reservations') }}</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr 
+                                    v-for="res in filteredReservations" 
+                                    :key="res.id" 
+                                    class="border-b border-gray-50 hover:bg-indigo-50/30 transition-colors"
+                                >
+                                    <td class="px-5 py-3">
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-7 h-7 rounded-md bg-gray-100 flex items-center justify-center shrink-0">
+                                                <User class="w-3.5 h-3.5 text-gray-500" />
+                                            </div>
+                                            <span class="text-sm font-semibold text-gray-900">{{ res.client_name }}</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-5 py-3 text-sm text-gray-500">
+                                        {{ formatDate(res.start_date) }} - {{ formatDate(res.end_date) }}
+                                    </td>
+                                    <td class="px-5 py-3 text-right">
+                                        <span class="text-sm font-bold text-gray-900">{{ formatCurrency(res.total_price) }}</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Maintenance / Costs -->
+                <div class="bg-white rounded-2xl ring-1 ring-gray-100 shadow-sm overflow-hidden">
+                    <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <Wrench class="w-4 h-4 text-gray-400" />
+                            <h3 class="text-base font-bold text-gray-900">Historique des Coûts</h3>
+                        </div>
+                        <span class="text-sm font-bold text-red-500">{{ formatCurrency(totalMaintenanceCost) }}</span>
+                    </div>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full">
+                            <thead>
+                                <tr class="border-b border-gray-100">
+                                    <th class="px-5 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Type</th>
+                                    <th class="px-5 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Date</th>
+                                    <th class="px-5 py-3 text-right text-[11px] font-bold text-gray-400 uppercase tracking-wider">Coût</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-if="filteredMaintenance.length === 0">
+                                    <td colspan="3" class="px-5 py-12 text-center">
+                                        <div class="flex flex-col items-center">
+                                            <Wrench class="w-6 h-6 text-gray-300 mb-2" />
+                                            <p class="text-gray-400 text-sm">Aucun entretien enregistré.</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr 
+                                    v-for="rec in filteredMaintenance" 
+                                    :key="rec.id" 
+                                    class="border-b border-gray-50 hover:bg-indigo-50/30 transition-colors"
+                                >
+                                    <td class="px-5 py-3">
+                                        <span class="inline-flex px-2 py-0.5 text-[11px] font-bold rounded-md bg-lime-50 text-lime-700 ring-1 ring-lime-200/50">
+                                            {{ MAINTENANCE_TYPE_LABELS[rec.maintenance_type] || rec.maintenance_type }}
+                                        </span>
+                                    </td>
+                                    <td class="px-5 py-3">
+                                        <div class="flex items-center gap-1.5">
+                                            <Calendar class="w-3.5 h-3.5 text-gray-400" />
+                                            <span class="text-sm text-gray-500">{{ formatDate(rec.maintenance_date) }}</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-5 py-3 text-right">
+                                        <span class="text-sm font-bold text-gray-900">{{ formatCurrency(rec.cost) }}</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
+
+<style scoped>
+.stat-card {
+    background: white;
+    padding: 1.25rem;
+    border-radius: 1rem;
+    border: 1px solid rgb(243 244 246);
+    box-shadow: 
+        0 1px 3px rgba(0, 0, 0, 0.04),
+        0 4px 12px rgba(0, 0, 0, 0.02);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 
+        0 8px 24px rgba(0, 0, 0, 0.06),
+        0 2px 8px rgba(0, 0, 0, 0.04);
+    border-color: rgb(229 231 235);
+}
+</style>

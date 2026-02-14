@@ -4,6 +4,22 @@ import { useReservations } from '@/composables/useReservations';
 import { useAuthStore } from '@/stores/auth';
 import type { Car } from '@/composables/useCars';
 import { formatDate } from '@/utils/date';
+import { 
+    X, 
+    User, 
+    CreditCard, 
+    Phone, 
+    Mail, 
+    CalendarDays, 
+    Clock, 
+    MapPin, 
+    FileText, 
+    Key, 
+    CheckCircle2, 
+    AlertCircle,
+    Loader2,
+    Car as CarIcon,
+} from 'lucide-vue-next';
 
 const props = defineProps<{
     show: boolean;
@@ -193,232 +209,389 @@ const today = new Date().toISOString().split('T')[0];
 
 <template>
     <Teleport to="body">
-        <div v-if="show" class="fixed inset-0 z-50 overflow-y-auto">
-            <!-- Backdrop -->
-            <div class="fixed inset-0 bg-black bg-opacity-50 transition-opacity" @click="closeModal"></div>
+        <Transition name="modal">
+            <div v-if="show" class="fixed inset-0 z-50 overflow-y-auto">
+                <!-- Backdrop -->
+                <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" @click="closeModal"></div>
 
-            <!-- Modal -->
-            <div class="flex min-h-full items-center justify-center p-4">
-                <div class="relative bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                    <!-- Header -->
-                    <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-                        <div>
-                            <h2 class="text-xl font-semibold text-gray-900">Réserver une voiture</h2>
-                            <p v-if="car" class="text-sm text-gray-500 mt-1">
-                                {{ car.brand }} {{ car.model }} 
-                                <span v-if="authStore.user">- {{ car.plate_number }}</span>
-                            </p>
-                        </div>
-                        <button @click="closeModal" class="text-gray-400 hover:text-gray-500">
-                            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    </div>
-
-                    <!-- Success Message -->
-                    <div v-if="success" class="p-6">
-                        <div class="text-center">
-                            <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100">
-                                <svg class="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                                </svg>
-                            </div>
-                            <h3 class="mt-4 text-lg font-medium text-gray-900">Réservation envoyée !</h3>
-                            <p class="mt-2 text-sm text-gray-500">
-                                Votre demande de réservation a été envoyée avec succès. 
-                                Vous recevrez une confirmation sous peu.
-                            </p>
-                        </div>
-                    </div>
-
-                    <!-- Form -->
-                    <form v-else @submit.prevent="submitReservation" class="p-6 space-y-6">
-                        <!-- Error Message -->
-                        <div v-if="formError" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
-                            {{ formError }}
-                        </div>
-
-                        <!-- Client Information -->
-                        <div>
-                            <h3 class="text-lg font-medium text-gray-900 mb-4">Informations personnelles</h3>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Nom complet *</label>
-                                    <input 
-                                        v-model="form.client_name"
-                                        type="text" 
-                                        required
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                        placeholder="Votre nom complet"
-                                    >
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">CIN *</label>
-                                    <input 
-                                        v-model="form.client_cin"
-                                        type="text" 
-                                        required
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                        placeholder="Numéro de carte d'identité"
-                                    >
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Téléphone *</label>
-                                    <input 
-                                        v-model="form.client_phone"
-                                        type="tel" 
-                                        required
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                        placeholder="+216 XX XXX XXX"
-                                    >
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Email</label>
-                                    <input 
-                                        v-model="form.client_email"
-                                        type="email"
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                        placeholder="votre@email.com"
-                                    >
+                <!-- Modal -->
+                <div class="flex min-h-full items-center justify-center p-4">
+                    <div class="modal-container relative bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+                        
+                        <!-- Header with car preview -->
+                        <div class="shrink-0 relative">
+                            <!-- Car image banner -->
+                            <div v-if="car" class="h-32 bg-gray-900 overflow-hidden relative">
+                                <img 
+                                    :src="car.image_url || 'https://via.placeholder.com/800x200?text=No+Image'" 
+                                    :alt="`${car.brand} ${car.model}`"
+                                    class="w-full h-full object-cover opacity-60"
+                                >
+                                <div class="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/40 to-transparent"></div>
+                                <div class="absolute bottom-3 left-5 right-5 flex items-end justify-between">
+                                    <div>
+                                        <h2 class="text-xl font-bold text-white">Réserver une voiture</h2>
+                                        <p class="text-white/70 text-sm mt-0.5 flex items-center gap-1.5">
+                                            <CarIcon class="w-3.5 h-3.5" />
+                                            {{ car.brand }} {{ car.model }}
+                                            <span v-if="authStore.user" class="text-white/50">· {{ car.plate_number }}</span>
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
+
+                            <!-- Close button -->
+                            <button 
+                                @click="closeModal" 
+                                class="absolute top-3 right-3 p-1.5 rounded-full bg-black/30 text-white/80 hover:bg-black/50 hover:text-white backdrop-blur-sm transition-all"
+                            >
+                                <X class="w-4 h-4" />
+                            </button>
                         </div>
 
-                        <!-- Reservation Dates -->
-                        <div>
-                            <h3 class="text-lg font-medium text-gray-900 mb-4">Dates de location</h3>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Date de début *</label>
-                                    <div class="flex space-x-2 mt-1">
-                                        <input 
-                                            v-model="startDateDate"
-                                            type="date" 
-                                            :min="today"
-                                            required
-                                            class="block w-1/2 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                        >
-                                        <div class="flex w-1/2 items-center gap-1">
-                                            <select
-                                                v-model="startHour"
-                                                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-0 text-center"
-                                            >
-                                                <option v-for="h in hours" :key="h" :value="h">{{ h }}</option>
-                                            </select>
-                                            <span class="text-gray-500 font-bold">:</span>
-                                            <select
-                                                v-model="startMinute"
-                                                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-0 text-center"
-                                            >
-                                                <option v-for="m in minutes" :key="m" :value="m">{{ m }}</option>
-                                            </select>
-                                        </div>
+                        <!-- Scrollable Content -->
+                        <div class="flex-1 overflow-y-auto">
+
+                            <!-- Success Message -->
+                            <div v-if="success" class="p-8">
+                                <div class="text-center">
+                                    <div class="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-emerald-50 ring-4 ring-emerald-100">
+                                        <CheckCircle2 class="h-10 w-10 text-emerald-500" />
                                     </div>
-                                    <p v-if="form.start_date" class="mt-1 text-xs text-indigo-600 font-medium">
-                                        {{ formatDate(form.start_date) }}
-                                    </p>
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Date de fin *</label>
-                                    <div class="flex space-x-2 mt-1">
-                                         <input 
-                                            v-model="endDateDate"
-                                            type="date" 
-                                            :min="startDateDate || today"
-                                            required
-                                            class="block w-1/2 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                        >
-                                        <div class="flex w-1/2 items-center gap-1">
-                                            <select
-                                                v-model="endHour"
-                                                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-0 text-center"
-                                            >
-                                                <option v-for="h in hours" :key="h" :value="h">{{ h }}</option>
-                                            </select>
-                                            <span class="text-gray-500 font-bold">:</span>
-                                            <select
-                                                v-model="endMinute"
-                                                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-0 text-center"
-                                            >
-                                                <option v-for="m in minutes" :key="m" :value="m">{{ m }}</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <p v-if="form.end_date" class="mt-1 text-xs text-indigo-600 font-medium">
-                                        {{ formatDate(form.end_date) }}
+                                    <h3 class="mt-5 text-xl font-bold text-gray-900">Réservation envoyée !</h3>
+                                    <p class="mt-2 text-sm text-gray-500 max-w-sm mx-auto leading-relaxed">
+                                        Votre demande de réservation a été envoyée avec succès. 
+                                        Vous recevrez une confirmation sous peu.
                                     </p>
                                 </div>
                             </div>
-                        </div>
 
-                        <!-- Pricing Summary -->
-                        <div v-if="durationDays > 0" class="bg-indigo-50 rounded-lg p-4">
-                            <h3 class="text-lg font-medium text-indigo-900 mb-2">Récapitulatif</h3>
-                            <div class="space-y-2 text-sm">
-                                <div class="flex justify-between">
-                                    <span class="text-indigo-700">Durée</span>
-                                    <span class="font-medium text-indigo-900">{{ durationDays }} jour(s)</span>
+                            <!-- Form -->
+                            <form v-else @submit.prevent="submitReservation" class="p-5 space-y-5">
+                                <!-- Error Message -->
+                                <div v-if="formError" class="flex items-start gap-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+                                    <AlertCircle class="w-5 h-5 shrink-0 mt-0.5 text-red-400" />
+                                    <span>{{ formError }}</span>
                                 </div>
-                            </div>
-                        </div>
 
-                        <!-- Optional Fields -->
-                        <div>
-                            <h3 class="text-lg font-medium text-gray-900 mb-4">Informations supplémentaires</h3>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <!-- Client Information -->
                                 <div>
-                                    <label class="block text-sm font-medium text-gray-700">Lieu de prise en charge</label>
-                                    <input 
-                                        v-model="form.pickup_location"
-                                        type="text"
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                        placeholder="Aéroport, agence, etc."
-                                    >
+                                    <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                        <div class="w-6 h-6 rounded-md bg-indigo-100 flex items-center justify-center">
+                                            <User class="w-3.5 h-3.5 text-indigo-600" />
+                                        </div>
+                                        Informations personnelles
+                                    </h3>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="form-label">Nom complet *</label>
+                                            <div class="form-input-wrapper">
+                                                <User class="form-input-icon" />
+                                                <input 
+                                                    v-model="form.client_name"
+                                                    type="text" 
+                                                    required
+                                                    class="form-input"
+                                                    placeholder="Votre nom complet"
+                                                >
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="form-label">CIN *</label>
+                                            <div class="form-input-wrapper">
+                                                <CreditCard class="form-input-icon" />
+                                                <input 
+                                                    v-model="form.client_cin"
+                                                    type="text" 
+                                                    required
+                                                    class="form-input"
+                                                    placeholder="Numéro de carte d'identité"
+                                                >
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="form-label">Téléphone *</label>
+                                            <div class="form-input-wrapper">
+                                                <Phone class="form-input-icon" />
+                                                <input 
+                                                    v-model="form.client_phone"
+                                                    type="tel" 
+                                                    required
+                                                    class="form-input"
+                                                    placeholder="+216 XX XXX XXX"
+                                                >
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="form-label">Email</label>
+                                            <div class="form-input-wrapper">
+                                                <Mail class="form-input-icon" />
+                                                <input 
+                                                    v-model="form.client_email"
+                                                    type="email"
+                                                    class="form-input"
+                                                    placeholder="votre@email.com"
+                                                >
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700">Lieu de retour</label>
-                                    <input 
-                                        v-model="form.return_location"
-                                        type="text"
-                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                        placeholder="Aéroport, agence, etc."
-                                    >
-                                </div>
-                            </div>
-                            <div class="mt-4">
-                                <label class="block text-sm font-medium text-gray-700">Notes</label>
-                                <textarea 
-                                    v-model="form.notes"
-                                    rows="3"
-                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                                    placeholder="Informations complémentaires..."
-                                ></textarea>
-                            </div>
-                        </div>
 
-                        <!-- Submit Button -->
-                        <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-                            <button 
-                                type="button"
-                                @click="closeModal"
-                                class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
-                            >
-                                Annuler
-                            </button>
-                            <button 
-                                type="submit"
-                                :disabled="loading || durationDays <= 0"
-                                class="px-4 py-2 bg-indigo-600 border border-transparent rounded-md text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                <span v-if="loading">Envoi en cours...</span>
-                                <span v-else>Confirmer la réservation</span>
-                            </button>
+                                <!-- Reservation Dates -->
+                                <div>
+                                    <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                        <div class="w-6 h-6 rounded-md bg-violet-100 flex items-center justify-center">
+                                            <CalendarDays class="w-3.5 h-3.5 text-violet-600" />
+                                        </div>
+                                        Dates de location
+                                    </h3>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <!-- Start Date -->
+                                        <div class="space-y-2">
+                                            <label class="form-label">Date de début *</label>
+                                            <div class="form-input-wrapper">
+                                                <CalendarDays class="form-input-icon" />
+                                                <input 
+                                                    v-model="startDateDate"
+                                                    type="date" 
+                                                    :min="today"
+                                                    required
+                                                    class="form-input"
+                                                >
+                                            </div>
+                                            <div class="flex items-center gap-1.5">
+                                                <Clock class="w-3.5 h-3.5 text-gray-400" />
+                                                <div class="flex items-center gap-1 flex-1">
+                                                    <select v-model="startHour" class="time-select">
+                                                        <option v-for="h in hours" :key="h" :value="h">{{ h }}</option>
+                                                    </select>
+                                                    <span class="text-gray-400 font-bold text-sm">:</span>
+                                                    <select v-model="startMinute" class="time-select">
+                                                        <option v-for="m in minutes" :key="m" :value="m">{{ m }}</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <p v-if="form.start_date" class="text-xs text-indigo-600 font-semibold pl-0.5">
+                                                {{ formatDate(form.start_date) }}
+                                            </p>
+                                        </div>
+
+                                        <!-- End Date -->
+                                        <div class="space-y-2">
+                                            <label class="form-label">Date de fin *</label>
+                                            <div class="form-input-wrapper">
+                                                <CalendarDays class="form-input-icon" />
+                                                <input 
+                                                    v-model="endDateDate"
+                                                    type="date" 
+                                                    :min="startDateDate || today"
+                                                    required
+                                                    class="form-input"
+                                                >
+                                            </div>
+                                            <div class="flex items-center gap-1.5">
+                                                <Clock class="w-3.5 h-3.5 text-gray-400" />
+                                                <div class="flex items-center gap-1 flex-1">
+                                                    <select v-model="endHour" class="time-select">
+                                                        <option v-for="h in hours" :key="h" :value="h">{{ h }}</option>
+                                                    </select>
+                                                    <span class="text-gray-400 font-bold text-sm">:</span>
+                                                    <select v-model="endMinute" class="time-select">
+                                                        <option v-for="m in minutes" :key="m" :value="m">{{ m }}</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <p v-if="form.end_date" class="text-xs text-indigo-600 font-semibold pl-0.5">
+                                                {{ formatDate(form.end_date) }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Pricing Summary -->
+                                <div v-if="durationDays > 0" class="bg-gradient-to-r from-indigo-50 to-violet-50 rounded-xl p-4 ring-1 ring-indigo-100">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+                                                <CalendarDays class="w-4 h-4 text-indigo-600" />
+                                            </div>
+                                            <div>
+                                                <p class="text-xs text-indigo-600 font-medium">Durée</p>
+                                                <p class="text-lg font-bold text-indigo-900">{{ durationDays }} jour{{ durationDays > 1 ? 's' : '' }}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Optional Fields -->
+                                <div>
+                                    <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                        <div class="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center">
+                                            <MapPin class="w-3.5 h-3.5 text-gray-600" />
+                                        </div>
+                                        Informations supplémentaires
+                                    </h3>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="form-label">Lieu de prise en charge</label>
+                                            <div class="form-input-wrapper">
+                                                <MapPin class="form-input-icon" />
+                                                <input 
+                                                    v-model="form.pickup_location"
+                                                    type="text"
+                                                    class="form-input"
+                                                    placeholder="Aéroport, agence, etc."
+                                                >
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="form-label">Lieu de retour</label>
+                                            <div class="form-input-wrapper">
+                                                <MapPin class="form-input-icon" />
+                                                <input 
+                                                    v-model="form.return_location"
+                                                    type="text"
+                                                    class="form-input"
+                                                    placeholder="Aéroport, agence, etc."
+                                                >
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mt-3">
+                                        <label class="form-label">Notes</label>
+                                        <div class="form-input-wrapper items-start">
+                                            <FileText class="form-input-icon mt-2.5" />
+                                            <textarea 
+                                                v-model="form.notes"
+                                                rows="2"
+                                                class="form-input"
+                                                placeholder="Informations complémentaires..."
+                                            ></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Submit -->
+                                <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
+                                    <button 
+                                        type="button"
+                                        @click="closeModal"
+                                        class="px-5 py-2.5 text-sm font-semibold text-gray-600 hover:text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-xl ring-1 ring-gray-200 transition-all"
+                                    >
+                                        Annuler
+                                    </button>
+                                    <button 
+                                        type="submit"
+                                        :disabled="loading || durationDays <= 0"
+                                        class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 rounded-xl shadow-md shadow-indigo-200 hover:shadow-lg hover:shadow-indigo-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none transition-all"
+                                    >
+                                        <Loader2 v-if="loading" class="w-4 h-4 animate-spin" />
+                                        <Key v-else class="w-4 h-4" />
+                                        <span>{{ loading ? 'Envoi en cours...' : 'Confirmer la réservation' }}</span>
+                                    </button>
+                                </div>
+                            </form>
                         </div>
-                    </form>
+                    </div>
                 </div>
             </div>
-        </div>
+        </Transition>
     </Teleport>
 </template>
 
+<style scoped>
+/* Modal entrance animation */
+.modal-enter-active {
+    transition: opacity 0.25s ease;
+}
+.modal-enter-active .modal-container {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
+}
+.modal-leave-active {
+    transition: opacity 0.2s ease;
+}
+.modal-leave-active .modal-container {
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.modal-enter-from {
+    opacity: 0;
+}
+.modal-enter-from .modal-container {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+}
+.modal-leave-to {
+    opacity: 0;
+}
+.modal-leave-to .modal-container {
+    opacity: 0;
+    transform: scale(0.97) translateY(5px);
+}
+
+/* Form field styles */
+.form-label {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: rgb(55 65 81);
+    margin-bottom: 0.3rem;
+}
+
+.form-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: white;
+    border: 1px solid rgb(229 231 235);
+    border-radius: 0.75rem;
+    transition: all 0.15s ease;
+    overflow: hidden;
+}
+
+.form-input-wrapper:focus-within {
+    border-color: rgb(129 140 248);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.form-input-icon {
+    width: 1rem;
+    height: 1rem;
+    color: rgb(156 163 175);
+    margin-left: 0.75rem;
+    flex-shrink: 0;
+}
+
+.form-input {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    font-size: 0.875rem;
+    color: rgb(17 24 39);
+    background: transparent;
+    border: none;
+    outline: none;
+}
+
+.form-input::placeholder {
+    color: rgb(156 163 175);
+}
+
+/* Time selects */
+.time-select {
+    flex: 1;
+    padding: 0.4rem 0.25rem;
+    font-size: 0.8125rem;
+    text-align: center;
+    color: rgb(55 65 81);
+    background: rgb(249 250 251);
+    border: 1px solid rgb(229 231 235);
+    border-radius: 0.5rem;
+    outline: none;
+    transition: all 0.15s ease;
+    cursor: pointer;
+}
+
+.time-select:focus {
+    border-color: rgb(129 140 248);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+}
+</style>

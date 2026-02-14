@@ -1,17 +1,39 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { RouterLink, useRouter } from 'vue-router';
+import { ref, computed } from 'vue';
+import { RouterLink, useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useTenantStore } from '@/stores/tenant';
 import { useTenantLink } from '@/composables/useTenantLink';
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue';
 import GlobalCalendarModal from '@/components/GlobalCalendarModal.vue';
-import { History, Calendar, Table, CalendarClock, Wrench, ShoppingBag } from 'lucide-vue-next';
+import {
+    Car,
+    Info,
+    BarChart3,
+    ClipboardList,
+    Wrench,
+    Settings,
+    History,
+    AlertTriangle,
+    CalendarClock,
+    Calendar,
+    Table,
+    ShoppingBag,
+    LogOut,
+    LogIn,
+    UserPlus,
+    Menu,
+    X,
+    BookOpen,
+    User,
+    ChevronRight,
+} from 'lucide-vue-next';
 
 const authStore = useAuthStore();
 const tenantStore = useTenantStore();
 const { tenantPath } = useTenantLink();
 const router = useRouter();
+const route = useRoute();
 
 // Mobile menu state
 const isMobileMenuOpen = ref(false);
@@ -29,165 +51,229 @@ async function handleLogout() {
     await authStore.signOut();
     closeMobileMenu();
 }
+
+// Helper to check if current route matches
+const isActive = (path: string) => {
+    return route.path.includes(path);
+};
 </script>
 
 <template>
-    <nav class="bg-white shadow relative z-50">
-        <div class="w-full px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16">
-            <div class="flex justify-between h-16">
-                <div class="flex">
+    <nav class="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-gray-200/60">
+        <div class="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
+            <div class="flex items-center justify-between h-16">
+                <!-- Left: Logo + Nav Links -->
+                <div class="flex items-center gap-1">
                     <!-- Logo -->
-                    <div class="shrink-0 flex items-center">
-                        <RouterLink :to="tenantPath('/')" class="flex items-center space-x-2">
-                            <img :src="tenantStore.currentTenant?.logo_url || '/images/icon-automedon.png'" alt="Logo" class="h-10 w-10 object-contain" />
-                            <span class="text-xl font-bold text-gray-800">
-                                {{ tenantStore.currentTenant?.name || 'Automedon' }}
-                            </span>
-                        </RouterLink>
-                    </div>
-                    
+                    <RouterLink :to="tenantPath('/')" class="flex items-center gap-2 mr-4 shrink-0 group">
+                        <div class="relative">
+                            <img 
+                                :src="tenantStore.currentTenant?.logo_url || '/images/icon-automedon.png'" 
+                                alt="Logo" 
+                                class="h-8 w-8 object-contain rounded-lg ring-1 ring-gray-200 group-hover:ring-indigo-300 transition-all" 
+                            />
+                        </div>
+                        <span class="text-base font-bold text-gray-900 hidden sm:block tracking-tight">
+                            {{ tenantStore.currentTenant?.name || 'Automedon' }}
+                        </span>
+                    </RouterLink>
+
                     <!-- Desktop Navigation -->
-                    <div class="hidden lg:ml-6 lg:flex lg:space-x-8">
-                        <RouterLink v-if="tenantStore.currentTenant" :to="tenantPath('/fleet')" active-class="border-indigo-500 text-indigo-600" class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            <svg class="nav-icon w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                            </svg>
-                            <span class="nav-text">{{ $t('nav.fleet') }}</span>
+                    <div class="hidden lg:flex items-center gap-0.5">
+                        <!-- Public Links -->
+                        <RouterLink 
+                            v-if="tenantStore.currentTenant" 
+                            :to="tenantPath('/fleet')" 
+                            class="nav-item"
+                            :class="{ 'nav-item-active': isActive('/fleet') }"
+                        >
+                            <Car class="w-4 h-4" />
+                            <span>{{ $t('nav.fleet') }}</span>
                         </RouterLink>
 
-                        <RouterLink :to="tenantPath('/about')" active-class="border-indigo-500 text-indigo-600" class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                            <svg class="nav-icon w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <span class="nav-text">{{ $t('nav.about') }}</span>
+                        <RouterLink 
+                            :to="tenantPath('/about')" 
+                            class="nav-item"
+                            :class="{ 'nav-item-active': isActive('/about') }"
+                        >
+                            <Info class="w-4 h-4" />
+                            <span>{{ $t('nav.about') }}</span>
                         </RouterLink>
+
+                        <!-- Divider -->
+                        <div v-if="authStore.isAdmin && tenantStore.currentTenant" class="w-px h-5 bg-gray-200 mx-1.5"></div>
 
                         <!-- Admin Links -->
                         <template v-if="authStore.isAdmin && tenantStore.currentTenant">
-                             <RouterLink v-if="authStore.role === 'admin'" :to="tenantPath('/admin/kpi')" active-class="border-indigo-500 text-indigo-600" class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                                <svg class="nav-icon w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                </svg>
-                                <span class="nav-text">KPI</span>
-                            </RouterLink>
-                            <RouterLink :to="tenantPath('/admin/cars')" active-class="border-indigo-500 text-indigo-600" class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                                <svg class="nav-icon w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" />
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
-                                </svg>
-                                <span class="nav-text">{{ $t('nav.admin') }}</span>
-                            </RouterLink>
-                            <RouterLink :to="tenantPath('/admin/reservations')" active-class="border-indigo-500 text-indigo-600" class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                                <svg class="nav-icon w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                                </svg>
-                                <span class="nav-text">{{ $t('nav.reservations') }}</span>
-                            </RouterLink>
-                            <RouterLink :to="tenantPath('/admin/maintenance')" active-class="border-indigo-500 text-indigo-600" class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                                <Wrench class="nav-icon w-6 h-6" />
-                                <span class="nav-text">Maintenance</span>
-                            </RouterLink>
-                            <RouterLink :to="tenantPath('/admin/settings')" active-class="border-indigo-500 text-indigo-600" class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                                <svg class="nav-icon w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                                <span class="nav-text">Settings</span>
-                            </RouterLink>
-                            <RouterLink v-if="authStore.role === 'admin'" :to="tenantPath('/admin/history')" active-class="border-indigo-500 text-indigo-600" class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">
-                                <History class="nav-icon w-6 h-6" />
-                                <span class="nav-text">History</span>
-                            </RouterLink>
                             <RouterLink 
-                                :to="tenantPath('/admin/reports')"
-                                active-class="border-indigo-500 text-indigo-600"
-                                class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+                                v-if="authStore.role === 'admin'"
+                                :to="tenantPath('/admin/kpi')" 
+                                class="nav-item"
+                                :class="{ 'nav-item-active': isActive('/admin/kpi') }"
                             >
-                                <svg class="nav-icon w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
-                                <span class="nav-text">{{ $t('reports.title') }}</span>
+                                <BarChart3 class="w-4 h-4" />
+                                <span>KPI</span>
                             </RouterLink>
 
-                             <RouterLink 
-                                :to="tenantPath('/admin/daily-journal')"
-                                active-class="border-indigo-500 text-indigo-600"
-                                class="nav-link border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+                            <RouterLink 
+                                :to="tenantPath('/admin/cars')" 
+                                class="nav-item"
+                                :class="{ 'nav-item-active': isActive('/admin/cars') }"
                             >
-                                <CalendarClock class="nav-icon w-6 h-6" />
-                                <span class="nav-text">{{ $t('daily_journal.title') }}</span>
+                                <Car class="w-4 h-4" />
+                                <span>{{ $t('nav.admin') }}</span>
+                            </RouterLink>
+
+                            <RouterLink 
+                                :to="tenantPath('/admin/reservations')" 
+                                class="nav-item"
+                                :class="{ 'nav-item-active': isActive('/admin/reservations') && !isActive('/admin/reservations-table') }"
+                            >
+                                <ClipboardList class="w-4 h-4" />
+                                <span>{{ $t('nav.reservations') }}</span>
+                            </RouterLink>
+
+                            <RouterLink 
+                                :to="tenantPath('/admin/maintenance')" 
+                                class="nav-item"
+                                :class="{ 'nav-item-active': isActive('/admin/maintenance') }"
+                            >
+                                <Wrench class="w-4 h-4" />
+                                <span>Maintenance</span>
+                            </RouterLink>
+
+                            <RouterLink 
+                                :to="tenantPath('/admin/settings')" 
+                                class="nav-item"
+                                :class="{ 'nav-item-active': isActive('/admin/settings') }"
+                            >
+                                <Settings class="w-4 h-4" />
+                                <span>Settings</span>
+                            </RouterLink>
+
+                            <RouterLink 
+                                v-if="authStore.role === 'admin'"
+                                :to="tenantPath('/admin/history')" 
+                                class="nav-item"
+                                :class="{ 'nav-item-active': isActive('/admin/history') }"
+                            >
+                                <History class="w-4 h-4" />
+                                <span>History</span>
+                            </RouterLink>
+
+                            <RouterLink 
+                                :to="tenantPath('/admin/reports')" 
+                                class="nav-item"
+                                :class="{ 'nav-item-active': isActive('/admin/reports') }"
+                            >
+                                <AlertTriangle class="w-4 h-4" />
+                                <span>{{ $t('reports.title') }}</span>
+                            </RouterLink>
+
+                            <RouterLink 
+                                :to="tenantPath('/admin/daily-journal')" 
+                                class="nav-item"
+                                :class="{ 'nav-item-active': isActive('/admin/daily-journal') }"
+                            >
+                                <CalendarClock class="w-4 h-4" />
+                                <span>{{ $t('daily_journal.title') }}</span>
                             </RouterLink>
                         </template>
                     </div>
                 </div>
 
-                <!-- Desktop Right Side -->
-                <div class="hidden lg:flex items-center">
+                <!-- Right: Actions -->
+                <div class="hidden lg:flex items-center gap-1">
+                    <!-- Quick Action Buttons -->
                     <button 
                         v-if="authStore.isAdmin && tenantStore.currentTenant" 
                         @click="router.push(tenantPath('/admin/reservations-table'))"
-                        class="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 rounded-full mr-2 transition-colors"
+                        class="action-btn"
+                        :class="{ 'action-btn-active': isActive('/admin/reservations-table') }"
                         title="Tableau Admin"
                     >
-                        <Table class="w-5 h-5" />
+                        <Table class="w-4 h-4" />
                     </button>
+
                     <button 
                         v-if="tenantStore.currentTenant" 
                         @click="showCalendarModal = true"
-                        class="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 rounded-full mr-2 transition-colors"
+                        class="action-btn"
                         title="Calendrier Global"
                     >
-                        <Calendar class="w-5 h-5" />
+                        <Calendar class="w-4 h-4" />
                     </button>
-                    <!-- Store Link for Tenant Admin -->
+
                     <RouterLink 
                         v-if="tenantStore.currentTenant && authStore.isAdmin"
                         :to="tenantPath('/admin/store')"
-                        class="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 rounded-full mr-2 transition-colors"
+                        class="action-btn"
+                        :class="{ 'action-btn-active': isActive('/admin/store') }"
                         title="Store"
                     >
-                        <ShoppingBag class="w-5 h-5" />
+                        <ShoppingBag class="w-4 h-4" />
                     </RouterLink>
-                    <LanguageSwitcher class="mr-4" />
-                    <template v-if="authStore.user || authStore.isAdmin">
-                        <span v-if="authStore.isAdmin" class="text-gray-700 text-sm mr-4">{{ $t('common.admin') }}</span>
-                        <span v-else class="text-gray-700 text-sm mr-4">{{ $t('nav.hello') }}, {{ authStore.user?.email }}</span>
 
-                        <RouterLink v-if="!authStore.isAdmin" to="/client/reservations" class="text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md text-sm font-medium mr-2">
-                            {{ $t('nav.my_bookings') }}
-                        </RouterLink>
-                        <button @click="handleLogout" class="text-red-600 hover:text-red-800 p-2 rounded-full hover:bg-red-50 transition-colors" :title="$t('nav.logout')">
-                            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                            </svg>
-                        </button>
+                    <div class="w-px h-5 bg-gray-200 mx-1"></div>
+
+                    <LanguageSwitcher class="mr-1" />
+
+                    <!-- User Section -->
+                    <template v-if="authStore.user || authStore.isAdmin">
+                        <div class="flex items-center gap-2 ml-1">
+                            <div class="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-100">
+                                <User class="w-3.5 h-3.5 text-indigo-500" />
+                                <span v-if="authStore.isAdmin" class="text-xs font-semibold text-gray-700">{{ $t('common.admin') }}</span>
+                                <span v-else class="text-xs text-gray-600 max-w-[120px] truncate">{{ authStore.user?.email }}</span>
+                            </div>
+
+                            <RouterLink 
+                                v-if="!authStore.isAdmin" 
+                                to="/client/reservations" 
+                                class="action-btn"
+                                title="Mes réservations"
+                            >
+                                <BookOpen class="w-4 h-4" />
+                            </RouterLink>
+
+                            <button 
+                                @click="handleLogout" 
+                                class="action-btn text-red-400 hover:text-red-600 hover:bg-red-50"
+                                :title="$t('nav.logout')"
+                            >
+                                <LogOut class="w-4 h-4" />
+                            </button>
+                        </div>
                     </template>
                     <template v-else>
-                        <RouterLink to="/login" class="text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md text-sm font-medium">
-                            {{ $t('nav.login') }}
-                        </RouterLink>
-                        <RouterLink to="/register" class="bg-indigo-600 text-white hover:bg-indigo-700 px-3 py-2 rounded-md text-sm font-medium ml-2">
-                            {{ $t('nav.register') }}
-                        </RouterLink>
+                        <div class="flex items-center gap-2 ml-1">
+                            <RouterLink 
+                                to="/login" 
+                                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-50 transition-colors"
+                            >
+                                <LogIn class="w-4 h-4" />
+                                {{ $t('nav.login') }}
+                            </RouterLink>
+                            <RouterLink 
+                                to="/register" 
+                                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
+                            >
+                                <UserPlus class="w-4 h-4" />
+                                {{ $t('nav.register') }}
+                            </RouterLink>
+                        </div>
                     </template>
                 </div>
 
-                <!-- Mobile Menu Button -->
-                <div class="lg:hidden flex items-center">
-                    <LanguageSwitcher class="mr-2" />
+                <!-- Mobile: Right Side -->
+                <div class="lg:hidden flex items-center gap-2">
+                    <LanguageSwitcher />
                     <button 
                         @click="toggleMobileMenu"
-                        class="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500"
+                        class="p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
                     >
-                        <span class="sr-only">Open menu</span>
-                        <!-- Hamburger Icon -->
-                        <svg v-if="!isMobileMenuOpen" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-                        </svg>
-                        <!-- Close Icon -->
-                        <svg v-else class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+                        <Menu v-if="!isMobileMenuOpen" class="w-5 h-5" />
+                        <X v-else class="w-5 h-5" />
                     </button>
                 </div>
             </div>
@@ -198,7 +284,7 @@ async function handleLogout() {
             <Transition name="fade">
                 <div 
                     v-if="isMobileMenuOpen" 
-                    class="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+                    class="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 lg:hidden"
                     @click="closeMobileMenu"
                 ></div>
             </Transition>
@@ -209,221 +295,215 @@ async function handleLogout() {
             <Transition name="slide">
                 <div 
                     v-if="isMobileMenuOpen"
-                    class="fixed top-0 right-0 h-full w-72 bg-white shadow-xl z-50 lg:hidden flex flex-col"
+                    class="fixed top-0 right-0 h-full w-72 bg-white shadow-2xl z-50 lg:hidden flex flex-col"
                 >
                     <!-- Sidebar Header -->
-                    <div class="flex items-center justify-between p-4 border-b border-gray-200">
-                        <div class="flex items-center space-x-2">
-                             <img :src="tenantStore.currentTenant?.logo_url || '/images/icon-automedon.png'" alt="Logo" class="h-8 w-8 object-contain" />
-                            <span class="text-lg font-bold text-gray-800">
+                    <div class="flex items-center justify-between p-4 border-b border-gray-100">
+                        <div class="flex items-center gap-2">
+                            <img 
+                                :src="tenantStore.currentTenant?.logo_url || '/images/icon-automedon.png'" 
+                                alt="Logo" 
+                                class="h-8 w-8 object-contain rounded-lg" 
+                            />
+                            <span class="text-base font-bold text-gray-900">
                                 {{ tenantStore.currentTenant?.name || 'Automedon' }}
                             </span>
                         </div>
                         <button 
                             @click="closeMobileMenu"
-                            class="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
+                            class="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
                         >
-                            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
+                            <X class="w-5 h-5" />
                         </button>
                     </div>
 
                     <!-- User Info -->
-                    <div v-if="authStore.user || authStore.isAdmin" class="p-4 bg-indigo-50 border-b border-gray-200">
-                        <p v-if="authStore.isAdmin" class="text-sm font-medium text-indigo-700">
-                            👤 {{ $t('common.admin') }}
-                        </p>
-                        <p v-else class="text-sm text-gray-600">
-                            {{ $t('nav.hello') }}, <span class="font-medium">{{ authStore.user?.email }}</span>
-                        </p>
+                    <div v-if="authStore.user || authStore.isAdmin" class="px-4 py-3 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-gray-100">
+                        <div class="flex items-center gap-2">
+                            <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
+                                <User class="w-4 h-4 text-indigo-600" />
+                            </div>
+                            <div>
+                                <p v-if="authStore.isAdmin" class="text-sm font-semibold text-indigo-700">{{ $t('common.admin') }}</p>
+                                <p v-else class="text-sm text-gray-700 font-medium truncate max-w-[180px]">{{ authStore.user?.email }}</p>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Navigation Links -->
-                    <div class="py-4 flex-1 overflow-y-auto">
-                        <div class="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                            Navigation
+                    <div class="py-2 flex-1 overflow-y-auto">
+                        <!-- Public Section -->
+                        <div class="px-4 pt-3 pb-1.5">
+                            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Navigation</span>
                         </div>
-                        
-
 
                         <RouterLink 
                             v-if="tenantStore.currentTenant"
                             :to="tenantPath('/fleet')" 
                             @click="closeMobileMenu"
-                            class="flex items-center px-4 py-3 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600"
+                            class="mobile-nav-item"
+                            :class="{ 'mobile-nav-active': isActive('/fleet') }"
                         >
-                            <svg class="w-5 h-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                            </svg>
-                            {{ $t('nav.fleet') }}
+                            <Car class="w-5 h-5" />
+                            <span>{{ $t('nav.fleet') }}</span>
+                            <ChevronRight class="w-4 h-4 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
                         </RouterLink>
 
                         <button 
                             v-if="authStore.isAdmin && tenantStore.currentTenant"
                             @click="() => { router.push(tenantPath('/admin/reservations-table')); closeMobileMenu(); }"
-                            class="w-full flex items-center px-4 py-3 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 text-left"
+                            class="mobile-nav-item w-full text-left"
+                            :class="{ 'mobile-nav-active': isActive('/admin/reservations-table') }"
                         >
-                            <Table class="w-5 h-5 mr-3" />
-                            Tableau Admin
+                            <Table class="w-5 h-5" />
+                            <span>Tableau Admin</span>
                         </button>
 
                         <button 
                             v-if="tenantStore.currentTenant"
                             @click="() => { showCalendarModal = true; closeMobileMenu(); }"
-                            class="w-full flex items-center px-4 py-3 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 text-left"
+                            class="mobile-nav-item w-full text-left"
                         >
-                            <Calendar class="w-5 h-5 mr-3" />
-                            Calendrier Global
+                            <Calendar class="w-5 h-5" />
+                            <span>Calendrier Global</span>
                         </button>
 
                         <RouterLink 
                             v-if="tenantStore.currentTenant && authStore.isAdmin"
                             :to="tenantPath('/admin/store')"
                             @click="closeMobileMenu"
-                            class="flex items-center px-4 py-3 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600"
+                            class="mobile-nav-item"
+                            :class="{ 'mobile-nav-active': isActive('/admin/store') }"
                         >
-                            <ShoppingBag class="w-5 h-5 mr-3" />
-                            Store
+                            <ShoppingBag class="w-5 h-5" />
+                            <span>Store</span>
                         </RouterLink>
-                        
+
                         <RouterLink 
                             :to="tenantPath('/about')"
                             @click="closeMobileMenu"
-                            class="flex items-center px-4 py-3 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600"
+                            class="mobile-nav-item"
+                            :class="{ 'mobile-nav-active': isActive('/about') }"
                         >
-                            <svg class="w-5 h-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            {{ $t('nav.about') }}
+                            <Info class="w-5 h-5" />
+                            <span>{{ $t('nav.about') }}</span>
                         </RouterLink>
-                        
 
                         <!-- Admin Section -->
                         <template v-if="authStore.isAdmin && tenantStore.currentTenant">
-                            <div class="px-4 py-2 mt-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                                Administration
+                            <div class="px-4 pt-5 pb-1.5">
+                                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Administration</span>
                             </div>
-                            
+
                             <RouterLink 
                                 v-if="authStore.role === 'admin'"
                                 :to="tenantPath('/admin/kpi')"
                                 @click="closeMobileMenu"
-                                class="flex items-center px-4 py-3 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600"
+                                class="mobile-nav-item"
+                                :class="{ 'mobile-nav-active': isActive('/admin/kpi') }"
                             >
-                                <svg class="w-5 h-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                </svg>
-                                KPI Dashboard
+                                <BarChart3 class="w-5 h-5" />
+                                <span>KPI Dashboard</span>
                             </RouterLink>
-                            
+
                             <RouterLink 
                                 :to="tenantPath('/admin/cars')"
                                 @click="closeMobileMenu"
-                                class="flex items-center px-4 py-3 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600"
+                                class="mobile-nav-item"
+                                :class="{ 'mobile-nav-active': isActive('/admin/cars') }"
                             >
-                                <svg class="w-5 h-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" />
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
-                                </svg>
-                                {{ $t('nav.admin') }}
+                                <Car class="w-5 h-5" />
+                                <span>{{ $t('nav.admin') }}</span>
                             </RouterLink>
-                            
+
                             <RouterLink 
                                 :to="tenantPath('/admin/reservations')"
                                 @click="closeMobileMenu"
-                                class="flex items-center px-4 py-3 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600"
+                                class="mobile-nav-item"
+                                :class="{ 'mobile-nav-active': isActive('/admin/reservations') }"
                             >
-                                <svg class="w-5 h-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                                </svg>
-                                {{ $t('nav.reservations') }}
+                                <ClipboardList class="w-5 h-5" />
+                                <span>{{ $t('nav.reservations') }}</span>
                             </RouterLink>
-                            
+
                             <RouterLink 
                                 :to="tenantPath('/admin/maintenance')"
                                 @click="closeMobileMenu"
-                                class="flex items-center px-4 py-3 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600"
+                                class="mobile-nav-item"
+                                :class="{ 'mobile-nav-active': isActive('/admin/maintenance') }"
                             >
-                                <Wrench class="w-5 h-5 mr-3" />
-                                Maintenance
+                                <Wrench class="w-5 h-5" />
+                                <span>Maintenance</span>
                             </RouterLink>
-                            
+
                             <RouterLink 
                                 :to="tenantPath('/admin/settings')"
                                 @click="closeMobileMenu"
-                                class="flex items-center px-4 py-3 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600"
+                                class="mobile-nav-item"
+                                :class="{ 'mobile-nav-active': isActive('/admin/settings') }"
                             >
-                                <svg class="w-5 h-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                                Settings
+                                <Settings class="w-5 h-5" />
+                                <span>Settings</span>
                             </RouterLink>
-                            
+
                             <RouterLink 
                                 v-if="authStore.role === 'admin'"
                                 :to="tenantPath('/admin/history')"
                                 @click="closeMobileMenu"
-                                class="flex items-center px-4 py-3 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600"
+                                class="mobile-nav-item"
+                                :class="{ 'mobile-nav-active': isActive('/admin/history') }"
                             >
-                                <svg class="w-5 h-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <History class="w-5 h-5" />
-                                </svg>
-                                History
+                                <History class="w-5 h-5" />
+                                <span>History</span>
                             </RouterLink>
 
                             <RouterLink 
                                 :to="tenantPath('/admin/reports')"
                                 @click="closeMobileMenu"
-                                class="flex items-center px-4 py-3 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600"
+                                class="mobile-nav-item"
+                                :class="{ 'mobile-nav-active': isActive('/admin/reports') }"
                             >
-                                <svg class="w-5 h-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
-                                {{ $t('reports.title') }}
+                                <AlertTriangle class="w-5 h-5" />
+                                <span>{{ $t('reports.title') }}</span>
                             </RouterLink>
 
-                             <RouterLink 
+                            <RouterLink 
                                 :to="tenantPath('/admin/daily-journal')"
                                 @click="closeMobileMenu"
-                                class="flex items-center px-4 py-3 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600"
+                                class="mobile-nav-item"
+                                :class="{ 'mobile-nav-active': isActive('/admin/daily-journal') }"
                             >
-                                <CalendarClock class="w-5 h-5 mr-3" />
-                                {{ $t('daily_journal.title') }}
+                                <CalendarClock class="w-5 h-5" />
+                                <span>{{ $t('daily_journal.title') }}</span>
                             </RouterLink>
                         </template>
 
-                        <!-- User Section -->
+                        <!-- Client Section -->
                         <template v-if="authStore.user && !authStore.isAdmin">
-                            <div class="px-4 py-2 mt-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                                Mon Compte
+                            <div class="px-4 pt-5 pb-1.5">
+                                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Mon Compte</span>
                             </div>
-                            
+
                             <RouterLink 
                                 to="/client/reservations" 
                                 @click="closeMobileMenu"
-                                class="flex items-center px-4 py-3 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600"
+                                class="mobile-nav-item"
                             >
-                                <svg class="w-5 h-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                                </svg>
-                                {{ $t('nav.my_bookings') }}
+                                <BookOpen class="w-5 h-5" />
+                                <span>{{ $t('nav.my_bookings') }}</span>
                             </RouterLink>
                         </template>
                     </div>
 
                     <!-- Bottom Actions -->
-                    <div class="flex-shrink-0 p-4 border-t border-gray-200 bg-white">
+                    <div class="shrink-0 p-4 border-t border-gray-100 bg-gray-50/50">
                         <template v-if="authStore.user || authStore.isAdmin">
                             <button 
                                 @click="handleLogout"
-                                class="flex items-center justify-center p-3 text-red-600 hover:bg-red-50 rounded-full mx-auto transition-colors"
-                                :title="$t('nav.logout')"
+                                class="flex items-center justify-center gap-2 w-full px-4 py-2.5 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors text-sm font-medium"
                             >
-                                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                                </svg>
+                                <LogOut class="w-4 h-4" />
+                                {{ $t('nav.logout') }}
                             </button>
                         </template>
                         <template v-else>
@@ -431,15 +511,17 @@ async function handleLogout() {
                                 <RouterLink 
                                     to="/login" 
                                     @click="closeMobileMenu"
-                                    class="flex items-center justify-center w-full px-4 py-3 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                                    class="flex items-center justify-center gap-2 w-full px-4 py-2.5 text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 text-sm font-medium transition-colors"
                                 >
+                                    <LogIn class="w-4 h-4" />
                                     {{ $t('nav.login') }}
                                 </RouterLink>
                                 <RouterLink 
                                     to="/register" 
                                     @click="closeMobileMenu"
-                                    class="flex items-center justify-center w-full px-4 py-3 text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
+                                    class="flex items-center justify-center gap-2 w-full px-4 py-2.5 text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 text-sm font-medium transition-colors shadow-sm"
                                 >
+                                    <UserPlus class="w-4 h-4" />
                                     {{ $t('nav.register') }}
                                 </RouterLink>
                             </div>
@@ -449,29 +531,116 @@ async function handleLogout() {
             </Transition>
         </Teleport>
 
-
         <GlobalCalendarModal :show="showCalendarModal" @close="showCalendarModal = false" />
     </nav>
 </template>
 
 <style scoped>
-/* Desktop Navigation Icon/Text Toggle */
-.nav-link .nav-text {
-    display: none;
+/* Desktop nav items — icon only, text reveals on hover */
+.nav-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    padding: 0.55rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: rgb(107 114 128);
+    border-radius: 0.5rem;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+    position: relative;
 }
 
-.nav-link:hover .nav-icon {
-    display: none;
+.nav-item :deep(svg) {
+    width: 1.25rem;
+    height: 1.25rem;
+    flex-shrink: 0;
 }
 
-.nav-link:hover .nav-text {
-    display: inline;
+.nav-item > span {
+    max-width: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.2s ease,
+                margin 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    margin-left: 0;
+}
+
+.nav-item:hover {
+    color: rgb(79 70 229);
+    background-color: rgb(238 242 255);
+    padding: 0.55rem 0.75rem;
+    gap: 0;
+}
+
+.nav-item:hover > span {
+    max-width: 10rem;
+    opacity: 1;
+    margin-left: 0.4rem;
+}
+
+.nav-item-active {
+    color: rgb(79 70 229);
+    background-color: rgb(238 242 255);
+    box-shadow: inset 0 0 0 1px rgb(199 210 254);
+}
+
+/* Right-side action buttons */
+.action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    color: rgb(156 163 175);
+    border-radius: 0.5rem;
+    transition: all 0.15s ease;
+}
+
+.action-btn :deep(svg) {
+    width: 1.15rem;
+    height: 1.15rem;
+}
+
+.action-btn:hover {
+    color: rgb(79 70 229);
+    background-color: rgb(243 244 246);
+}
+
+.action-btn-active {
+    color: rgb(79 70 229);
+    background-color: rgb(238 242 255);
+}
+
+/* Mobile nav items */
+.mobile-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 1rem;
+    margin: 0.125rem 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: rgb(55 65 81);
+    border-radius: 0.5rem;
+    transition: all 0.15s ease;
+}
+
+.mobile-nav-item:hover {
+    color: rgb(79 70 229);
+    background-color: rgb(238 242 255);
+}
+
+.mobile-nav-active {
+    color: rgb(79 70 229);
+    background-color: rgb(238 242 255);
 }
 
 /* Slide animation for sidebar */
 .slide-enter-active,
 .slide-leave-active {
-    transition: transform 0.3s ease;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .slide-enter-from,

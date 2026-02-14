@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 import ReservationModal from '@/components/ReservationModal.vue';
 import CarAvailabilityModal from '@/components/CarAvailabilityModal.vue';
-import { Eye, Calendar, Key } from 'lucide-vue-next';
+import { Eye, Calendar, Key, Fuel, Gauge, Users, CircleCheck, CircleX, Wrench } from 'lucide-vue-next';
 
 const { cars, loading, fetchCars } = useCars();
 const authStore = useAuthStore();
@@ -129,56 +129,84 @@ const onReservationSuccess = () => {
                     <p class="text-gray-500 text-lg">Aucune voiture trouvée.</p>
                 </div>
 
-                <!-- Cars Grid - Responsive columns -->
+                <!-- Cars Grid -->
                 <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
                     <div 
                         v-for="car in filteredCars" 
                         :key="car.id" 
-                        class="group bg-white rounded-xl shadow-sm hover:shadow-lg overflow-hidden flex flex-col h-full transition-all duration-300 border border-gray-100 hover:border-indigo-200"
+                        class="car-card group"
                     >
-                        <!-- Car Image -->
-                        <div class="relative w-full aspect-[4/3] bg-gray-100 overflow-hidden">
+                        <!-- Image Container -->
+                        <div class="relative w-full aspect-[4/3] overflow-hidden bg-gray-900">
                             <img 
                                 :src="car.image_url || 'https://via.placeholder.com/400x300?text=No+Image'" 
                                 :alt="`${car.brand} ${car.model}`" 
-                                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 ease-out"
                             >
+                            <!-- Gradient overlay -->
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent"></div>
+
+                            <!-- Status Badge -->
+                            <div class="absolute top-3 left-3">
+                                <span 
+                                    class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded-full backdrop-blur-md shadow-sm"
+                                    :class="{
+                                        'bg-emerald-500/90 text-white': car.status === 'disponible',
+                                        'bg-amber-500/90 text-white': car.status === 'loue',
+                                        'bg-red-500/90 text-white': car.status === 'maintenance',
+                                    }"
+                                >
+                                    <CircleCheck v-if="car.status === 'disponible'" class="w-3 h-3" />
+                                    <CircleX v-else-if="car.status === 'loue'" class="w-3 h-3" />
+                                    <Wrench v-else class="w-3 h-3" />
+                                    {{ car.status === 'disponible' ? 'Disponible' : car.status === 'loue' ? 'Loué' : 'Maintenance' }}
+                                </span>
+                            </div>
+
                             <!-- Brand Logo -->
-                            <div class="absolute bottom-3 right-3 bg-white rounded-lg p-2 shadow-md">
+                            <div class="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm rounded-xl p-1.5 shadow-lg ring-1 ring-white/20">
                                 <img 
                                     :src="getBrandLogo(car.brand)" 
                                     :alt="car.brand" 
-                                    class="h-8 w-8 object-contain"
+                                    class="h-7 w-7 object-contain"
                                 >
+                            </div>
+
+                            <!-- Car name on image -->
+                            <div class="absolute bottom-3 left-3">
+                                <h3 class="text-white font-bold text-lg leading-tight drop-shadow-lg">
+                                    {{ car.brand }} {{ car.model }}
+                                </h3>
+                                <p v-if="authStore.user || authStore.isAdmin" class="text-white/70 text-xs font-medium mt-0.5">
+                                    {{ car.plate_number }}
+                                </p>
                             </div>
                         </div>
                         
-                        <!-- Car Info -->
-                        <div class="p-4 sm:p-5 flex-1 flex flex-col justify-between">
-                            <div>
-                                <h3 class="text-lg sm:text-xl font-semibold text-gray-900">
-                                    {{ car.brand }} {{ car.model }}
-                                </h3>
-                                <p v-if="authStore.user" class="text-sm text-gray-500 mt-1">{{ car.plate_number }}</p>
+                        <!-- Card Body -->
+                        <div class="p-4 flex flex-col gap-3">
+                            <!-- Quick Specs -->
+                            <div v-if="car.mileage" class="flex items-center gap-1.5 text-xs text-gray-500">
+                                <Gauge class="w-3.5 h-3.5" />
+                                <span>{{ car.mileage?.toLocaleString() }} km</span>
                             </div>
-                            
-                            <div class="mt-4">
-                                <div class="grid grid-cols-2 gap-3">
-                                    <button 
-                                        @click="openAvailabilityModal(car)"
-                                        class="flex items-center justify-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
-                                    >
-                                        <Calendar class="w-4 h-4 mr-2" />
-                                        Dispo
-                                    </button>
-                                    <button 
-                                        @click="openBookingModal(car)"
-                                        class="flex items-center justify-center px-3 py-2 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
-                                    >
-                                        <Key class="w-4 h-4 mr-2" />
-                                        Réserver
-                                    </button>
-                                </div>
+
+                            <!-- Action Buttons -->
+                            <div class="grid grid-cols-2 gap-2">
+                                <button 
+                                    @click="openAvailabilityModal(car)"
+                                    class="flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-semibold rounded-xl text-gray-700 bg-gray-50 hover:bg-gray-100 ring-1 ring-gray-200 hover:ring-gray-300 transition-all duration-200"
+                                >
+                                    <Calendar class="w-4 h-4 text-indigo-500" />
+                                    Dispo
+                                </button>
+                                <button 
+                                    @click="openBookingModal(car)"
+                                    class="flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-semibold rounded-xl text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 shadow-md shadow-indigo-200 hover:shadow-lg hover:shadow-indigo-300 transition-all duration-200"
+                                >
+                                    <Key class="w-4 h-4" />
+                                    Réserver
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -202,3 +230,31 @@ const onReservationSuccess = () => {
         />
     </div>
 </template>
+
+<style scoped>
+.car-card {
+    background: white;
+    border-radius: 1rem;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    border: 1px solid rgb(229 231 235);
+    box-shadow: 
+        0 1px 3px rgba(0, 0, 0, 0.06),
+        0 4px 12px rgba(0, 0, 0, 0.04);
+    transition: 
+        transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+        box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+        border-color 0.35s ease;
+}
+
+.car-card:hover {
+    transform: translateY(-6px);
+    border-color: rgb(199 210 254);
+    box-shadow: 
+        0 12px 28px rgba(79, 70, 229, 0.10),
+        0 4px 12px rgba(0, 0, 0, 0.06),
+        0 0 0 1px rgba(79, 70, 229, 0.05);
+}
+</style>

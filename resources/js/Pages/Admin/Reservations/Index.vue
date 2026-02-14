@@ -22,7 +22,12 @@ import {
     ChevronUp,
     Download,
     Eye,
-    Lock
+    Lock,
+    Plus,
+    ClipboardList,
+    Loader2,
+    Image,
+    FileDown,
 } from 'lucide-vue-next';
 
 const { t } = useI18n();
@@ -50,17 +55,17 @@ async function loadReservations() {
 function getStatusClass(status: string) {
     switch (status) {
         case 'pending':
-            return 'bg-yellow-100 text-yellow-800';
+            return 'status-pending';
         case 'confirmed':
-            return 'bg-blue-100 text-blue-800';
+            return 'status-confirmed';
         case 'active':
-            return 'bg-green-100 text-green-800';
+            return 'status-active';
         case 'completed':
-            return 'bg-gray-100 text-gray-800';
+            return 'status-completed';
         case 'cancelled':
-            return 'bg-red-100 text-red-800';
+            return 'status-cancelled';
         default:
-            return 'bg-gray-100 text-gray-800';
+            return 'status-completed';
     }
 }
 
@@ -101,312 +106,427 @@ import { formatDate, formatDateTime } from '@/utils/date';
 </script>
 
 <template>
-    <div class="p-6">
-        <div class="flex justify-between items-center mb-6">
-            <h1 class="text-2xl font-semibold text-gray-900">{{ t('admin.reservations.title') }}</h1>
-            <RouterLink 
-                :to="tenantPath('/admin/reservations/new')" 
-                class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
-            >
-                {{ t('admin.reservations.new_reservation') }}
-            </RouterLink>
-        </div>
+    <div class="min-h-screen bg-gray-50/50">
+        <div class="max-w-[1600px] mx-auto p-5 md:p-6 space-y-5">
 
-        <!-- Filters -->
-        <div class="bg-white p-4 rounded-lg shadow mb-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                        {{ t('admin.reservations.search') }}
-                    </label>
-                    <input 
-                        v-model="search"
-                        @input="loadReservations"
-                        type="text"
-                        :placeholder="t('admin.reservations.search_placeholder')"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
+            <!-- Header -->
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-200">
+                        <ClipboardList class="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold text-gray-900 tracking-tight">{{ t('admin.reservations.title') }}</h1>
+                        <p class="text-sm text-gray-500">{{ reservations.length }} réservation{{ reservations.length !== 1 ? 's' : '' }}</p>
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                        {{ t('admin.reservations.status_filter') }}
-                    </label>
-                    <select 
-                        v-model="statusFilter"
-                        @change="loadReservations"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                        <option value="all">{{ t('admin.reservations.all_statuses') }}</option>
-                        <option value="pending">{{ t('admin.reservations.status_pending') }}</option>
-                        <option value="confirmed">{{ t('admin.reservations.status_confirmed') }}</option>
-                        <option value="active">{{ t('admin.reservations.status_active') }}</option>
-                        <option value="completed">{{ t('admin.reservations.status_completed') }}</option>
-                        <option value="cancelled">{{ t('admin.reservations.status_cancelled') }}</option>
-                    </select>
+                <RouterLink 
+                    :to="tenantPath('/admin/reservations/new')" 
+                    class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 rounded-xl shadow-md shadow-indigo-200 hover:shadow-lg hover:shadow-indigo-300 transition-all"
+                >
+                    <Plus class="w-4 h-4" />
+                    {{ t('admin.reservations.new_reservation') }}
+                </RouterLink>
+            </div>
+
+            <!-- Filters -->
+            <div class="bg-white rounded-2xl ring-1 ring-gray-100 shadow-sm p-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">
+                            {{ t('admin.reservations.search') }}
+                        </label>
+                        <div class="relative">
+                            <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <input 
+                                v-model="search"
+                                @input="loadReservations"
+                                type="text"
+                                :placeholder="t('admin.reservations.search_placeholder')"
+                                class="w-full pl-10 pr-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all"
+                            >
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">
+                            {{ t('admin.reservations.status_filter') }}
+                        </label>
+                        <div class="relative">
+                            <Filter class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <select 
+                                v-model="statusFilter"
+                                @change="loadReservations"
+                                class="w-full pl-10 pr-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 appearance-none cursor-pointer transition-all"
+                            >
+                                <option value="all">{{ t('admin.reservations.all_statuses') }}</option>
+                                <option value="pending">{{ t('admin.reservations.status_pending') }}</option>
+                                <option value="confirmed">{{ t('admin.reservations.status_confirmed') }}</option>
+                                <option value="active">{{ t('admin.reservations.status_active') }}</option>
+                                <option value="completed">{{ t('admin.reservations.status_completed') }}</option>
+                                <option value="cancelled">{{ t('admin.reservations.status_cancelled') }}</option>
+                            </select>
+                            <ChevronDown class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Loading State -->
-        <div v-if="loading" class="text-center py-12">
-            <p class="text-gray-500">{{ t('common.loading') }}...</p>
-        </div>
+            <!-- Loading -->
+            <div v-if="loading" class="flex flex-col items-center justify-center py-20">
+                <div class="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center mb-4">
+                    <Loader2 class="w-7 h-7 text-indigo-600 animate-spin" />
+                </div>
+                <p class="text-gray-500 font-medium">{{ t('common.loading') }}...</p>
+            </div>
 
-        <!-- Reservations List -->
-        <div v-else>
-            <!-- Desktop Table (Hidden on Mobile) -->
-            <div class="hidden md:block bg-white shadow overflow-hidden sm:rounded-lg">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            {{ t('admin.reservations.reservation_number') }}
-                        </th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            {{ t('admin.reservations.client') }}
-                        </th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            {{ t('admin.reservations.car') }}
-                        </th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            {{ t('admin.reservations.dates') }}
-                        </th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            {{ t('admin.reservations.total') }}
-                        </th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            {{ t('common.status') }}
-                        </th>
-                        <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Documents
-                        </th>
-                        <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Facture
-                        </th>
-                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            {{ t('common.actions') }}
-                        </th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                    <tr v-if="reservations.length === 0">
-                        <td colspan="9" class="px-6 py-4 text-center text-gray-500">
-                            {{ t('admin.reservations.no_reservations') }}
-                        </td>
-                    </tr>
-                    <template v-for="res in reservations" :key="res.id">
-                        <tr class="hover:bg-gray-50 cursor-pointer" @click="toggleExpand(res.id)">
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-indigo-600">
-                                {{ res.reservation_number }}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm font-medium text-gray-900">{{ res.client_name }}</div>
-                                <div class="text-sm text-gray-500">{{ res.client_cin }}</div>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <div class="text-sm font-medium text-gray-900">{{ res.car?.brand }} {{ res.car?.model }}</div>
-                                <div class="text-sm text-gray-500">{{ res.car?.plate_number }}</div>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                <div>{{ formatDateTime(res.start_date) }}</div>
-                                <div>{{ formatDateTime(res.end_date) }}</div>
-                                <div class="text-xs text-gray-400">({{ res.duration_days }} {{ t('admin.reservations.days') }})</div>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                                ${{ res.total_price.toFixed(2) }}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <span :class="getStatusClass(res.status)" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full">
+            <!-- Content -->
+            <div v-else>
+
+                <!-- Desktop Table -->
+                <div class="hidden md:block bg-white rounded-2xl ring-1 ring-gray-100 shadow-sm overflow-hidden">
+                    <table class="min-w-full">
+                        <thead>
+                            <tr class="border-b border-gray-100">
+                                <th class="px-5 py-3.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                                    {{ t('admin.reservations.reservation_number') }}
+                                </th>
+                                <th class="px-5 py-3.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                                    {{ t('admin.reservations.client') }}
+                                </th>
+                                <th class="px-5 py-3.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                                    {{ t('admin.reservations.car') }}
+                                </th>
+                                <th class="px-5 py-3.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                                    {{ t('admin.reservations.dates') }}
+                                </th>
+                                <th class="px-5 py-3.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                                    {{ t('admin.reservations.total') }}
+                                </th>
+                                <th class="px-5 py-3.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                                    {{ t('common.status') }}
+                                </th>
+                                <th class="px-5 py-3.5 text-center text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                                    Docs
+                                </th>
+                                <th class="px-5 py-3.5 text-center text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                                    Facture
+                                </th>
+                                <th class="px-5 py-3.5 text-right text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                                    {{ t('common.actions') }}
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-if="reservations.length === 0">
+                                <td colspan="9" class="px-5 py-16 text-center">
+                                    <div class="flex flex-col items-center">
+                                        <div class="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center mb-3">
+                                            <ClipboardList class="w-6 h-6 text-gray-300" />
+                                        </div>
+                                        <p class="text-gray-400 font-medium">{{ t('admin.reservations.no_reservations') }}</p>
+                                    </div>
+                                </td>
+                            </tr>
+                            <template v-for="res in reservations" :key="res.id">
+                                <tr 
+                                    class="border-b border-gray-50 hover:bg-indigo-50/30 cursor-pointer transition-colors"
+                                    @click="toggleExpand(res.id)"
+                                >
+                                    <td class="px-5 py-3.5">
+                                        <span class="text-sm font-bold text-indigo-600">{{ res.reservation_number }}</span>
+                                    </td>
+                                    <td class="px-5 py-3.5">
+                                        <div class="flex items-center gap-2.5">
+                                            <div class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+                                                <User class="w-4 h-4 text-gray-500" />
+                                            </div>
+                                            <div>
+                                                <div class="text-sm font-semibold text-gray-900">{{ res.client_name }}</div>
+                                                <div class="text-xs text-gray-400">{{ res.client_cin }}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-5 py-3.5">
+                                        <div class="flex items-center gap-2.5">
+                                            <div class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+                                                <Car class="w-4 h-4 text-gray-500" />
+                                            </div>
+                                            <div>
+                                                <div class="text-sm font-semibold text-gray-900">{{ res.car?.brand }} {{ res.car?.model }}</div>
+                                                <div class="text-xs text-gray-400">{{ res.car?.plate_number }}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-5 py-3.5">
+                                        <div class="text-sm text-gray-700">{{ formatDateTime(res.start_date) }}</div>
+                                        <div class="text-sm text-gray-700">{{ formatDateTime(res.end_date) }}</div>
+                                        <div class="text-[11px] text-gray-400 font-medium mt-0.5">{{ res.duration_days }} {{ t('admin.reservations.days') }}</div>
+                                    </td>
+                                    <td class="px-5 py-3.5">
+                                        <span class="text-sm font-bold text-gray-900">${{ res.total_price.toFixed(2) }}</span>
+                                    </td>
+                                    <td class="px-5 py-3.5">
+                                        <span :class="getStatusClass(res.status)" class="status-badge">
+                                            {{ t(`admin.reservations.status_${res.status}`) }}
+                                        </span>
+                                    </td>
+                                    <td class="px-5 py-3.5 text-center">
+                                        <button class="w-8 h-8 rounded-lg flex items-center justify-center mx-auto hover:bg-gray-100 transition-colors">
+                                            <ChevronDown 
+                                                class="w-4 h-4 text-gray-400 transition-transform duration-200" 
+                                                :class="{ 'rotate-180': expandedReservation === res.id }" 
+                                            />
+                                        </button>
+                                    </td>
+                                    <td class="px-5 py-3.5 text-center" @click.stop>
+                                        <button 
+                                            @click="handleInvoiceClick(res)"
+                                            class="w-8 h-8 rounded-lg flex items-center justify-center mx-auto hover:bg-indigo-50 transition-colors"
+                                            :title="checkAppAccess('Facture Pro') ? 'Générer Facture' : 'Facture Pro requis'"
+                                        >
+                                            <FileText v-if="checkAppAccess('Facture Pro')" class="w-4 h-4 text-indigo-500" />
+                                            <Lock v-else class="w-4 h-4 text-gray-300" />
+                                        </button>
+                                    </td>
+                                    <td class="px-5 py-3.5 text-right" @click.stop>
+                                        <div class="flex items-center justify-end gap-1">
+                                            <RouterLink 
+                                                :to="tenantPath(`/admin/reservations/${res.id}`)" 
+                                                class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-indigo-50 transition-colors"
+                                                title="Modifier"
+                                            >
+                                                <Edit class="w-4 h-4 text-indigo-500" />
+                                            </RouterLink>
+                                            <button 
+                                                @click="handleDelete(res.id, res.reservation_number)"
+                                                class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-50 transition-colors"
+                                                title="Supprimer"
+                                            >
+                                                <Trash2 class="w-4 h-4 text-red-400" />
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                
+                                <!-- Expanded Documents -->
+                                <tr v-if="expandedReservation === res.id">
+                                    <td colspan="9" class="px-5 py-4 bg-gray-50/70">
+                                        <div class="max-w-4xl">
+                                            <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                                <FileText class="w-3.5 h-3.5" />
+                                                Documents du Contrat
+                                            </h4>
+                                            <div v-if="documents.length > 0" class="space-y-2">
+                                                <div v-for="doc in documents" :key="doc.id" class="flex items-center justify-between bg-white p-3 rounded-xl ring-1 ring-gray-100">
+                                                    <div class="flex items-center gap-3">
+                                                        <div class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                                                            :class="doc.file_name.toLowerCase().endsWith('.pdf') ? 'bg-red-50' : 'bg-indigo-50'"
+                                                        >
+                                                            <FileText v-if="doc.file_name.toLowerCase().endsWith('.pdf')" class="w-4 h-4 text-red-500" />
+                                                            <Image v-else class="w-4 h-4 text-indigo-500" />
+                                                        </div>
+                                                        <div>
+                                                            <div class="text-sm font-semibold text-gray-900">{{ doc.file_name }}</div>
+                                                            <div class="text-xs text-gray-400">{{ formatDateTime(doc.uploaded_at) }}</div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="flex items-center gap-1.5">
+                                                        <a 
+                                                            :href="doc.file_url" target="_blank" download 
+                                                            class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
+                                                        >
+                                                            <FileDown class="w-3 h-3" />
+                                                            Télécharger
+                                                        </a>
+                                                        <a 
+                                                            :href="doc.file_url" target="_blank"
+                                                            class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 ring-1 ring-gray-200 transition-colors"
+                                                        >
+                                                            <Eye class="w-3 h-3" />
+                                                            Voir
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div v-else class="text-sm text-gray-400 italic py-2">
+                                                Aucun document disponible.
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Mobile Card View -->
+                <div class="md:hidden space-y-3">
+                    <div v-if="reservations.length === 0" class="flex flex-col items-center py-16 bg-white rounded-2xl ring-1 ring-gray-100">
+                        <div class="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center mb-3">
+                            <ClipboardList class="w-6 h-6 text-gray-300" />
+                        </div>
+                        <p class="text-gray-400 font-medium">{{ t('admin.reservations.no_reservations') }}</p>
+                    </div>
+                    
+                    <div 
+                        v-for="res in reservations" 
+                        :key="res.id" 
+                        class="bg-white rounded-2xl ring-1 ring-gray-100 shadow-sm overflow-hidden"
+                    >
+                        <!-- Card Header -->
+                        <div class="p-4 space-y-3">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <span class="text-sm font-bold text-indigo-600">#{{ res.reservation_number }}</span>
+                                    <div class="text-[11px] text-gray-400 mt-0.5">{{ formatDateTime(res.created_at) }}</div>
+                                </div>
+                                <span :class="getStatusClass(res.status)" class="status-badge">
                                     {{ t(`admin.reservations.status_${res.status}`) }}
                                 </span>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-center">
-                                <button class="text-indigo-600 hover:text-indigo-900 flex items-center justify-center mx-auto">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" :class="{'rotate-180': expandedReservation === res.id}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                </button>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-center" @click.stop>
+                            </div>
+
+                            <!-- Client -->
+                            <div class="flex items-center gap-2.5 pt-2.5 border-t border-gray-100">
+                                <div class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+                                    <User class="w-4 h-4 text-gray-500" />
+                                </div>
+                                <div>
+                                    <div class="text-sm font-semibold text-gray-900">{{ res.client_name }}</div>
+                                    <div class="text-xs text-gray-400">{{ res.client_phone }}</div>
+                                </div>
+                            </div>
+
+                            <!-- Car -->
+                            <div class="flex items-center gap-2.5">
+                                <div class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+                                    <Car class="w-4 h-4 text-gray-500" />
+                                </div>
+                                <div>
+                                    <div class="text-sm font-semibold text-gray-900">{{ res.car?.brand }} {{ res.car?.model }}</div>
+                                    <div class="text-xs text-gray-400">{{ res.car?.plate_number }}</div>
+                                </div>
+                            </div>
+
+                            <!-- Dates -->
+                            <div class="flex items-center gap-2.5">
+                                <div class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+                                    <Calendar class="w-4 h-4 text-gray-500" />
+                                </div>
+                                <div class="text-sm text-gray-600">
+                                    {{ formatDateTime(res.start_date) }} - {{ formatDateTime(res.end_date) }}
+                                    <span class="text-xs text-gray-400 ml-1">({{ res.duration_days }}j)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card Footer -->
+                        <div class="px-4 py-3 bg-gray-50/50 border-t border-gray-100 flex justify-between items-center">
+                            <div class="text-base font-bold text-gray-900">
+                                {{ res.total_price.toFixed(2) }} TND
+                            </div>
+                            <div class="flex items-center gap-1">
                                 <button 
                                     @click="handleInvoiceClick(res)"
-                                    class="text-gray-500 hover:text-indigo-600 focus:outline-none transition-colors"
-                                    :title="checkAppAccess('Facture Pro') ? 'Générer Facture' : 'Facture Pro requis'"
+                                    class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white transition-colors"
                                 >
-                                    <FileText v-if="checkAppAccess('Facture Pro')" class="h-5 w-5" />
-                                    <Lock v-else class="h-4 w-4 text-gray-400" />
+                                    <FileText v-if="checkAppAccess('Facture Pro')" class="w-4 h-4 text-indigo-500" />
+                                    <Lock v-else class="w-4 h-4 text-gray-300" />
                                 </button>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2" @click.stop>
+                                <button 
+                                    @click="toggleExpand(res.id)" 
+                                    class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white transition-colors"
+                                >
+                                    <ChevronDown 
+                                        class="w-4 h-4 text-gray-400 transition-transform duration-200" 
+                                        :class="{ 'rotate-180': expandedReservation === res.id }" 
+                                    />
+                                </button>
                                 <RouterLink 
                                     :to="tenantPath(`/admin/reservations/${res.id}`)" 
-                                    class="text-indigo-600 hover:text-indigo-900"
+                                    class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-indigo-50 transition-colors"
                                 >
-                                    {{ t('common.edit') }}
+                                    <Edit class="w-4 h-4 text-indigo-500" />
                                 </RouterLink>
                                 <button 
                                     @click="handleDelete(res.id, res.reservation_number)"
-                                    class="text-red-600 hover:text-red-900"
+                                    class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-50 transition-colors"
                                 >
-                                    {{ t('common.delete') }}
+                                    <Trash2 class="w-4 h-4 text-red-400" />
                                 </button>
-                            </td>
-                        </tr>
-                        
-                        <!-- Expanded Documents Section -->
-                        <tr v-if="expandedReservation === res.id">
-                            <td colspan="9" class="px-6 py-4 bg-gray-50">
-                                <div class="max-w-4xl">
-                                    <h4 class="text-sm font-semibold text-gray-900 mb-3">Documents du Contrat</h4>
-                                    <div v-if="documents.length > 0" class="space-y-2">
-                                        <div v-for="doc in documents" :key="doc.id" class="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-200">
-                                            <div class="flex items-center space-x-3">
-                                                <div class="flex-shrink-0 h-10 w-10 flex items-center justify-center bg-indigo-100 rounded-lg text-indigo-600">
-                                                    <!-- PDF Icon -->
-                                                    <svg v-if="doc.file_name.toLowerCase().endsWith('.pdf')" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                                    </svg>
-                                                    <!-- Image Icon -->
-                                                    <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                                    </svg>
-                                                </div>
-                                                <div>
-                                                    <div class="text-sm font-medium text-gray-900">{{ doc.file_name }}</div>
-                                                    <div class="text-xs text-gray-500">Ajouté le {{ formatDateTime(doc.uploaded_at) }}</div>
-                                                </div>
-                                            </div>
-                                            <div class="flex space-x-2">
-                                                <a :href="doc.file_url" target="_blank" download class="px-3 py-1 text-xs bg-indigo-50 text-indigo-700 rounded-md hover:bg-indigo-100">
-                                                    Télécharger
-                                                </a>
-                                                <a :href="doc.file_url" target="_blank" class="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200">
-                                                    Voir
-                                                </a>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div v-else class="text-sm text-gray-500 italic py-2">
-                                        Aucun document disponible.
+                            </div>
+                        </div>
+
+                        <!-- Expanded Documents (Mobile) -->
+                        <div v-if="expandedReservation === res.id" class="px-4 py-3 border-t border-gray-100 bg-gray-50/70">
+                            <h4 class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Documents</h4>
+                            <div v-if="documents.length > 0" class="space-y-1.5">
+                                <div v-for="doc in documents" :key="doc.id" class="flex items-center justify-between bg-white p-2.5 rounded-xl ring-1 ring-gray-100">
+                                    <span class="text-xs font-semibold text-gray-700 truncate max-w-[150px]">{{ doc.file_name }}</span>
+                                    <div class="flex items-center gap-1">
+                                        <a :href="doc.file_url" target="_blank" download class="w-7 h-7 rounded-md flex items-center justify-center text-indigo-500 hover:bg-indigo-50 transition-colors">
+                                            <Download class="w-3.5 h-3.5" />
+                                        </a>
+                                        <a :href="doc.file_url" target="_blank" class="w-7 h-7 rounded-md flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors">
+                                            <Eye class="w-3.5 h-3.5" />
+                                        </a>
                                     </div>
                                 </div>
-                            </td>
-                        </tr>
-                    </template>
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Mobile Card View (Hidden on Desktop) -->
-        <div class="md:hidden space-y-4">
-            <div v-if="reservations.length === 0" class="text-center py-12 bg-white rounded-lg shadow">
-                <p class="text-gray-500">{{ t('admin.reservations.no_reservations') }}</p>
-            </div>
-            
-            <div v-for="res in reservations" :key="res.id" class="bg-white rounded-lg shadow p-4 space-y-3">
-                <!-- Header: Number & Status -->
-                <div class="flex justify-between items-start">
-                    <div>
-                        <span class="text-sm font-bold text-indigo-600">#{{ res.reservation_number }}</span>
-                        <div class="text-xs text-gray-500 mt-1">{{ formatDateTime(res.created_at) }}</div>
-                    </div>
-                    <span :class="getStatusClass(res.status)" class="px-2 py-1 text-xs font-semibold rounded-full">
-                        {{ t(`admin.reservations.status_${res.status}`) }}
-                    </span>
-                </div>
-
-                <!-- Client Info -->
-                <div class="flex items-center space-x-3 pt-2 border-t border-gray-100">
-                    <User class="h-4 w-4 text-gray-400" />
-                    <div>
-                        <div class="text-sm font-medium text-gray-900">{{ res.client_name }}</div>
-                        <div class="text-xs text-gray-500">{{ res.client_phone }}</div>
-                    </div>
-                </div>
-
-                <!-- Car Info -->
-                <div class="flex items-center space-x-3">
-                    <Car class="h-4 w-4 text-gray-400" />
-                    <div>
-                        <div class="text-sm font-medium text-gray-900">{{ res.car?.brand }} {{ res.car?.model }}</div>
-                        <div class="text-xs text-gray-500">{{ res.car?.plate_number }}</div>
-                    </div>
-                </div>
-
-                <!-- Dates -->
-                <div class="flex items-center space-x-3">
-                    <Calendar class="h-4 w-4 text-gray-400" />
-                    <div class="text-sm text-gray-600">
-                        {{ formatDateTime(res.start_date) }} - {{ formatDateTime(res.end_date) }}
-                        <span class="text-xs text-gray-400">({{ res.duration_days }}j)</span>
-                    </div>
-                </div>
-
-                <!-- Price -->
-                <div class="flex justify-between items-center pt-2 border-t border-gray-100">
-                    <div class="text-sm font-bold text-gray-900">
-                        {{ res.total_price.toFixed(2) }} TND
-                    </div>
-                    
-                    <!-- Actions -->
-                    <div class="flex space-x-2">
-                        <button 
-                            @click="handleInvoiceClick(res)"
-                            class="p-2 text-gray-400 hover:text-indigo-600 rounded-full hover:bg-gray-100"
-                            :title="checkAppAccess('Facture Pro') ? 'Générer Facture' : 'Facture Pro requis'"
-                        >
-                            <FileText v-if="checkAppAccess('Facture Pro')" class="h-4 w-4" />
-                            <Lock v-else class="h-4 w-4" />
-                        </button>
-                        <button 
-                            @click="toggleExpand(res.id)" 
-                            class="p-2 text-gray-400 hover:text-indigo-600 rounded-full hover:bg-gray-100"
-                        >
-                            <FileText class="h-4 w-4" />
-                        </button>
-                        <RouterLink 
-                            :to="tenantPath(`/admin/reservations/${res.id}`)" 
-                            class="p-2 text-blue-600 hover:text-blue-800 rounded-full hover:bg-blue-50"
-                        >
-                            <Edit class="h-4 w-4" />
-                        </RouterLink>
-                        <button 
-                            @click="handleDelete(res.id, res.reservation_number)"
-                            class="p-2 text-red-600 hover:text-red-800 rounded-full hover:bg-red-50"
-                        >
-                            <Trash2 class="h-4 w-4" />
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Expanded Documents (Mobile) -->
-                <div v-if="expandedReservation === res.id" class="mt-3 pt-3 border-t border-gray-100 bg-gray-50 rounded-md p-3">
-                    <h4 class="text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wider">Documents</h4>
-                    <div v-if="documents.length > 0" class="space-y-2">
-                        <div v-for="doc in documents" :key="doc.id" class="flex items-center justify-between bg-white p-2 rounded border border-gray-200">
-                            <span class="text-xs font-medium text-gray-700 truncate max-w-[150px]">{{ doc.file_name }}</span>
-                            <div class="flex space-x-1">
-                                <a :href="doc.file_url" target="_blank" download class="p-1 text-indigo-600 hover:bg-indigo-50 rounded">
-                                    <Download class="h-3 w-3" />
-                                </a>
-                                <a :href="doc.file_url" target="_blank" class="p-1 text-gray-600 hover:bg-gray-50 rounded">
-                                    <Eye class="h-3 w-3" />
-                                </a>
+                            </div>
+                            <div v-else class="text-xs text-gray-400 italic text-center py-2">
+                                Aucun document.
                             </div>
                         </div>
                     </div>
-                    <div v-else class="text-xs text-gray-500 italic text-center py-1">
-                        Aucun document.
-                    </div>
                 </div>
             </div>
+            
+            <UpsellModal 
+                :show="showUpsell" 
+                app-name="Facture Pro"
+                @close="showUpsell = false" 
+            />
         </div>
-        </div>
-        
-        <UpsellModal 
-            :show="showUpsell" 
-            app-name="Facture Pro"
-            @close="showUpsell = false" 
-        />
     </div>
 </template>
+
+<style scoped>
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.625rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    border-radius: 0.5rem;
+    letter-spacing: 0.025em;
+}
+
+.status-pending {
+    background: rgb(254 249 195);
+    color: rgb(133 77 14);
+    box-shadow: inset 0 0 0 1px rgba(202, 138, 4, 0.15);
+}
+
+.status-confirmed {
+    background: rgb(219 234 254);
+    color: rgb(30 64 175);
+    box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.15);
+}
+
+.status-active {
+    background: rgb(209 250 229);
+    color: rgb(22 101 52);
+    box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.15);
+}
+
+.status-completed {
+    background: rgb(243 244 246);
+    color: rgb(55 65 81);
+    box-shadow: inset 0 0 0 1px rgba(107, 114, 128, 0.15);
+}
+
+.status-cancelled {
+    background: rgb(254 226 226);
+    color: rgb(153 27 27);
+    box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.15);
+}
+</style>
