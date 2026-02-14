@@ -345,595 +345,650 @@ function cancelPreview() {
 
 import { formatDateTime } from '@/utils/date';
 import DateTimeInput from '@/components/DateTimeInput.vue';
+import { 
+    ClipboardList, User, CreditCard, Phone, Mail, IdCard, Car, Calendar, Clock, Hash, 
+    DollarSign, Wallet, MapPin, FileText, Plus, Minus, Loader2, CircleCheck, 
+    AlertTriangle, X, Eye, Trash2, Upload, Image,
+    Users, ChevronDown,
+} from 'lucide-vue-next';
 </script>
 
 <template>
-    <div class="max-w-4xl mx-auto p-6">
-        <div class="mb-6">
-            <h1 class="text-2xl font-semibold text-gray-900">
-                {{ isEditMode ? t('admin.reservations.edit_title') : t('admin.reservations.new_title') }}
-            </h1>
-            <p v-if="isEditMode && reservation.reservation_number" class="text-sm text-gray-500 mt-1">
-                {{ reservation.reservation_number }}
-            </p>
-        </div>
+    <div class="min-h-screen bg-gray-50/50">
+        <div class="max-w-3xl mx-auto p-5 md:p-6 space-y-5">
 
-        <!-- Loading State -->
-        <div v-if="initialLoading" class="bg-white shadow-md rounded-lg p-6 text-center">
-            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
-            <p class="mt-4 text-gray-500">{{ t('common.loading') }}...</p>
-        </div>
+            <!-- Header -->
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-200">
+                    <ClipboardList class="w-5 h-5 text-white" />
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-gray-900 tracking-tight">
+                        {{ isEditMode ? t('admin.reservations.edit_title') : t('admin.reservations.new_title') }}
+                    </h1>
+                    <p v-if="isEditMode && reservation.reservation_number" class="text-sm text-gray-500">
+                        {{ reservation.reservation_number }}
+                    </p>
+                    <p v-else class="text-sm text-gray-500">Remplissez les informations de la réservation</p>
+                </div>
+            </div>
 
-        <form v-else @submit.prevent="handleSubmit" class="bg-white shadow-md rounded-lg p-6 space-y-6">
-            <!-- Client Information -->
-            <div class="border-b pb-4">
-                <h2 class="text-lg font-medium text-gray-900 mb-4">{{ t('admin.reservations.client_info') }}</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            {{ t('admin.reservations.client_name') }} *
-                        </label>
-                        <div class="relative">
-                            <input 
-                                v-model="reservation.client_name"
-                                type="text"
-                                required
-                                @input="handleClientNameInput"
-                                @focus="handleClientNameInput"
-                                @blur="closeSuggestionsWithDelay"
-                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                autocomplete="off"
-                            >
-                            <!-- Autocomplete Dropdown -->
-                            <div v-if="showClientSuggestions" class="absolute z-10 w-full bg-white mt-1 border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto">
-                                <ul>
-                                    <li 
-                                        v-for="client in clientSuggestions" 
-                                        :key="client.id"
-                                        @mousedown="selectClient(client)" 
-                                        class="px-4 py-2 hover:bg-indigo-50 cursor-pointer border-b border-gray-100 last:border-0"
+            <!-- Loading -->
+            <div v-if="initialLoading" class="flex flex-col items-center justify-center py-20 bg-white rounded-2xl ring-1 ring-gray-100 shadow-sm">
+                <div class="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center mb-4">
+                    <Loader2 class="w-7 h-7 text-indigo-600 animate-spin" />
+                </div>
+                <p class="text-gray-500 font-medium">{{ t('common.loading') }}...</p>
+            </div>
+
+            <!-- Form -->
+            <form v-else @submit.prevent="handleSubmit" class="space-y-5">
+
+                <!-- Client Information -->
+                <div class="form-section">
+                    <h2 class="section-title">
+                        <div class="w-6 h-6 rounded-md bg-indigo-100 flex items-center justify-center">
+                            <User class="w-3.5 h-3.5 text-indigo-600" />
+                        </div>
+                        {{ t('admin.reservations.client_info') }}
+                    </h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label class="form-label">{{ t('admin.reservations.client_name') }} *</label>
+                            <div class="relative">
+                                <div class="form-input-wrapper">
+                                    <User class="form-input-icon" />
+                                    <input 
+                                        v-model="reservation.client_name"
+                                        type="text"
+                                        required
+                                        @input="handleClientNameInput"
+                                        @focus="handleClientNameInput"
+                                        @blur="closeSuggestionsWithDelay"
+                                        class="form-input"
+                                        autocomplete="off"
+                                        placeholder="Nom complet"
                                     >
-                                        <div class="font-medium text-gray-900">{{ client.full_name }}</div>
-                                        <div class="text-xs text-gray-500 flex justify-between">
-                                            <span>{{ client.cin }}</span>
-                                            <span>{{ client.phone }}</span>
-                                        </div>
-                                    </li>
-                                </ul>
+                                </div>
+                                <!-- Autocomplete Dropdown -->
+                                <div v-if="showClientSuggestions" class="absolute z-10 w-full bg-white mt-1 rounded-xl ring-1 ring-gray-200 shadow-xl max-h-60 overflow-auto">
+                                    <ul>
+                                        <li 
+                                            v-for="client in clientSuggestions" 
+                                            :key="client.id"
+                                            @mousedown="selectClient(client)" 
+                                            class="px-4 py-2.5 hover:bg-indigo-50 cursor-pointer border-b border-gray-50 last:border-0 transition-colors"
+                                        >
+                                            <div class="text-sm font-semibold text-gray-900">{{ client.full_name }}</div>
+                                            <div class="text-xs text-gray-400 flex justify-between mt-0.5">
+                                                <span>{{ client.cin }}</span>
+                                                <span>{{ client.phone }}</span>
+                                            </div>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="form-label">{{ t('admin.reservations.client_cin') }} *</label>
+                            <div class="form-input-wrapper">
+                                <CreditCard class="form-input-icon" />
+                                <input v-model="reservation.client_cin" type="text" required class="form-input" placeholder="CIN">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="form-label">{{ t('admin.reservations.client_phone') }} *</label>
+                            <div class="form-input-wrapper">
+                                <Phone class="form-input-icon" />
+                                <input v-model="reservation.client_phone" type="tel" required class="form-input" placeholder="Téléphone">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="form-label">{{ t('admin.reservations.client_email') }}</label>
+                            <div class="form-input-wrapper">
+                                <Mail class="form-input-icon" />
+                                <input v-model="reservation.client_email" type="email" class="form-input" placeholder="Email">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="form-label">Numéro de Permis</label>
+                            <div class="form-input-wrapper">
+                                <IdCard class="form-input-icon" />
+                                <input v-model="reservation.client_permit_number" type="text" class="form-input" placeholder="Ex: 12345678">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Second Driver -->
+                <div class="form-section">
+                    <div class="flex items-center justify-between">
+                        <h2 class="section-title">
+                            <div class="w-6 h-6 rounded-md bg-violet-100 flex items-center justify-center">
+                                <Users class="w-3.5 h-3.5 text-violet-600" />
+                            </div>
+                            Deuxième Conducteur
+                        </h2>
+                        <button 
+                            type="button"
+                            @click="showSecondDriver = !showSecondDriver"
+                            class="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-all"
+                            :class="showSecondDriver 
+                                ? 'bg-red-50 text-red-600 hover:bg-red-100 ring-1 ring-red-200' 
+                                : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 ring-1 ring-indigo-200'"
+                        >
+                            <Minus v-if="showSecondDriver" class="w-3 h-3" />
+                            <Plus v-else class="w-3 h-3" />
+                            {{ showSecondDriver ? 'Retirer' : 'Ajouter' }}
+                        </button>
+                    </div>
+                    
+                    <div v-if="showSecondDriver" class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                        <div>
+                            <label class="form-label">Nom Complet</label>
+                            <div class="form-input-wrapper">
+                                <User class="form-input-icon" />
+                                <input v-model="reservation.second_driver_name" type="text" class="form-input" placeholder="Nom complet">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="form-label">CIN</label>
+                            <div class="form-input-wrapper">
+                                <CreditCard class="form-input-icon" />
+                                <input v-model="reservation.second_driver_cin" type="text" class="form-input" placeholder="CIN">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="form-label">Téléphone</label>
+                            <div class="form-input-wrapper">
+                                <Phone class="form-input-icon" />
+                                <input v-model="reservation.second_driver_phone" type="tel" class="form-input" placeholder="Téléphone">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="form-label">Email</label>
+                            <div class="form-input-wrapper">
+                                <Mail class="form-input-icon" />
+                                <input v-model="reservation.second_driver_email" type="email" class="form-input" placeholder="Email">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="form-label">Numéro de Permis</label>
+                            <div class="form-input-wrapper">
+                                <IdCard class="form-input-icon" />
+                                <input v-model="reservation.second_driver_permit_number" type="text" class="form-input" placeholder="Ex: 12345678">
                             </div>
                         </div>
                     </div>
 
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            {{ t('admin.reservations.client_cin') }} *
-                        </label>
-                        <input 
-                            v-model="reservation.client_cin"
-                            type="text"
-                            required
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        >
+                    <p v-else class="text-sm text-gray-400 italic mt-2">
+                        Aucun deuxième conducteur. Cliquez sur "Ajouter" pour renseigner.
+                    </p>
+                </div>
+
+                <!-- Reservation Details -->
+                <div class="form-section">
+                    <h2 class="section-title">
+                        <div class="w-6 h-6 rounded-md bg-blue-100 flex items-center justify-center">
+                            <Car class="w-3.5 h-3.5 text-blue-600" />
+                        </div>
+                        {{ t('admin.reservations.reservation_details') }}
+                    </h2>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div class="md:col-span-2">
+                            <label class="form-label">{{ t('admin.reservations.select_car') }} *</label>
+                            <div class="form-input-wrapper">
+                                <Car class="form-input-icon" />
+                                <select 
+                                    v-model="reservation.car_id"
+                                    required
+                                    :disabled="isEditMode"
+                                    class="form-input appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <option :value="0">{{ t('admin.reservations.choose_car') }}</option>
+                                    <option v-for="car in availableCars" :key="car.id" :value="car.id">
+                                        {{ car.brand }} {{ car.model }} - {{ car.plate_number }}
+                                    </option>
+                                </select>
+                                <ChevronDown class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="form-label">Numéro de Contrat (Max 4)</label>
+                            <div class="form-input-wrapper">
+                                <Hash class="form-input-icon" />
+                                <input 
+                                    v-model="reservation.contract_number"
+                                    type="text"
+                                    maxlength="4"
+                                    placeholder="Ex: 1234"
+                                    class="form-input uppercase"
+                                >
+                            </div>
+                        </div>
                     </div>
 
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            {{ t('admin.reservations.client_phone') }} *
-                        </label>
-                        <input 
-                            v-model="reservation.client_phone"
-                            type="tel"
-                            required
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        >
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            {{ t('admin.reservations.client_email') }}
-                        </label>
-                        <input 
-                            v-model="reservation.client_email"
-                            type="email"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        >
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            Numéro de Permis
-                        </label>
-                        <input 
-                            v-model="reservation.client_permit_number"
-                            type="text"
-                            placeholder="Ex: 12345678"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        >
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                        <div>
+                            <label class="form-label">{{ t('admin.reservations.start_date') }} *</label>
+                            <DateTimeInput v-model="reservation.start_date" :required="true" />
+                            <p v-if="reservation.start_date" class="mt-1 text-xs text-indigo-600 font-semibold pl-1">
+                                {{ formatDateTime(reservation.start_date) }}
+                            </p>
+                        </div>
+                        <div>
+                            <label class="form-label">{{ t('admin.reservations.end_date') }} *</label>
+                            <DateTimeInput v-model="reservation.end_date" :required="true" />
+                            <p v-if="reservation.end_date" class="mt-1 text-xs text-indigo-600 font-semibold pl-1">
+                                {{ formatDateTime(reservation.end_date) }}
+                            </p>
+                        </div>
+                        <div>
+                            <label class="form-label">{{ t('admin.reservations.duration') }}</label>
+                            <div class="form-input-wrapper bg-gray-50">
+                                <Clock class="form-input-icon" />
+                                <input v-model="reservation.duration_days" type="number" readonly class="form-input bg-transparent">
+                            </div>
+                            <p class="text-[11px] text-gray-400 mt-1 pl-1">{{ t('admin.reservations.auto_calculated') }}</p>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Deuxième Conducteur -->
-            <div class="border-b pb-4">
-                <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-lg font-medium text-gray-900">Deuxième Conducteur</h2>
+                <!-- Pricing -->
+                <div class="form-section">
+                    <h2 class="section-title">
+                        <div class="w-6 h-6 rounded-md bg-emerald-100 flex items-center justify-center">
+                            <DollarSign class="w-3.5 h-3.5 text-emerald-600" />
+                        </div>
+                        {{ t('admin.reservations.pricing') }}
+                    </h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label class="form-label">{{ t('admin.reservations.price_per_day') }} * (€)</label>
+                            <div class="form-input-wrapper">
+                                <DollarSign class="form-input-icon" />
+                                <input v-model.number="reservation.price_per_day" type="number" step="0.0001" required class="form-input">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="form-label">{{ t('admin.reservations.total_price') }} (€)</label>
+                            <div class="form-input-wrapper bg-gray-50">
+                                <Wallet class="form-input-icon" />
+                                <input v-model="reservation.total_price" type="number" step="0.0001" readonly class="form-input bg-transparent text-lg font-bold">
+                            </div>
+                            <p class="text-[11px] text-gray-400 mt-1 pl-1">{{ t('admin.reservations.auto_calculated') }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Payment -->
+                    <div class="mt-4 pt-4 border-t border-gray-100">
+                        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">{{ t('admin.reservations.payment_details') || 'Paiement' }}</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div class="p-3.5 rounded-xl bg-gradient-to-br from-indigo-50 to-violet-50 ring-1 ring-indigo-100">
+                                <label class="text-xs font-bold text-indigo-700 mb-1.5 block">Acompte / Avance (€)</label>
+                                <input 
+                                    v-model.number="reservation.advance_payment"
+                                    type="number"
+                                    step="0.0001"
+                                    class="w-full px-3 py-2 text-sm border border-indigo-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 bg-white"
+                                    placeholder="0.00"
+                                >
+                            </div>
+                            <div 
+                                class="p-3.5 rounded-xl ring-1"
+                                :class="restToPay > 0 ? 'bg-gradient-to-br from-red-50 to-rose-50 ring-red-200' : 'bg-gradient-to-br from-emerald-50 to-green-50 ring-emerald-200'"
+                            >
+                                <label class="text-xs font-bold mb-1.5 block" :class="restToPay > 0 ? 'text-red-700' : 'text-emerald-700'">
+                                    Reste à Payer (€)
+                                </label>
+                                <div class="text-2xl font-extrabold tracking-tight" :class="restToPay > 0 ? 'text-red-600' : 'text-emerald-600'">
+                                    {{ restToPay.toFixed(2) }} €
+                                </div>
+                                <p v-if="restToPay === 0" class="text-[11px] text-emerald-600 mt-1 font-bold flex items-center gap-1">
+                                    <CircleCheck class="w-3 h-3" /> Payé en totalité
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Status (edit mode only) -->
+                <div v-if="isEditMode" class="form-section">
+                    <h2 class="section-title">
+                        <div class="w-6 h-6 rounded-md bg-amber-100 flex items-center justify-center">
+                            <CircleCheck class="w-3.5 h-3.5 text-amber-600" />
+                        </div>
+                        {{ t('common.status') }}
+                    </h2>
+                    <div class="max-w-xs">
+                        <label class="form-label">{{ t('admin.reservations.status_filter') }}</label>
+                        <div class="form-input-wrapper">
+                            <CircleCheck class="form-input-icon" />
+                            <select v-model="reservation.status" class="form-input appearance-none cursor-pointer">
+                                <option value="pending">{{ t('admin.reservations.status_pending') }}</option>
+                                <option value="confirmed">{{ t('admin.reservations.status_confirmed') }}</option>
+                                <option value="active">{{ t('admin.reservations.status_active') }}</option>
+                                <option value="completed">{{ t('admin.reservations.status_completed') }}</option>
+                                <option value="cancelled">{{ t('admin.reservations.status_cancelled') }}</option>
+                            </select>
+                            <ChevronDown class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                        </div>
+                        <div class="mt-2.5 flex items-center gap-2">
+                            <span class="text-xs text-gray-400">Actuel:</span>
+                            <span 
+                                class="status-badge"
+                                :class="{
+                                    'bg-amber-50 text-amber-700 ring-1 ring-amber-200/50': reservation.status === 'pending',
+                                    'bg-blue-50 text-blue-700 ring-1 ring-blue-200/50': reservation.status === 'confirmed',
+                                    'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/50': reservation.status === 'active',
+                                    'bg-gray-50 text-gray-600 ring-1 ring-gray-200/50': reservation.status === 'completed',
+                                    'bg-red-50 text-red-700 ring-1 ring-red-200/50': reservation.status === 'cancelled'
+                                }"
+                            >
+                                {{ reservation.status }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Documents (edit mode only) -->
+                <div v-if="isEditMode" class="form-section">
+                    <h2 class="section-title">
+                        <div class="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center">
+                            <FileText class="w-3.5 h-3.5 text-gray-600" />
+                        </div>
+                        Documents & Contrats ({{ documents.length }}/3)
+                    </h2>
+                    
+                    <div v-if="documents.length < 3" class="mb-4">
+                        <label class="block cursor-pointer">
+                            <input 
+                                type="file" 
+                                accept="image/*,application/pdf"
+                                capture="environment"
+                                @change="handleFileUpload"
+                                class="hidden"
+                            >
+                            <div class="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-200 rounded-xl text-sm text-gray-500 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50/30 transition-all">
+                                <Upload class="w-4 h-4" />
+                                <span class="font-medium">Capturer / Téléverser Contrat</span>
+                            </div>
+                        </label>
+                        <div v-if="docsLoading" class="mt-2 flex items-center gap-2 text-xs text-indigo-600">
+                            <Loader2 class="w-3.5 h-3.5 animate-spin" />
+                            Téléversement...
+                        </div>
+                    </div>
+                    <div v-else class="mb-4 p-3 bg-amber-50 text-amber-800 rounded-xl text-sm ring-1 ring-amber-200 flex items-center gap-2">
+                        <AlertTriangle class="w-4 h-4 shrink-0" />
+                        Maximum de 3 documents atteint.
+                    </div>
+
+                    <div v-if="documents.length > 0" class="space-y-2">
+                        <div v-for="doc in documents" :key="doc.id" class="flex items-center justify-between bg-gray-50 p-3 rounded-xl ring-1 ring-gray-100">
+                            <div class="flex items-center gap-3">
+                                <div class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                                    :class="doc.file_name.toLowerCase().endsWith('.pdf') ? 'bg-red-50' : 'bg-indigo-50'"
+                                >
+                                    <FileText v-if="doc.file_name.toLowerCase().endsWith('.pdf')" class="w-4 h-4 text-red-500" />
+                                    <Image v-else class="w-4 h-4 text-indigo-500" />
+                                </div>
+                                <div>
+                                    <div class="text-sm font-semibold text-gray-900">{{ doc.file_name }}</div>
+                                    <div class="text-xs text-gray-400">{{ formatDateTime(doc.uploaded_at) }}</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <a :href="doc.file_url" target="_blank" class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-indigo-50 transition-colors">
+                                    <Eye class="w-4 h-4 text-indigo-500" />
+                                </a>
+                                <button @click="deleteDocument(doc.id, doc.file_url)" class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-50 transition-colors">
+                                    <Trash2 class="w-4 h-4 text-red-400" />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-else class="text-sm text-gray-400 italic">
+                        Aucun document téléversé.
+                    </div>
+                </div>
+
+                <!-- Optional Fields -->
+                <div class="form-section">
+                    <h2 class="section-title">
+                        <div class="w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center">
+                            <MapPin class="w-3.5 h-3.5 text-gray-600" />
+                        </div>
+                        {{ t('admin.reservations.optional') }}
+                    </h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label class="form-label">{{ t('admin.reservations.pickup_location') }}</label>
+                            <div class="form-input-wrapper">
+                                <MapPin class="form-input-icon" />
+                                <input v-model="reservation.pickup_location" type="text" class="form-input" placeholder="Lieu de prise en charge">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="form-label">{{ t('admin.reservations.return_location') }}</label>
+                            <div class="form-input-wrapper">
+                                <MapPin class="form-input-icon" />
+                                <input v-model="reservation.return_location" type="text" class="form-input" placeholder="Lieu de retour">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="form-label">{{ t('admin.reservations.notes') }}</label>
+                        <div class="form-input-wrapper items-start">
+                            <FileText class="form-input-icon mt-2.5" />
+                            <textarea v-model="reservation.notes" rows="2" class="form-input" placeholder="Notes..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="flex items-center justify-end gap-3 pt-2">
                     <button 
                         type="button"
-                        @click="showSecondDriver = !showSecondDriver"
-                        class="text-sm px-3 py-1 rounded-md transition-colors"
-                        :class="showSecondDriver 
-                            ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200' 
-                            : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200'"
+                        @click="router.push(tenantPath('/admin/reservations'))"
+                        class="px-5 py-2.5 text-sm font-semibold text-gray-600 hover:text-gray-800 bg-white hover:bg-gray-50 rounded-xl ring-1 ring-gray-200 transition-all"
                     >
-                        {{ showSecondDriver ? 'Retirer' : '+ Ajouter' }}
+                        {{ t('common.cancel') }}
+                    </button>
+                    <button 
+                        type="submit"
+                        :disabled="loading"
+                        class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 rounded-xl shadow-md shadow-indigo-200 hover:shadow-lg hover:shadow-indigo-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none transition-all"
+                    >
+                        <Loader2 v-if="loading" class="w-4 h-4 animate-spin" />
+                        <CircleCheck v-else class="w-4 h-4" />
+                        {{ loading ? t('common.saving') : t('common.save') }}
                     </button>
                 </div>
-                
-                <div v-if="showSecondDriver" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            Nom Complet
-                        </label>
-                        <input 
-                            v-model="reservation.second_driver_name"
-                            type="text"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        >
-                    </div>
+            </form>
 
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            CIN
-                        </label>
-                        <input 
-                            v-model="reservation.second_driver_cin"
-                            type="text"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        >
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            Téléphone
-                        </label>
-                        <input 
-                            v-model="reservation.second_driver_phone"
-                            type="tel"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        >
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            Email
-                        </label>
-                        <input 
-                            v-model="reservation.second_driver_email"
-                            type="email"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        >
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            Numéro de Permis
-                        </label>
-                        <input 
-                            v-model="reservation.second_driver_permit_number"
-                            type="text"
-                            placeholder="Ex: 12345678"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        >
-                    </div>
-                </div>
-
-                <p v-else class="text-sm text-gray-500 italic">
-                    Aucun deuxième conducteur ajouté. Cliquez sur "+ Ajouter" pour renseigner les informations.
-                </p>
-            </div>
-
-            <!-- Reservation Details -->
-            <div class="border-b pb-4">
-                <h2 class="text-lg font-medium text-gray-900 mb-4">{{ t('admin.reservations.reservation_details') }}</h2>
-                
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                        {{ t('admin.reservations.select_car') }} *
-                    </label>
-                    <select 
-                        v-model="reservation.car_id"
-                        required
-                        :disabled="isEditMode"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                        <option :value="0">{{ t('admin.reservations.choose_car') }}</option>
-                        <option v-for="car in availableCars" :key="car.id" :value="car.id">
-                            {{ car.brand }} {{ car.model }} - {{ car.plate_number }}
-                        </option>
-                    </select>
-                </div>
-
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                        Numéro de Contrat (Max 4 chars)
-                    </label>
-                    <input 
-                        v-model="reservation.contract_number"
-                        type="text"
-                        maxlength="4"
-                        placeholder="Ex: 1234"
-                        class="uppercase w-full md:w-1/3 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            {{ t('admin.reservations.start_date') }} *
-                        </label>
-                        <DateTimeInput 
-                            v-model="reservation.start_date"
-                            :required="true"
-                        />
-                        <p v-if="reservation.start_date" class="mt-1 text-xs text-indigo-600 font-medium">
-                            {{ formatDateTime(reservation.start_date) }}
-                        </p>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            {{ t('admin.reservations.end_date') }} *
-                        </label>
-                        <DateTimeInput 
-                            v-model="reservation.end_date"
-                            :required="true"
-                        />
-                        <p v-if="reservation.end_date" class="mt-1 text-xs text-indigo-600 font-medium">
-                            {{ formatDateTime(reservation.end_date) }}
-                        </p>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            {{ t('admin.reservations.duration') }}
-                        </label>
-                        <input 
-                            v-model="reservation.duration_days"
-                            type="number"
-                            readonly
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
-                        >
-                        <p class="text-xs text-gray-500 mt-1">{{ t('admin.reservations.auto_calculated') }}</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Pricing -->
-            <div class="border-b pb-4">
-                <h2 class="text-lg font-medium text-gray-900 mb-4">{{ t('admin.reservations.pricing') }}</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            {{ t('admin.reservations.price_per_day') }} * (€)
-                        </label>
-                        <input 
-                            v-model.number="reservation.price_per_day"
-                            type="number"
-                            step="0.0001"
-                            required
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        >
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            {{ t('admin.reservations.total_price') }} (€)
-                        </label>
-                        <input 
-                            v-model="reservation.total_price"
-                            type="number"
-                            step="0.0001"
-                            readonly
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-lg font-semibold"
-                        >
-                        <p class="text-xs text-gray-500 mt-1">{{ t('admin.reservations.auto_calculated') }}</p>
-                    </div>
-                </div>
-
-                <!-- Payment Section -->
-                <div class="mt-4 pt-4 border-t border-gray-100">
-                    <h3 class="text-sm font-medium text-gray-900 mb-4">{{ t('admin.reservations.payment_details') || 'Paiement' }}</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="bg-indigo-50 p-3 rounded-md border border-indigo-100">
-                            <label class="block text-sm font-medium text-indigo-900 mb-1">
-                                Acompte / Avance (€)
-                            </label>
-                            <input 
-                                v-model.number="reservation.advance_payment"
-                                type="number"
-                                step="0.0001"
-                                class="w-full px-3 py-2 border border-indigo-200 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                                placeholder="0.00"
-                            >
-                        </div>
-
-                        <div 
-                            class="p-3 rounded-md border"
-                            :class="restToPay > 0 ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'"
-                        >
-                            <label 
-                                class="block text-sm font-bold mb-1"
-                                :class="restToPay > 0 ? 'text-red-800' : 'text-green-800'"
-                            >
-                                Reste à Payer (€)
-                            </label>
-                            <div class="text-2xl font-bold" :class="restToPay > 0 ? 'text-red-600' : 'text-green-600'">
-                                {{ restToPay.toFixed(2) }} €
-                            </div>
-                            <p v-if="restToPay === 0" class="text-xs text-green-700 mt-1 font-medium">✅ Payé en totalité</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Status (only in edit mode) -->
-            <div v-if="isEditMode" class="border-b pb-4">
-                <h2 class="text-lg font-medium text-gray-900 mb-4">{{ t('common.status') }}</h2>
-                <div class="max-w-xs">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                        {{ t('admin.reservations.status_filter') }}
-                    </label>
-                    <select 
-                        v-model="reservation.status"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                        <option value="pending">{{ t('admin.reservations.status_pending') }}</option>
-                        <option value="confirmed">{{ t('admin.reservations.status_confirmed') }}</option>
-                        <option value="active">{{ t('admin.reservations.status_active') }}</option>
-                        <option value="completed">{{ t('admin.reservations.status_completed') }}</option>
-                        <option value="cancelled">{{ t('admin.reservations.status_cancelled') }}</option>
-                    </select>
-                    
-                    <!-- Status indicator -->
-                    <div class="mt-3 flex items-center space-x-2">
-                        <span class="text-sm text-gray-500">Statut actuel:</span>
-                        <span 
-                            :class="{
-                                'bg-yellow-100 text-yellow-800': reservation.status === 'pending',
-                                'bg-blue-100 text-blue-800': reservation.status === 'confirmed',
-                                'bg-green-100 text-green-800': reservation.status === 'active',
-                                'bg-gray-100 text-gray-800': reservation.status === 'completed',
-                                'bg-red-100 text-red-800': reservation.status === 'cancelled'
-                            }"
-                            class="px-3 py-1 text-sm font-semibold rounded-full capitalize"
-                        >
-                            {{ reservation.status }}
-                        </span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Documents & Contracts (Only in Edit Mode) -->
-            <div v-if="isEditMode" class="border-b pb-4">
-                <h2 class="text-lg font-medium text-gray-900 mb-4">
-                    Documents & Contrats ({{ documents.length }}/3)
-                </h2>
-                
-                <!-- Upload Section -->
-                <div v-if="documents.length < 3" class="mb-6">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                        Capturer / Téléverser Contrat
-                    </label>
-                    <div class="flex items-center space-x-4">
-                        <input 
-                            type="file" 
-                            accept="image/*,application/pdf"
-                            capture="environment"
-                            @change="handleFileUpload"
-                            class="block w-full text-sm text-gray-500
-                                file:mr-4 file:py-2 file:px-4
-                                file:rounded-md file:border-0
-                                file:text-sm file:font-semibold
-                                file:bg-indigo-50 file:text-indigo-700
-                                hover:file:bg-indigo-100"
-                        />
-                        <div v-if="docsLoading" class="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600"></div>
-                    </div>
-                </div>
-                <div v-else class="mb-6 p-4 bg-yellow-50 text-yellow-800 rounded-md text-sm border border-yellow-200">
-                    Maximum de 3 documents atteint. Veuillez en supprimer un pour en ajouter un nouveau.
-                </div>
-
-                <!-- Documents List -->
-                <div v-if="documents.length > 0" class="bg-gray-50 rounded-lg overflow-hidden border border-gray-200">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-100">
-                            <tr>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Fichier
-                                </th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Date d'ajout
-                                </th>
-                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Actions
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
-                            <tr v-for="doc in documents" :key="doc.id">
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="flex items-center">
-                                        <div class="flex-shrink-0 h-8 w-8 flex items-center justify-center bg-indigo-100 rounded-lg text-indigo-600">
-                                            <!-- PDF Icon -->
-                                            <svg v-if="doc.file_name.toLowerCase().endsWith('.pdf')" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                            </svg>
-                                            <!-- Image Icon -->
-                                            <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                            </svg>
-                                        </div>
-                                        <div class="ml-4">
-                                            <div class="text-sm font-medium text-gray-900">{{ doc.file_name }}</div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {{ formatDateTime(doc.uploaded_at) }}
-                                </td>
-                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-3">
-                                    <a :href="doc.file_url" target="_blank" class="text-indigo-600 hover:text-indigo-900">
-                                        Voir
-                                    </a>
-                                    <button @click="deleteDocument(doc.id, doc.file_url)" class="text-red-600 hover:text-red-900">
-                                        Supprimer
+            <!-- Preview Modal -->
+            <Teleport to="body">
+                <Transition name="modal">
+                    <div v-if="showPreview" class="fixed inset-0 z-50 overflow-y-auto">
+                        <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" @click="cancelPreview"></div>
+                        <div class="flex min-h-full items-center justify-center p-4">
+                            <div class="modal-container relative bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden">
+                                <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                                    <h3 class="text-base font-bold text-gray-900">Aperçu du document</h3>
+                                    <button @click="cancelPreview" class="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+                                        <X class="w-5 h-5" />
                                     </button>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div v-else class="text-sm text-gray-500 italic">
-                    Aucun document téléversé.
-                </div>
-            </div>
-
-            <!-- Optional Fields -->
-            <div>
-                <h2 class="text-lg font-medium text-gray-900 mb-4">{{ t('admin.reservations.optional') }}</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            {{ t('admin.reservations.pickup_location') }}
-                        </label>
-                        <input 
-                            v-model="reservation.pickup_location"
-                            type="text"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        >
+                                </div>
+                                <div class="p-6">
+                                    <div v-if="previewUrl" class="mb-4 rounded-xl overflow-hidden ring-1 ring-gray-200">
+                                        <img :src="previewUrl" alt="Preview" class="w-full h-auto" />
+                                    </div>
+                                    <div v-else class="mb-4 p-8 bg-gray-50 rounded-xl text-center">
+                                        <FileText class="w-12 h-12 mx-auto text-indigo-400 mb-2" />
+                                        <p class="text-sm font-semibold text-gray-900">{{ previewFile?.name }}</p>
+                                        <p class="text-xs text-gray-400 mt-1">{{ ((previewFile?.size || 0) / 1024 / 1024).toFixed(2) }} MB</p>
+                                    </div>
+                                    <div class="flex justify-end gap-3">
+                                        <button @click="cancelPreview" class="px-5 py-2.5 text-sm font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-xl ring-1 ring-gray-200 transition-all">
+                                            Annuler
+                                        </button>
+                                        <button 
+                                            @click="confirmUpload"
+                                            :disabled="docsLoading"
+                                            class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 rounded-xl shadow-md shadow-indigo-200 disabled:opacity-50 transition-all"
+                                        >
+                                            <Loader2 v-if="docsLoading" class="w-4 h-4 animate-spin" />
+                                            {{ docsLoading ? 'Téléversement...' : 'Confirmer' }}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
+                </Transition>
+            </Teleport>
 
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">
-                            {{ t('admin.reservations.return_location') }}
-                        </label>
-                        <input 
-                            v-model="reservation.return_location"
-                            type="text"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        >
+            <!-- Reported Client Warning Modal -->
+            <Teleport to="body">
+                <Transition name="modal">
+                    <div v-if="showReportWarning" class="fixed inset-0 z-50 overflow-y-auto">
+                        <div class="fixed inset-0 bg-black/50 backdrop-blur-sm"></div>
+                        <div class="flex min-h-full items-center justify-center p-4">
+                            <div class="modal-container relative bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden">
+                                <div class="p-6">
+                                    <div class="flex items-center gap-3 mb-4">
+                                        <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+                                            <AlertTriangle class="w-5 h-5 text-red-600" />
+                                        </div>
+                                        <h3 class="text-lg font-bold text-red-600">{{ t('reports.warning_title') }}</h3>
+                                    </div>
+                                    
+                                    <p class="text-gray-800 font-medium mb-2 text-sm">
+                                        {{ t('reports.warning_message', { cin: reportedClientWarning?.client_cin }) }}
+                                    </p>
+                                    
+                                    <div class="bg-red-50 p-3 rounded-xl mb-4 text-sm text-gray-700 ring-1 ring-red-200">
+                                        <span class="font-bold">{{ t('reports.description') }}:</span> <br/>
+                                        "{{ reportedClientWarning?.description }}"
+                                    </div>
+                                    
+                                    <p class="text-gray-500 mb-5 text-sm">
+                                        {{ t('reports.warning_description', { reason: reportedClientWarning?.description }) }}
+                                    </p>
+                                    
+                                    <div class="flex justify-end gap-3">
+                                        <button 
+                                            @click="showReportWarning = false; loading = false;"
+                                            class="px-5 py-2.5 text-sm font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-xl ring-1 ring-gray-200 transition-all"
+                                        >
+                                            {{ t('reports.cancel_reservation') }}
+                                        </button>
+                                        <button 
+                                            @click="showReportWarning = false; proceededWithReportedClient = true; handleSubmit();"
+                                            class="px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 rounded-xl shadow-md shadow-red-200 transition-all"
+                                        >
+                                            {{ t('reports.confirm_anyway') }}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </div>
-
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                        {{ t('admin.reservations.notes') }}
-                    </label>
-                    <textarea 
-                        v-model="reservation.notes"
-                        rows="3"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    ></textarea>
-                </div>
-            </div>
-
-            <!-- Actions -->
-            <div class="flex justify-end space-x-3 pt-4">
-                <button 
-                    type="button"
-                    @click="router.push(tenantPath('/admin/reservations'))"
-                    class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                >
-                    {{ t('common.cancel') }}
-                </button>
-                <button 
-                    type="submit"
-                    :disabled="loading"
-                    class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
-                >
-                    {{ loading ? t('common.saving') : t('common.save') }}
-                </button>
-            </div>
-        </form>
-
-        <!-- Preview Modal -->
-        <div v-if="showPreview" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                <div class="p-6">
-                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Aperçu du document</h3>
-                    
-                    <!-- Image Preview -->
-                    <div v-if="previewUrl" class="mb-4 border rounded-lg overflow-hidden">
-                        <img :src="previewUrl" alt="Preview" class="w-full h-auto" />
-                    </div>
-                    
-                    <!-- PDF or other file info -->
-                    <div v-else class="mb-4 p-6 bg-gray-50 rounded-lg text-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto text-indigo-600 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <p class="text-sm font-medium text-gray-900">{{ previewFile?.name }}</p>
-                        <p class="text-xs text-gray-500 mt-1">{{ ((previewFile?.size || 0) / 1024 / 1024).toFixed(2) }} MB</p>
-                    </div>
-                    
-                    <div class="flex justify-end space-x-3">
-                        <button 
-                            @click="cancelPreview"
-                            class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                        >
-                            Annuler
-                        </button>
-                        <button 
-                            @click="confirmUpload"
-                            :disabled="docsLoading"
-                            class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
-                        >
-                            {{ docsLoading ? 'Téléversement...' : 'Confirmer' }}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Reported Client Warning Modal -->
-        <div v-if="showReportWarning" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div class="bg-white rounded-lg shadow-xl max-w-lg w-full p-6 border-l-4 border-red-500">
-                <div class="flex items-center mb-4">
-                    <svg class="h-8 w-8 text-red-600 mr-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                    <h3 class="text-xl font-bold text-red-600">{{ t('reports.warning_title') }}</h3>
-                </div>
-                
-                <p class="text-gray-800 font-medium mb-2">
-                    {{ t('reports.warning_message', { cin: reportedClientWarning?.client_cin }) }}
-                </p>
-                
-                <div class="bg-red-50 p-3 rounded mb-4 text-sm text-gray-700">
-                    <span class="font-bold">{{ t('reports.description') }}:</span> <br/>
-                    "{{ reportedClientWarning?.description }}"
-                </div>
-                
-                <p class="text-gray-600 mb-6 text-sm">
-                    {{ t('reports.warning_description', { reason: reportedClientWarning?.description }) }}
-                </p>
-                
-                <div class="flex justify-end space-x-3">
-                    <button 
-                        @click="showReportWarning = false; loading = false;"
-                        class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                    >
-                        {{ t('reports.cancel_reservation') }}
-                    </button>
-                    <button 
-                        @click="showReportWarning = false; proceededWithReportedClient = true; handleSubmit();"
-                        class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-                    >
-                        {{ t('reports.confirm_anyway') }}
-                    </button>
-                </div>
-            </div>
+                </Transition>
+            </Teleport>
         </div>
     </div>
 </template>
+
+<style scoped>
+.form-section {
+    background: white;
+    border-radius: 1rem;
+    border: 1px solid rgb(243 244 246);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.02);
+    padding: 1.25rem;
+}
+
+.section-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    color: rgb(17 24 39);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.form-label {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: rgb(55 65 81);
+    margin-bottom: 0.3rem;
+}
+
+.form-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: white;
+    border: 1px solid rgb(229 231 235);
+    border-radius: 0.75rem;
+    transition: all 0.15s ease;
+    overflow: hidden;
+}
+
+.form-input-wrapper:focus-within {
+    border-color: rgb(129 140 248);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.form-input-icon {
+    width: 1rem;
+    height: 1rem;
+    color: rgb(156 163 175);
+    margin-left: 0.75rem;
+    flex-shrink: 0;
+}
+
+.form-input {
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    font-size: 0.875rem;
+    color: rgb(17 24 39);
+    background: transparent;
+    border: none;
+    outline: none;
+}
+
+.form-input::placeholder {
+    color: rgb(156 163 175);
+}
+
+.status-badge {
+    display: inline-flex;
+    padding: 0.2rem 0.5rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    border-radius: 0.375rem;
+    text-transform: capitalize;
+}
+
+/* Modal animation */
+.modal-enter-active { transition: opacity 0.25s ease; }
+.modal-enter-active .modal-container { transition: transform 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.25s ease; }
+.modal-leave-active { transition: opacity 0.2s ease; }
+.modal-leave-active .modal-container { transition: transform 0.2s ease, opacity 0.2s ease; }
+.modal-enter-from { opacity: 0; }
+.modal-enter-from .modal-container { opacity: 0; transform: scale(0.95) translateY(10px); }
+.modal-leave-to { opacity: 0; }
+.modal-leave-to .modal-container { opacity: 0; transform: scale(0.97) translateY(5px); }
+</style>

@@ -148,7 +148,7 @@ const isActive = (path: string) => {
                                 :class="{ 'nav-item-active': isActive('/admin/settings') }"
                             >
                                 <Settings class="w-4 h-4" />
-                                <span>Settings</span>
+                                <span>{{ $t('admin.settings.title') }}</span>
                             </RouterLink>
 
                             <RouterLink 
@@ -443,7 +443,7 @@ const isActive = (path: string) => {
                                 :class="{ 'mobile-nav-active': isActive('/admin/settings') }"
                             >
                                 <Settings class="w-5 h-5" />
-                                <span>Settings</span>
+                                <span>{{ $t('admin.settings.title') }}</span>
                             </RouterLink>
 
                             <RouterLink 
