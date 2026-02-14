@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 import ReservationModal from '@/components/ReservationModal.vue';
 import CarAvailabilityModal from '@/components/CarAvailabilityModal.vue';
-import { Eye, Calendar, Key, Fuel, Gauge, Users, CircleCheck, CircleX, Wrench } from 'lucide-vue-next';
+import { Eye, Calendar, Key, Fuel, Gauge, Users, CircleCheck, CircleX, Wrench, Search, Filter, ChevronDown, Car as CarIcon, Loader2 } from 'lucide-vue-next';
 
 const { cars, loading, fetchCars } = useCars();
 const authStore = useAuthStore();
@@ -83,50 +83,71 @@ const onReservationSuccess = () => {
 </script>
 
 <template>
-    <div class="min-h-screen bg-gray-100">
+    <div class="min-h-screen bg-gray-50/50">
         <main class="w-full py-6 px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16">
-            <div>
-                <h1 class="text-2xl sm:text-3xl font-semibold text-gray-900 mb-6">{{ $t('fleet.title') }}</h1>
+            <div class="max-w-[1600px] mx-auto space-y-5">
 
-                <!-- Search & Filter Bar -->
-                <div class="bg-white p-4 sm:p-5 rounded-xl shadow-sm mb-6 border border-gray-100">
-                    <div class="flex flex-col sm:flex-row gap-4">
+                <!-- Header -->
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-200">
+                            <CarIcon class="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                            <h1 class="text-xl font-bold text-gray-900 tracking-tight">{{ $t('fleet.title') }}</h1>
+                            <p class="text-sm text-gray-500">{{ filteredCars.length }} véhicule{{ filteredCars.length !== 1 ? 's' : '' }} disponible{{ filteredCars.length !== 1 ? 's' : '' }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Search & Filter -->
+                <div class="bg-white rounded-2xl ring-1 ring-gray-100 shadow-sm p-4">
+                    <div class="flex flex-col sm:flex-row gap-3">
                         <div class="flex-1">
-                            <input 
-                                v-model="filters.search" 
-                                type="text" 
-                                :placeholder="$t('fleet.search_placeholder')" 
-                                class="border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full text-base py-3 px-4"
-                            >
+                            <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">{{ $t('fleet.search_placeholder') }}</label>
+                            <div class="relative">
+                                <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <input 
+                                    v-model="filters.search" 
+                                    type="text" 
+                                    :placeholder="$t('fleet.search_placeholder')" 
+                                    class="w-full pl-10 pr-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all"
+                                >
+                            </div>
                         </div>
                         <div class="sm:w-64">
-                            <select 
-                                v-model="filters.status" 
-                                class="border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full text-base py-3 px-4"
-                            >
-                                <option value="all">{{ $t('fleet.all_statuses') }}</option>
-                                <option value="disponible">{{ $t('admin.fleet.disponible') }}</option>
-                                <option value="loue">{{ $t('admin.fleet.loue') }}</option>
-                                <option value="maintenance">{{ $t('admin.fleet.maintenance') }}</option>
-                            </select>
+                            <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Statut</label>
+                            <div class="relative">
+                                <Filter class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <select 
+                                    v-model="filters.status" 
+                                    class="w-full pl-10 pr-10 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 appearance-none cursor-pointer transition-all"
+                                >
+                                    <option value="all">{{ $t('fleet.all_statuses') }}</option>
+                                    <option value="disponible">{{ $t('admin.fleet.disponible') }}</option>
+                                    <option value="loue">{{ $t('admin.fleet.loue') }}</option>
+                                    <option value="maintenance">{{ $t('admin.fleet.maintenance') }}</option>
+                                </select>
+                                <ChevronDown class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Loading State -->
-                <div v-if="loading" class="text-center py-16">
-                    <div class="inline-flex items-center gap-3 text-gray-500">
-                        <svg class="animate-spin h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <span class="text-lg">{{ $t('fleet.loading') }}</span>
+                <!-- Loading -->
+                <div v-if="loading" class="flex flex-col items-center justify-center py-20">
+                    <div class="w-14 h-14 rounded-2xl bg-indigo-50 flex items-center justify-center mb-4">
+                        <Loader2 class="w-7 h-7 text-indigo-600 animate-spin" />
                     </div>
+                    <p class="text-gray-500 font-medium">{{ $t('fleet.loading') }}</p>
                 </div>
 
-                <!-- Empty State -->
-                <div v-else-if="filteredCars.length === 0" class="text-center py-16">
-                    <p class="text-gray-500 text-lg">Aucune voiture trouvée.</p>
+                <!-- Empty -->
+                <div v-else-if="filteredCars.length === 0" class="flex flex-col items-center py-20 bg-white rounded-2xl ring-1 ring-gray-100 shadow-sm">
+                    <div class="w-14 h-14 rounded-2xl bg-gray-50 flex items-center justify-center mb-4">
+                        <CarIcon class="w-7 h-7 text-gray-300" />
+                    </div>
+                    <p class="text-gray-400 font-medium">Aucune voiture trouvée.</p>
                 </div>
 
                 <!-- Cars Grid -->

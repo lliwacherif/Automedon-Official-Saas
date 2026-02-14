@@ -8,6 +8,7 @@ import LanguageSwitcher from '@/components/LanguageSwitcher.vue';
 import GlobalCalendarModal from '@/components/GlobalCalendarModal.vue';
 import {
     Car,
+    Home,
     Info,
     BarChart3,
     ClipboardList,
@@ -87,7 +88,7 @@ const isActive = (path: string) => {
                             class="nav-item"
                             :class="{ 'nav-item-active': isActive('/fleet') }"
                         >
-                            <Car class="w-4 h-4" />
+                            <Home class="w-4 h-4" />
                             <span>{{ $t('nav.fleet') }}</span>
                         </RouterLink>
 
@@ -344,7 +345,7 @@ const isActive = (path: string) => {
                             class="mobile-nav-item"
                             :class="{ 'mobile-nav-active': isActive('/fleet') }"
                         >
-                            <Car class="w-5 h-5" />
+                            <Home class="w-5 h-5" />
                             <span>{{ $t('nav.fleet') }}</span>
                             <ChevronRight class="w-4 h-4 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
                         </RouterLink>
