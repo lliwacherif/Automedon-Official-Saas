@@ -294,7 +294,9 @@ export function useCars() {
                         model: carData.model,
                         license_plate: carData.plate_number,
                         status: carData.status,
-                        image_url: carData.image_url || null
+                        image_url: carData.image_url || null,
+                        auto_manage_status: carData.auto_manage_status ?? true,
+                        purchase_price: carData.purchase_price || null,
                     }
                 ])
                 .select('id, brand, model, license_plate, status, image_url, mileage, purchase_price, auto_manage_status, created_at')
@@ -331,6 +333,8 @@ export function useCars() {
             if (carData.plate_number !== undefined) updateData.license_plate = carData.plate_number;
             if (carData.status !== undefined) updateData.status = carData.status;
             if (carData.image_url !== undefined) updateData.image_url = carData.image_url || null;
+            if (carData.auto_manage_status !== undefined) updateData.auto_manage_status = carData.auto_manage_status;
+            if (carData.purchase_price !== undefined) updateData.purchase_price = carData.purchase_price;
 
             const { data, error: supabaseError } = await (supabase
                 .from('cars') as any)
