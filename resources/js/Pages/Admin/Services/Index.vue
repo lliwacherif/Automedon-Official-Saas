@@ -16,6 +16,7 @@ import {
     DollarSign,
     FileText,
     Trash2,
+    Edit,
     CircleCheck,
     AlertCircle,
     MapPin,
@@ -24,10 +25,12 @@ import {
     Clock,
 } from 'lucide-vue-next';
 
-const { services, loading, fetchServices, createService, deleteService, checkServiceAvailability } = useServices();
+const { services, loading, fetchServices, createService, updateService, deleteService, checkServiceAvailability } = useServices();
 const { cars, fetchCars } = useCars();
 
 const isModalOpen = ref(false);
+const isEditMode = ref(false);
+const editingServiceId = ref<number | null>(null);
 const formLoading = ref(false);
 const formError = ref('');
 
@@ -49,6 +52,8 @@ onMounted(async () => {
 const availableCars = computed(() => cars.value || []);
 
 function openModal() {
+    isEditMode.value = false;
+    editingServiceId.value = null;
     form.value = {
         service_type: 'transfert',
         car_id: 0,
@@ -63,8 +68,40 @@ function openModal() {
     isModalOpen.value = true;
 }
 
+function openEditModal(svc: any) {
+    isEditMode.value = true;
+    editingServiceId.value = svc.id;
+    
+    // Format dates for DateTimeInput (YYYY-MM-DDTHH:mm)
+    const formatForInput = (iso: string) => {
+        if (!iso) return '';
+        const d = new Date(iso);
+        const y = d.getFullYear();
+        const mo = String(d.getMonth() + 1).padStart(2, '0');
+        const da = String(d.getDate()).padStart(2, '0');
+        const h = String(d.getHours()).padStart(2, '0');
+        const mi = String(d.getMinutes()).padStart(2, '0');
+        return `${y}-${mo}-${da}T${h}:${mi}`;
+    };
+
+    form.value = {
+        service_type: svc.service_type,
+        car_id: svc.car_id,
+        start_date: formatForInput(svc.start_date),
+        end_date: formatForInput(svc.end_date),
+        chauffeur_name: svc.chauffeur_name,
+        chauffeur_cin: svc.chauffeur_cin,
+        price: svc.price,
+        notes: svc.notes || '',
+    };
+    formError.value = '';
+    isModalOpen.value = true;
+}
+
 function closeModal() {
     isModalOpen.value = false;
+    isEditMode.value = false;
+    editingServiceId.value = null;
     formError.value = '';
 }
 
@@ -120,7 +157,10 @@ async function handleSubmit() {
         // Check availability
         const startIso = start.toISOString();
         const endIso = end.toISOString();
-        const check = await checkServiceAvailability(form.value.car_id, startIso, endIso);
+        const check = await checkServiceAvailability(
+            form.value.car_id, startIso, endIso,
+            isEditMode.value ? editingServiceId.value ?? undefined : undefined
+        );
 
         if (!check.available) {
             formError.value = check.reason;
@@ -128,7 +168,7 @@ async function handleSubmit() {
             return;
         }
 
-        await createService({
+        const payload = {
             service_type: form.value.service_type,
             car_id: form.value.car_id,
             start_date: startIso,
@@ -137,7 +177,13 @@ async function handleSubmit() {
             chauffeur_cin: form.value.chauffeur_cin,
             price: form.value.price,
             notes: form.value.notes || null,
-        });
+        };
+
+        if (isEditMode.value && editingServiceId.value) {
+            await updateService(editingServiceId.value, payload);
+        } else {
+            await createService(payload);
+        }
 
         closeModal();
     } catch (e: any) {
@@ -262,13 +308,22 @@ const formatCurrency = (v: number) => new Intl.NumberFormat('fr-TN', { style: 'c
                                 <span class="text-sm font-bold text-gray-900">{{ formatCurrency(svc.price) }}</span>
                             </td>
                             <td class="px-5 py-3.5 text-right">
-                                <button 
-                                    @click="handleDelete(svc.id)"
-                                    class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-50 transition-colors"
-                                    title="Supprimer"
-                                >
-                                    <Trash2 class="w-4 h-4 text-red-400" />
-                                </button>
+                                <div class="flex items-center justify-end gap-1">
+                                    <button 
+                                        @click="openEditModal(svc)"
+                                        class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-indigo-50 transition-colors"
+                                        title="Modifier"
+                                    >
+                                        <Edit class="w-4 h-4 text-indigo-500" />
+                                    </button>
+                                    <button 
+                                        @click="handleDelete(svc.id)"
+                                        class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-50 transition-colors"
+                                        title="Supprimer"
+                                    >
+                                        <Trash2 class="w-4 h-4 text-red-400" />
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                     </tbody>
@@ -325,9 +380,14 @@ const formatCurrency = (v: number) => new Intl.NumberFormat('fr-TN', { style: 'c
 
                     <div class="px-4 py-3 bg-gray-50/50 border-t border-gray-100 flex items-center justify-between">
                         <span class="text-base font-bold text-gray-900">{{ formatCurrency(svc.price) }}</span>
-                        <button @click="handleDelete(svc.id)" class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-50 transition-colors">
-                            <Trash2 class="w-4 h-4 text-red-400" />
-                        </button>
+                        <div class="flex items-center gap-1">
+                            <button @click="openEditModal(svc)" class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-indigo-50 transition-colors">
+                                <Edit class="w-4 h-4 text-indigo-500" />
+                            </button>
+                            <button @click="handleDelete(svc.id)" class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-50 transition-colors">
+                                <Trash2 class="w-4 h-4 text-red-400" />
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -346,7 +406,7 @@ const formatCurrency = (v: number) => new Intl.NumberFormat('fr-TN', { style: 'c
                                     <div class="w-8 h-8 rounded-lg bg-rose-100 flex items-center justify-center">
                                         <Bus class="w-4 h-4 text-rose-600" />
                                     </div>
-                                    <h3 class="text-base font-bold text-gray-900">Nouveau Service</h3>
+                                    <h3 class="text-base font-bold text-gray-900">{{ isEditMode ? 'Modifier le Service' : 'Nouveau Service' }}</h3>
                                 </div>
                                 <button @click="closeModal" class="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
                                     <X class="w-5 h-5" />
@@ -474,7 +534,7 @@ const formatCurrency = (v: number) => new Intl.NumberFormat('fr-TN', { style: 'c
                                     >
                                         <Loader2 v-if="formLoading" class="w-4 h-4 animate-spin" />
                                         <CircleCheck v-else class="w-4 h-4" />
-                                        Créer le Service
+                                        {{ isEditMode ? 'Enregistrer' : 'Créer le Service' }}
                                     </button>
                                 </div>
                             </form>

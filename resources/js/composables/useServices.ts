@@ -89,6 +89,24 @@ export function useServices() {
         }
     }
 
+    async function updateService(id: number, service: Database['public']['Tables']['services']['Update']) {
+        loading.value = true;
+        try {
+            const { data, error: err } = await (supabase.from('services') as any)
+                .update(service)
+                .eq('id', id)
+                .select();
+            if (err) throw err;
+            await fetchServices();
+            return data?.[0] || null;
+        } catch (e: any) {
+            error.value = e.message;
+            throw e;
+        } finally {
+            loading.value = false;
+        }
+    }
+
     async function deleteService(id: number) {
         loading.value = true;
         try {
@@ -174,6 +192,7 @@ export function useServices() {
         error,
         fetchServices,
         createService,
+        updateService,
         deleteService,
         checkServiceAvailability,
     };
