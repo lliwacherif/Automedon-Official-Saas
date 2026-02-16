@@ -1,30 +1,24 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue';
+import { nextTick, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Loader2, FileDown, ArrowLeft } from 'lucide-vue-next';
+import { ArrowLeft, FileDown, Loader2 } from 'lucide-vue-next';
 import InvoiceTemplate, { type InvoiceData } from '@/components/Invoices/InvoiceTemplate.vue';
-import { useTenantStore } from '@/stores/tenant';
 import { formatDateTime } from '@/utils/date';
-import { useTenantLink } from '@/composables/useTenantLink';
+import { supabase } from '@/lib/supabase';
+import { useTenantStore } from '@/stores/tenant';
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
-import { supabase } from '@/lib/supabase';
 
 const route = useRoute();
 const router = useRouter();
+const tenantStore = useTenantStore();
 
 const loading = ref(true);
 const generating = ref(false);
 const isExporting = ref(false);
-
 const previewData = ref<InvoiceData | null>(null);
-const tenantStore = useTenantStore();
-const { tenantPath } = useTenantLink();
+const templateMountRef = ref<HTMLElement | null>(null);
 
-/**
- * (Optional but very helpful) If your logo is hosted without proper CORS headers,
- * html2canvas can blank it. This tries to convert it to a data URL.
- */
 async function toDataUrl(url: string): Promise<string> {
   const res = await fetch(url, { mode: 'cors', cache: 'no-cache' });
   const blob = await res.blob();
@@ -68,19 +62,13 @@ async function generateInvoiceData(reservation: any, tenant: any) {
     ? `INV-${reservation.contract_number}`
     : `DRAFT-${Date.now().toString().slice(-4)}`;
 
-  // Always at least 1 day
   const start = new Date(reservation.start_date);
   const end = new Date(reservation.end_date);
-  const nbDays = Math.max(
-    1,
-    Math.ceil((end.getTime() - start.getTime()) / (1000 * 3600 * 24))
-  );
+  const nbDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 3600 * 24)));
 
   const tvaRate = 0.19;
   const timbre = 1.0;
   const totalTTC = Number(reservation.total_price) || 0;
-
-  // Reverse calc (approx): TTC = HT*(1+tva) + timbre
   const totalExclStamp = Math.max(0, totalTTC - timbre);
   const totalHT = Number((totalExclStamp / (1 + tvaRate)).toFixed(3));
   const unitPriceHT = Number((totalHT / nbDays).toFixed(3));
@@ -88,10 +76,9 @@ async function generateInvoiceData(reservation: any, tenant: any) {
   let logoUrl = tenant.logo_url as string | undefined;
   if (logoUrl) {
     try {
-      // Helps avoid missing logo in PDF if CORS is strict.
       logoUrl = await toDataUrl(logoUrl);
     } catch {
-      // If it fails, keep original URL (best effort).
+      // Keep original URL if conversion fails.
     }
   }
 
@@ -129,41 +116,38 @@ async function generateInvoiceData(reservation: any, tenant: any) {
   };
 }
 
-/**
- * Creates an off-screen, fixed A4 "print surface" so html2canvas captures
- * exactly 210mm x 297mm and avoids reflow / responsive breakage.
- */
 function createA4ExportClone(sourceEl: HTMLElement) {
   const host = document.createElement('div');
   host.setAttribute('data-pdf-host', 'true');
   host.style.position = 'fixed';
-  host.style.left = '-10000px';
+  host.style.left = '-12000px';
   host.style.top = '0';
   host.style.width = '210mm';
-  host.style.height = '297mm';
   host.style.background = '#fff';
   host.style.zIndex = '-1';
-  host.style.overflow = 'hidden';
 
   const clone = sourceEl.cloneNode(true) as HTMLElement;
-  clone.id = 'invoice-template-export';
-  clone.classList.add('export-a4'); // CSS below
+  // Keep original id so InvoiceTemplate's scoped PDF color fallbacks
+  // targeting "#invoice-template ..." still apply in the export clone.
+  clone.id = 'invoice-template';
+  clone.classList.add('export-a4');
   clone.style.width = '210mm';
-  clone.style.minHeight = '297mm';
   clone.style.margin = '0';
   clone.style.boxShadow = 'none';
+  clone.style.transform = 'none';
+  clone.style.minHeight = 'auto';
+  clone.style.height = 'auto';
 
   host.appendChild(clone);
   document.body.appendChild(host);
 
   return {
-    host,
     clone,
     cleanup: () => {
       try {
         document.body.removeChild(host);
       } catch {
-        /* noop */
+        // No-op.
       }
     }
   };
@@ -174,68 +158,61 @@ async function downloadPdf() {
 
   generating.value = true;
   isExporting.value = true;
-
-  const cleanupFns: Array<() => void> = [];
+  const cleanups: Array<() => void> = [];
 
   try {
     await nextTick();
 
-    // Wait for fonts (prevents clipped / shifted text)
     // @ts-ignore
     if (document.fonts?.ready) {
       // @ts-ignore
       await document.fonts.ready;
     }
 
-    const element = document.getElementById('invoice-template');
-    if (!element) throw new Error('Template element not found');
+    const templateEl = templateMountRef.value?.querySelector('#invoice-template') as HTMLElement | null;
+    if (!templateEl) throw new Error('Template element not found');
 
-    // Create stable A4 clone for export
-    const { host, clone, cleanup } = createA4ExportClone(element);
-    cleanupFns.push(cleanup);
+    const { clone, cleanup } = createA4ExportClone(templateEl);
+    cleanups.push(cleanup);
 
-    // Give the browser a tick to paint the clone
-    await new Promise((r) => setTimeout(r, 80));
+    await new Promise((resolve) => setTimeout(resolve, 120));
 
     const filename = `Facture_${previewData.value.invoiceNumber}.pdf`;
+    const canvasWidth = Math.ceil(clone.scrollWidth);
+    const canvasHeight = Math.ceil(clone.scrollHeight);
+    const orientation = canvasWidth > canvasHeight ? 'landscape' : 'portrait';
 
-    // IMPORTANT: margin 0 + avoid-all pagebreak = keep single page.
-    // If your invoice is taller than A4, it will be scaled down to fit (still 1 page).
-    const opt: any = {
+    const options: any = {
       margin: 0,
       filename,
-      image: { type: 'jpeg', quality: 0.98 },
-      pagebreak: {
-        mode: ['avoid-all', 'css', 'legacy']
-      },
+      image: { type: 'png', quality: 1 },
       html2canvas: {
-        scale: 3, // sharper text
+        scale: 3,
         useCORS: true,
         allowTaint: false,
         backgroundColor: '#ffffff',
         logging: false,
-        letterRendering: true,
         scrollX: 0,
         scrollY: 0,
-        // ensure capture uses the clone's real size (avoid responsive layout)
-        windowWidth: clone.scrollWidth,
-        windowHeight: clone.scrollHeight
+        width: canvasWidth,
+        height: canvasHeight,
+        windowWidth: canvasWidth,
+        windowHeight: canvasHeight
       },
       jsPDF: {
-        unit: 'mm',
-        format: 'a4',
-        orientation: 'portrait',
+        unit: 'px',
+        format: [canvasWidth, canvasHeight],
+        orientation,
         compress: true
       }
     };
 
-    // Generate from the cloned export surface
-    await html2pdf().set(opt).from(clone).save();
-  } catch (e: any) {
-    console.error('PDF Generation failed', e);
-    alert(`Failed to generate PDF: ${e?.message || e}`);
+    await html2pdf().set(options).from(clone).save();
+  } catch (error: any) {
+    console.error('PDF generation failed', error);
+    alert(`Failed to generate PDF: ${error?.message || error}`);
   } finally {
-    cleanupFns.forEach((fn) => fn());
+    cleanups.forEach((fn) => fn());
     isExporting.value = false;
     generating.value = false;
   }
@@ -253,96 +230,107 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-100 flex flex-col">
-    <!-- Toolbar / Header -->
-    <header class="bg-white shadow sticky top-0 z-50">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        <div class="flex items-center">
+  <div class="invoice-editor-page min-h-screen">
+    <header class="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur">
+      <div class="mx-auto flex h-16 max-w-[1500px] items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div class="flex items-center gap-3">
           <button
             @click="goBack"
-            class="mr-4 p-2 rounded-full hover:bg-gray-100 text-gray-600 transition-colors"
+            class="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+            aria-label="Retour"
           >
-            <ArrowLeft class="w-5 h-5" />
+            <ArrowLeft class="h-5 w-5" />
           </button>
-          <h1 class="text-xl font-bold text-gray-900">Éditeur de Facture</h1>
+          <div>
+            <p class="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">Facture Pro</p>
+            <h1 class="text-lg font-semibold text-slate-900">Template Editor</h1>
+          </div>
         </div>
 
-        <div class="flex items-center space-x-4">
-          <button
-            @click="downloadPdf"
-            :disabled="generating || loading"
-            class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none disabled:opacity-50"
-          >
-            <Loader2 v-if="generating" class="animate-spin -ml-1 mr-2 h-4 w-4" />
-            <FileDown v-else class="-ml-1 mr-2 h-4 w-4" />
-            Télécharger PDF
-          </button>
-        </div>
+        <button
+          @click="downloadPdf"
+          :disabled="generating || loading || !previewData"
+          class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <Loader2 v-if="generating" class="h-4 w-4 animate-spin" />
+          <FileDown v-else class="h-4 w-4" />
+          Télécharger PDF
+        </button>
       </div>
     </header>
 
-    <!-- Main Content -->
-    <main class="flex-1 overflow-y-auto p-4 sm:p-8 flex justify-center">
-      <div v-if="loading" class="flex justify-center items-center h-64">
-        <Loader2 class="animate-spin h-8 w-8 text-indigo-600" />
-      </div>
+    <main class="mx-auto grid max-w-[1500px] grid-cols-1 gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[320px_minmax(0,1fr)] lg:px-8">
+      <aside class="h-fit rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Export quality</p>
+        <h2 class="mt-2 text-base font-semibold text-slate-900">PDF rendu identique au preview</h2>
+        <p class="mt-3 text-sm leading-6 text-slate-600">
+          Le rendu est maintenant exporté depuis une surface A4 dédiée pour garder la même structure visuelle,
+          les mêmes espacements et une netteté plus propre.
+        </p>
 
-      <!-- Preview -->
-      <div
-        v-else-if="previewData"
-        id="invoice-template"
-        :class="[
-          'bg-white',
-          // keep preview nice on screen
-          isExporting ? 'shadow-none m-0' : 'shadow-2xl mb-20 animate-in fade-in zoom-in duration-300'
-        ]"
-        class="invoice-shell"
-      >
-        <InvoiceTemplate :data="previewData" />
-      </div>
+        <div class="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+          <p><span class="font-semibold">Format:</span> A4 portrait</p>
+          <p class="mt-1"><span class="font-semibold">Capture:</span> haute résolution</p>
+          <p class="mt-1"><span class="font-semibold">Source:</span> template réel (pas un wrapper)</p>
+        </div>
+      </aside>
+
+      <section class="min-h-[70vh] rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+        <div v-if="loading" class="flex h-[60vh] items-center justify-center">
+          <Loader2 class="h-8 w-8 animate-spin text-indigo-600" />
+        </div>
+
+        <div v-else-if="previewData" ref="templateMountRef" class="preview-board">
+          <div :class="['preview-frame', isExporting ? 'is-exporting' : '']">
+            <InvoiceTemplate :data="previewData" :export-mode="isExporting" />
+          </div>
+        </div>
+      </section>
     </main>
   </div>
 </template>
 
 <style>
-/* ===== Screen Preview Size ===== */
-.invoice-shell {
-  width: 210mm;        /* matches A4 width */
-  min-height: 297mm;   /* matches A4 height */
-  box-sizing: border-box;
-  background: #fff;
+.invoice-editor-page {
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
 }
 
-/* ===== Export Clone Rules =====
-   Applied only to the off-screen cloned node so the captured PDF is stable.
-*/
+.preview-board {
+  min-height: 100%;
+  overflow: auto;
+  border-radius: 16px;
+  background: #eef2ff;
+  padding: 24px;
+}
+
+.preview-frame {
+  margin: 0 auto;
+  width: fit-content;
+  border-radius: 14px;
+  box-shadow:
+    0 20px 30px -15px rgba(15, 23, 42, 0.2),
+    0 8px 12px -8px rgba(15, 23, 42, 0.15);
+}
+
+.preview-frame.is-exporting {
+  box-shadow: none;
+}
+
 .export-a4 {
   width: 210mm !important;
-  min-height: 297mm !important;
-  height: 297mm !important; /* hard clamp to one page */
+  min-height: auto !important;
+  height: auto !important;
   box-sizing: border-box !important;
-  background: #fff !important;
-  overflow: hidden !important; /* prevent content from spilling and creating page 2 */
+  background: #ffffff !important;
+  overflow: visible !important;
 }
 
-/* If your template uses big outer margins/padding that cause overflow,
-   you can give yourself a safe printable padding here.
-   (Leave commented if your template already handles it.)
-*/
-/*
-.export-a4 {
-  padding: 10mm !important;
-}
-*/
-
-/* Improve text rendering on canvas capture */
 .export-a4,
 .export-a4 * {
   -webkit-font-smoothing: antialiased;
   text-rendering: geometricPrecision;
 }
 
-/* Just in case something adds default print margins */
 @page {
   size: A4;
   margin: 0;
