@@ -21,6 +21,7 @@ export interface Database {
                     color: string | null
                     price_per_day: number | null
                     mileage: number
+                    purchase_price: number | null
                     transmission: string | null
                     seats: number | null
                     fuel_type: string | null
@@ -40,6 +41,7 @@ export interface Database {
                     color?: string | null
                     price_per_day?: number | null
                     mileage?: number
+                    purchase_price?: number | null
                     transmission?: string | null
                     seats?: number | null
                     fuel_type?: string | null
@@ -59,6 +61,7 @@ export interface Database {
                     color?: string | null
                     price_per_day?: number | null
                     mileage?: number
+                    purchase_price?: number | null
                     transmission?: string | null
                     seats?: number | null
                     fuel_type?: string | null

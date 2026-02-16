@@ -14,6 +14,7 @@ export interface Car {
     status: CarStatus;
     image_url?: string;
     mileage?: number | null;
+    purchase_price?: number | null;
     auto_manage_status?: boolean;
     created_at: string;
     next_reservation?: {
@@ -121,7 +122,7 @@ export function useCars() {
             // Fetch cars
             const { data: carsData, error: carsError } = await (supabase
                 .from('cars')
-                .select('id, brand, model, license_plate, status, image_url, mileage, auto_manage_status, created_at')
+                .select('id, brand, model, license_plate, status, image_url, mileage, purchase_price, auto_manage_status, created_at')
                 .eq('tenant_id', tenantId) // Filter by Tenant
                 .order('brand', { ascending: true })
                 .order('model', { ascending: true }) as any);
@@ -249,7 +250,7 @@ export function useCars() {
         try {
             let query = supabase
                 .from('cars')
-                .select('id, brand, model, license_plate, status, image_url, mileage, auto_manage_status, created_at')
+                .select('id, brand, model, license_plate, status, image_url, mileage, purchase_price, auto_manage_status, created_at')
                 .eq('id', id);
 
             if (tenantId) {
@@ -295,7 +296,7 @@ export function useCars() {
                         image_url: carData.image_url || null
                     }
                 ])
-                .select('id, brand, model, license_plate, status, image_url, mileage, auto_manage_status, created_at')
+                .select('id, brand, model, license_plate, status, image_url, mileage, purchase_price, auto_manage_status, created_at')
                 .single();
 
             if (supabaseError) throw supabaseError;
@@ -334,7 +335,7 @@ export function useCars() {
                 .from('cars') as any)
                 .update(updateData)
                 .eq('id', id)
-                .select('id, brand, model, license_plate, status, image_url, mileage, auto_manage_status, created_at');
+                .select('id, brand, model, license_plate, status, image_url, mileage, purchase_price, auto_manage_status, created_at');
 
             if (supabaseError) throw supabaseError;
 

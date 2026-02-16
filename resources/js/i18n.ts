@@ -70,6 +70,7 @@ const messages = {
             delete: 'Delete',
             actions: 'Actions',
             status: 'Status',
+            optional: 'optional',
         },
         admin: {
             fleet: {
@@ -90,6 +91,8 @@ const messages = {
                 delete: 'Delete',
                 no_cars: 'No cars in this brand yet',
                 plate_format: 'Format: ***TN**** (e.g., 245TN4521)',
+                purchase_price: 'Purchase Price / Leasing Advance',
+                purchase_price_hint: 'Vehicle purchase price or leasing advance payment in DT',
                 select_brand: 'Select a brand',
                 toggle_availability: 'Toggle Availability',
                 image_url: 'Image URL (optional)',
@@ -295,6 +298,7 @@ const messages = {
             delete: 'Supprimer',
             actions: 'Actions',
             status: 'Statut',
+            optional: 'optionnel',
         },
         admin: {
             fleet: {
@@ -315,6 +319,8 @@ const messages = {
                 delete: 'Supprimer',
                 no_cars: 'Aucune voiture pour cette marque',
                 plate_format: 'Format : ***TN**** (ex : 245TN4521)',
+                purchase_price: "Prix d'Achat / Avance Leasing",
+                purchase_price_hint: "Prix d'achat du véhicule ou avance de leasing en DT",
                 select_brand: 'Sélectionner une marque',
                 toggle_availability: 'Basculer la disponibilité',
                 image_url: "URL de l'image (optionnel)",
