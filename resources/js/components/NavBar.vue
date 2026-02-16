@@ -12,6 +12,7 @@ import {
     Info,
     BarChart3,
     ClipboardList,
+    Bus,
     Wrench,
     Settings,
     History,
@@ -132,6 +133,15 @@ const isActive = (path: string) => {
                             >
                                 <ClipboardList class="w-4 h-4" />
                                 <span>{{ $t('nav.reservations') }}</span>
+                            </RouterLink>
+
+                            <RouterLink 
+                                :to="tenantPath('/admin/services')" 
+                                class="nav-item"
+                                :class="{ 'nav-item-active': isActive('/admin/services') }"
+                            >
+                                <Bus class="w-4 h-4" />
+                                <span>Services</span>
                             </RouterLink>
 
                             <RouterLink 
@@ -425,6 +435,16 @@ const isActive = (path: string) => {
                             >
                                 <ClipboardList class="w-5 h-5" />
                                 <span>{{ $t('nav.reservations') }}</span>
+                            </RouterLink>
+
+                            <RouterLink 
+                                :to="tenantPath('/admin/services')"
+                                @click="closeMobileMenu"
+                                class="mobile-nav-item"
+                                :class="{ 'mobile-nav-active': isActive('/admin/services') }"
+                            >
+                                <Bus class="w-5 h-5" />
+                                <span>Services</span>
                             </RouterLink>
 
                             <RouterLink 

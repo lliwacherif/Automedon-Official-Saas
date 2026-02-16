@@ -139,6 +139,22 @@ export function useKPI() {
 
         const rentedCarIds = new Set(activeReservations?.map((r: any) => r.car_id))
 
+        // 2b. Fetch active services (currently happening)
+        let svcStatusQuery = supabase
+            .from('services')
+            .select('car_id')
+            .lte('start_date', nowIso)
+            .gte('end_date', nowIso)
+
+        if (tenantStore.currentTenant?.id) {
+            svcStatusQuery = svcStatusQuery.eq('tenant_id', tenantStore.currentTenant.id)
+        }
+
+        const { data: activeServices, error: svcStatusError } = await svcStatusQuery
+        if (svcStatusError) throw svcStatusError
+
+        activeServices?.forEach((s: any) => rentedCarIds.add(s.car_id))
+
         // 3. Fetch active maintenance for today
         // Assuming single-day maintenance based on schema or date column
         let maintQuery = supabase
@@ -220,13 +236,30 @@ export function useKPI() {
 
         if (maintError) throw maintError
 
+        // Fetch Services (Additional Revenue)
+        let svcQuery = supabase
+            .from('services')
+            .select('price, created_at')
+            .gte('created_at', startStr)
+            .lte('created_at', endStr)
+
+        if (tenantStore.currentTenant?.id) {
+            svcQuery = svcQuery.eq('tenant_id', tenantStore.currentTenant.id)
+        }
+
+        const { data: servicesData, error: svcError } = await svcQuery
+        if (svcError) throw svcError
+
         const resData = reservations as any[]
         const maintData = maintenance as any[]
+        const svcData = (servicesData || []) as any[]
 
         // Calculate Metrics
-        const revenue = resData.reduce((sum, r) => sum + Number(r.total_price), 0)
+        const reservationRevenue = resData.reduce((sum, r) => sum + Number(r.total_price), 0)
+        const serviceRevenue = svcData.reduce((sum, s) => sum + Number(s.price), 0)
+        const revenue = reservationRevenue + serviceRevenue
         const expenses = maintData.reduce((sum, m) => sum + Number(m.cost), 0)
-        const bookings = resData.length
+        const bookings = resData.length + svcData.length
 
         // Simple Occupancy Rate Calculation (Days Rented / (Total Cars * Days in Period))
         // This is an approximation. A more accurate one would query daily availability.
@@ -270,13 +303,31 @@ export function useKPI() {
 
         if (!reservations) return
 
-        const resData = reservations as any[]
+        // Also fetch services for chart
+        let chartSvcQuery = supabase
+            .from('services')
+            .select('price, created_at')
+            .gte('created_at', startStr)
+            .lte('created_at', endStr)
 
-        // Group by Date
+        if (tenantStore.currentTenant?.id) {
+            chartSvcQuery = chartSvcQuery.eq('tenant_id', tenantStore.currentTenant.id)
+        }
+
+        const { data: chartServices } = await chartSvcQuery
+
+        const resData = reservations as any[]
+        const chartSvcData = (chartServices || []) as any[]
+
+        // Group by Date (reservations + services)
         const dailyRevenue: Record<string, number> = {}
         resData.forEach(r => {
             const date = format(parseISO(r.created_at), 'yyyy-MM-dd')
             dailyRevenue[date] = (dailyRevenue[date] || 0) + Number(r.total_price)
+        })
+        chartSvcData.forEach(s => {
+            const date = format(parseISO(s.created_at), 'yyyy-MM-dd')
+            dailyRevenue[date] = (dailyRevenue[date] || 0) + Number(s.price)
         })
 
         const labels = Object.keys(dailyRevenue).sort()

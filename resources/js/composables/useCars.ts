@@ -153,6 +153,16 @@ export function useCars() {
 
             if (maintError) throw maintError;
 
+            // Fetch active services (currently happening)
+            const { data: servicesData, error: svcError } = await (supabase
+                .from('services')
+                .select('car_id, start_date, end_date, chauffeur_name, service_type, price')
+                .eq('tenant_id', tenantId)
+                .lte('start_date', nowIso)
+                .gte('end_date', nowIso) as any);
+
+            if (svcError) throw svcError;
+
             const maintenanceCarIds = new Set((maintenanceData || []).map((m: any) => m.car_id));
 
             // Map reservations to cars
@@ -164,6 +174,11 @@ export function useCars() {
                     r.car_id === car.id &&
                     r.start_date <= nowIso &&
                     r.end_date >= nowIso
+                );
+
+                // Check for ACTIVE service (currently happening)
+                const activeSvc = (servicesData || []).find((s: any) =>
+                    s.car_id === car.id
                 );
 
                 // Check for ACTIVE maintenance
@@ -180,6 +195,17 @@ export function useCars() {
                         status: activeRes.status,
                         total_price: activeRes.total_price || 0,
                         advance_payment: activeRes.advance_payment || 0
+                    };
+                } else if (activeSvc) {
+                    car.status = 'loue';
+                    car.active_reservation = {
+                        start_date: activeSvc.start_date,
+                        end_date: activeSvc.end_date,
+                        client_name: `[${activeSvc.service_type === 'transfert' ? 'Transfert' : 'Excursion'}] ${activeSvc.chauffeur_name}`,
+                        contract_number: null,
+                        status: 'active',
+                        total_price: activeSvc.price || 0,
+                        advance_payment: activeSvc.price || 0
                     };
                 } else if (isUnderMaintenance) {
                     car.status = 'maintenance';

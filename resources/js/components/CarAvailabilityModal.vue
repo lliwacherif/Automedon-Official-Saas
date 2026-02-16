@@ -49,6 +49,7 @@ watch(() => [props.show, props.car], async ([isShow, newCar]) => {
 async function fetchReservations(carId: number) {
     loading.value = true;
     try {
+        // Fetch reservations
         const { data, error } = await supabase
             .from('reservations')
             .select('id, start_date, end_date, status')
@@ -56,13 +57,32 @@ async function fetchReservations(carId: number) {
             .in('status', ['confirmed', 'active']);
 
         if (error) throw error;
-        
-        // Filter out past reservations (those that ended before today)
+
+        // Fetch services for this car too
+        const { data: svcData, error: svcError } = await supabase
+            .from('services')
+            .select('id, start_date, end_date, service_type')
+            .eq('car_id', carId);
+
+        if (svcError) throw svcError;
+
+        // Merge reservations + services into a single array
         const today = startOfDay(new Date());
-        reservations.value = (data || []).filter((res: any) => {
+
+        const filteredRes = (data || []).filter((res: any) => {
             const endDate = endOfDay(parseISO(res.end_date));
             return compareAsc(endDate, today) >= 0;
         });
+
+        const filteredSvc = (svcData || []).filter((svc: any) => {
+            const endDate = endOfDay(parseISO(svc.end_date));
+            return compareAsc(endDate, today) >= 0;
+        }).map((svc: any) => ({
+            ...svc,
+            status: 'active',
+        }));
+
+        reservations.value = [...filteredRes, ...filteredSvc];
     } catch (e) {
         console.error('Error fetching reservations:', e);
     } finally {

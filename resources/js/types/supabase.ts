@@ -192,6 +192,50 @@ export interface Database {
                     updated_at?: string
                 }
             }
+            services: {
+                Row: {
+                    id: number
+                    tenant_id: string
+                    service_type: 'transfert' | 'excursion'
+                    car_id: number
+                    start_date: string
+                    end_date: string
+                    chauffeur_name: string
+                    chauffeur_cin: string
+                    price: number
+                    notes: string | null
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: number
+                    tenant_id?: string
+                    service_type: 'transfert' | 'excursion'
+                    car_id: number
+                    start_date: string
+                    end_date: string
+                    chauffeur_name: string
+                    chauffeur_cin: string
+                    price: number
+                    notes?: string | null
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: number
+                    tenant_id?: string
+                    service_type?: 'transfert' | 'excursion'
+                    car_id?: number
+                    start_date?: string
+                    end_date?: string
+                    chauffeur_name?: string
+                    chauffeur_cin?: string
+                    price?: number
+                    notes?: string | null
+                    created_at?: string
+                    updated_at?: string
+                }
+            }
             maintenance_records: {
                 Row: {
                     id: number
