@@ -99,6 +99,7 @@ export function useCars() {
             status: dbCar.status,
             image_url: imageUrl,
             mileage: dbCar.mileage,
+            purchase_price: dbCar.purchase_price ?? null,
             auto_manage_status: dbCar.auto_manage_status,
             created_at: dbCar.created_at
         };
