@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref } from 'vue';
+import { nextTick, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ArrowLeft, FileDown, Loader2 } from 'lucide-vue-next';
+import { ArrowLeft, FileDown, Loader2, Save, Check } from 'lucide-vue-next';
 import InvoiceTemplate, { type InvoiceData } from '@/components/Invoices/InvoiceTemplate.vue';
 import { formatDateTime } from '@/utils/date';
 import { supabase } from '@/lib/supabase';
@@ -19,6 +19,92 @@ const isExporting = ref(false);
 const previewData = ref<InvoiceData | null>(null);
 const templateMountRef = ref<HTMLElement | null>(null);
 
+// ── Company settings (persisted in DB) ──
+const companySettings = ref({
+  address: '',
+  mf: '',
+  email: '',
+  gsm: '',
+});
+const savingSettings = ref(false);
+const settingsSaved = ref(false);
+
+async function loadInvoiceSettings() {
+  const tenantId = tenantStore.currentTenant?.id;
+  if (!tenantId) return;
+
+  const { data } = await supabase
+    .from('tenant_invoice_settings')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .maybeSingle();
+
+  if (data) {
+    companySettings.value = {
+      address: data.company_address || '',
+      mf: data.company_mf || '',
+      email: data.company_email || '',
+      gsm: data.company_gsm || '',
+    };
+  }
+}
+
+async function saveInvoiceSettings() {
+  const tenantId = tenantStore.currentTenant?.id;
+  if (!tenantId) return;
+
+  savingSettings.value = true;
+  settingsSaved.value = false;
+
+  try {
+    const payload = {
+      tenant_id: tenantId,
+      company_address: companySettings.value.address,
+      company_mf: companySettings.value.mf,
+      company_email: companySettings.value.email,
+      company_gsm: companySettings.value.gsm,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data: existing } = await supabase
+      .from('tenant_invoice_settings')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase
+        .from('tenant_invoice_settings')
+        .update(payload)
+        .eq('tenant_id', tenantId);
+    } else {
+      await (supabase.from('tenant_invoice_settings') as any).insert([payload]);
+    }
+
+    settingsSaved.value = true;
+    setTimeout(() => (settingsSaved.value = false), 2000);
+
+    applySettingsToPreview();
+  } catch (e) {
+    console.error('Error saving invoice settings', e);
+    alert('Erreur lors de la sauvegarde des paramètres');
+  } finally {
+    savingSettings.value = false;
+  }
+}
+
+function applySettingsToPreview() {
+  if (!previewData.value) return;
+  const s = companySettings.value;
+  previewData.value.company.address = s.address || 'Adresse de la société...';
+  previewData.value.company.mf = s.mf || '0000000/A/A/000';
+  previewData.value.company.email = s.email || 'contact@exemple.com';
+  previewData.value.company.gsm = s.gsm
+    ? s.gsm.split('/').map((v: string) => v.trim()).filter(Boolean)
+    : ['00 000 000'];
+}
+
+// ── Data URL helper (for logo in PDF) ──
 async function toDataUrl(url: string): Promise<string> {
   const res = await fetch(url, { mode: 'cors', cache: 'no-cache' });
   const blob = await res.blob();
@@ -30,9 +116,12 @@ async function toDataUrl(url: string): Promise<string> {
   });
 }
 
+// ── Load reservation + generate invoice data ──
 async function loadReservation(id: string) {
   loading.value = true;
   try {
+    await loadInvoiceSettings();
+
     const { data, error } = await supabase
       .from('reservations')
       .select('*, car:cars(*)')
@@ -82,15 +171,19 @@ async function generateInvoiceData(reservation: any, tenant: any) {
     }
   }
 
+  const s = companySettings.value;
+
   previewData.value = {
     invoiceNumber: invNum,
     invoiceDate: new Date().toLocaleDateString('fr-TN'),
     company: {
       name: tenant.name,
-      address: 'Adresse de la société...',
-      gsm: ['00 000 000'],
-      email: 'contact@exemple.com',
-      mf: '0000000/A/A/000',
+      address: s.address || 'Adresse de la société...',
+      gsm: s.gsm
+        ? s.gsm.split('/').map((v: string) => v.trim()).filter(Boolean)
+        : ['00 000 000'],
+      email: s.email || 'contact@exemple.com',
+      mf: s.mf || '0000000/A/A/000',
       logoUrl: logoUrl || null
     },
     client: {
@@ -116,6 +209,7 @@ async function generateInvoiceData(reservation: any, tenant: any) {
   };
 }
 
+// ── PDF export ──
 function createA4ExportClone(sourceEl: HTMLElement) {
   const host = document.createElement('div');
   host.setAttribute('data-pdf-host', 'true');
@@ -127,8 +221,6 @@ function createA4ExportClone(sourceEl: HTMLElement) {
   host.style.zIndex = '-1';
 
   const clone = sourceEl.cloneNode(true) as HTMLElement;
-  // Keep original id so InvoiceTemplate's scoped PDF color fallbacks
-  // targeting "#invoice-template ..." still apply in the export clone.
   clone.id = 'invoice-template';
   clone.classList.add('export-a4');
   clone.style.width = '210mm';
@@ -260,18 +352,87 @@ onMounted(() => {
     </header>
 
     <main class="mx-auto grid max-w-[1500px] grid-cols-1 gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[320px_minmax(0,1fr)] lg:px-8">
-      <aside class="h-fit rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Export quality</p>
-        <h2 class="mt-2 text-base font-semibold text-slate-900">PDF rendu identique au preview</h2>
-        <p class="mt-3 text-sm leading-6 text-slate-600">
-          Le rendu est maintenant exporté depuis une surface A4 dédiée pour garder la même structure visuelle,
-          les mêmes espacements et une netteté plus propre.
-        </p>
+      <aside class="h-fit space-y-5">
+        <!-- Export Quality Info -->
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Export quality</p>
+          <h2 class="mt-2 text-base font-semibold text-slate-900">PDF rendu identique au preview</h2>
+          <p class="mt-3 text-sm leading-6 text-slate-600">
+            Le rendu est maintenant exporté depuis une surface A4 dédiée pour garder la même structure visuelle,
+            les mêmes espacements et une netteté plus propre.
+          </p>
 
-        <div class="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-          <p><span class="font-semibold">Format:</span> A4 portrait</p>
-          <p class="mt-1"><span class="font-semibold">Capture:</span> haute résolution</p>
-          <p class="mt-1"><span class="font-semibold">Source:</span> template réel (pas un wrapper)</p>
+          <div class="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+            <p><span class="font-semibold">Format:</span> A4 portrait</p>
+            <p class="mt-1"><span class="font-semibold">Capture:</span> haute résolution</p>
+            <p class="mt-1"><span class="font-semibold">Source:</span> template réel (pas un wrapper)</p>
+          </div>
+        </div>
+
+        <!-- Company Info Settings -->
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Informations société</p>
+          <h2 class="mt-2 text-base font-semibold text-slate-900">Vos coordonnées facture</h2>
+          <p class="mt-2 text-xs leading-5 text-slate-500">
+            Ces informations seront pré-remplies sur toutes vos factures.
+          </p>
+
+          <div class="mt-4 space-y-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Adresse</label>
+              <input
+                v-model="companySettings.address"
+                type="text"
+                placeholder="Av. Exemple, Ville 1000"
+                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Matricule Fiscal (MF)</label>
+              <input
+                v-model="companySettings.mf"
+                type="text"
+                placeholder="0000000/X/X/X/000"
+                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Email</label>
+              <input
+                v-model="companySettings.email"
+                type="email"
+                placeholder="contact@exemple.com"
+                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">GSM</label>
+              <input
+                v-model="companySettings.gsm"
+                type="text"
+                placeholder="22 000 000 / 55 000 000"
+                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+              <p class="mt-1 text-[10px] text-slate-400">Séparez les numéros par /</p>
+            </div>
+          </div>
+
+          <button
+            @click="saveInvoiceSettings"
+            :disabled="savingSettings"
+            class="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition disabled:opacity-60"
+            :class="settingsSaved
+              ? 'bg-emerald-600 text-white'
+              : 'bg-slate-900 text-white hover:bg-slate-800'"
+          >
+            <Check v-if="settingsSaved" class="h-4 w-4" />
+            <Loader2 v-else-if="savingSettings" class="h-4 w-4 animate-spin" />
+            <Save v-else class="h-4 w-4" />
+            {{ settingsSaved ? 'Enregistré !' : 'Enregistrer' }}
+          </button>
         </div>
       </aside>
 

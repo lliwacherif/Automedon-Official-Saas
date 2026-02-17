@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
-import { useI18n } from 'vue-i18n';
+import { ref, watch } from 'vue';
 import { Loader2, FileDown, X, RefreshCw } from 'lucide-vue-next';
 import InvoiceTemplate, { type InvoiceData } from './InvoiceTemplate.vue';
 import { formatDateTime } from '@/utils/date';
+import { supabase } from '@/lib/supabase';
 //@ts-ignore
 import html2pdf from 'html2pdf.js';
 
 const props = defineProps<{
     show: boolean;
-    reservation: any; // Type this properly if possible
+    reservation: any;
     tenant: any;
 }>();
 
@@ -18,48 +18,57 @@ const emit = defineEmits(['close']);
 const loading = ref(false);
 const previewData = ref<InvoiceData | null>(null);
 
-// Initialize Invoice Data from Reservation
-function generateInvoiceData() {
+async function loadInvoiceSettings(tenantId: string) {
+    const { data } = await supabase
+        .from('tenant_invoice_settings')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
+
+    return {
+        address: data?.company_address || '',
+        mf: data?.company_mf || '',
+        email: data?.company_email || '',
+        gsm: data?.company_gsm || '',
+    };
+}
+
+async function generateInvoiceData() {
     if (!props.reservation || !props.tenant) return;
 
-    // Determine Invoice Number (Mocking logic or using Contract Number)
-    // In a real app, this might come from a DB sequence.
-    const invNum = props.reservation.contract_number ? `INV-${props.reservation.contract_number}` : `DRAFT-${Date.now().toString().slice(-4)}`;
+    const invNum = props.reservation.contract_number
+        ? `INV-${props.reservation.contract_number}`
+        : `DRAFT-${Date.now().toString().slice(-4)}`;
 
-    // Prepare Items
-    const nbDays = Math.ceil((new Date(props.reservation.end_date).getTime() - new Date(props.reservation.start_date).getTime()) / (1000 * 3600 * 24));
-    
-    // Reverse calc HT from Total (Total in DB is usually TTC?)
-    // Assuming reservation.total_price is TTC.
-    // If we assume a standard rate of 19% and 1.000 stamp:
-    // This is explicitly "Facture Pro" logic so we should probably verify if we store HT/TTC separately.
-    // For now, I'll assume total_price in DB is the final amount the client pays (TTC).
-    // So: TotalTTC = (TotalHT * 1.19) + 1.000
-    // TotalHT = (TotalTTC - 1.000) / 1.19
-    
+    const nbDays = Math.ceil(
+        (new Date(props.reservation.end_date).getTime() - new Date(props.reservation.start_date).getTime()) / (1000 * 3600 * 24)
+    );
+
     const tvaRate = 0.19;
     const timbre = 1.000;
     const totalTTC = Number(props.reservation.total_price) || 0;
-    
-    // Quick reverse calculation for the demo
     const totalExclStamp = Math.max(0, totalTTC - timbre);
     const totalHT = totalExclStamp / (1 + tvaRate);
-    const unitPriceHT = totalHT / (nbDays || 1); // Only valid if qte is days
-    
+    const unitPriceHT = totalHT / (nbDays || 1);
+
+    const settings = await loadInvoiceSettings(props.tenant.id);
+
     previewData.value = {
         invoiceNumber: invNum,
         invoiceDate: new Date().toLocaleDateString('fr-TN'),
         company: {
             name: props.tenant.name,
-            address: 'Av. Mongi Slim km 6, Chahia Sfax 3041', // This should likely come from Tenant settings if available
-            gsm: ['22400577', '22400631'], // Placeholder or Settings
-            email: 'everydaylocation@gmail.com', // Placeholder
-            mf: '1874669/H/A/M/000', // Placeholder
+            address: settings.address || 'Adresse de la société...',
+            gsm: settings.gsm
+                ? settings.gsm.split('/').map((s: string) => s.trim()).filter(Boolean)
+                : ['00 000 000'],
+            email: settings.email || 'contact@exemple.com',
+            mf: settings.mf || '0000000/A/A/000',
             logoUrl: props.tenant.logo_url
         },
         client: {
             name: props.reservation.client_name,
-            address: 'Adresse client...', // Reservation might not have this detailed
+            address: 'Adresse client...',
             mf: 'Client MF...',
             tel: props.reservation.client_phone || ''
         },
@@ -67,14 +76,14 @@ function generateInvoiceData() {
             {
                 designation: `Location véhicule ${props.reservation.car?.brand || ''} ${props.reservation.car?.model || ''}`,
                 duree: `${formatDateTime(props.reservation.start_date)} au ${formatDateTime(props.reservation.end_date)}`,
-                unitPriceHT: unitPriceHT,
+                unitPriceHT,
                 unite: 'Jours',
                 qte: nbDays || 1,
-                totalHT: totalHT
+                totalHT
             }
         ],
         tax: {
-            tvaRate: tvaRate,
+            tvaRate,
             timbreFiscal: timbre
         }
     };

@@ -1,8 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watchEffect } from 'vue';
-import type { Directive } from 'vue';
+import { computed, watchEffect } from 'vue';
 
-// Define the structure of the Invoice Data
 export interface InvoiceData {
   invoiceNumber: string;
   invoiceDate: string;
@@ -29,53 +27,36 @@ export interface InvoiceData {
     totalHT: number;
   }[];
   tax: {
-    tvaRate: number; // e.g. 0.19
+    tvaRate: number;
     timbreFiscal: number;
   };
 }
 
-/**
- * exportMode:
- * - when true: locks inputs (readonly), hides caret, and helps producing cleaner PDF snapshots.
- *
- * minTableRows:
- * - renders extra empty rows so the table looks consistent (better for PDF layout).
- */
 const props = withDefaults(
   defineProps<{
     data: InvoiceData;
     exportMode?: boolean;
-    minTableRows?: number;
   }>(),
   {
     exportMode: false,
-    minTableRows: 8,
   }
 );
 
-// Optional free text (was not persisted in InvoiceData in your original file)
-const amountInWords = ref('');
-
-/** Line total (robust against NaN) */
 function lineTotalHT(item: InvoiceData['items'][number]) {
   const unit = Number(item.unitPriceHT) || 0;
   const qte = Number(item.qte) || 0;
   return unit * qte;
 }
 
-/**
- * Keep item.totalHT updated WITHOUT doing side-effects inside computed.
- * This also helps PDF snapshotters because the DOM always matches the data.
- */
 watchEffect(() => {
   props.data.items.forEach((item) => {
     item.totalHT = lineTotalHT(item);
   });
 });
 
-const totalHT = computed(() => {
-  return props.data.items.reduce((sum, item) => sum + lineTotalHT(item), 0);
-});
+const totalHT = computed(() =>
+  props.data.items.reduce((sum, item) => sum + lineTotalHT(item), 0)
+);
 
 const totalTVA = computed(() => {
   const rate = Number(props.data.tax.tvaRate) || 0;
@@ -87,519 +68,427 @@ const totalTTC = computed(() => {
   return totalHT.value + totalTVA.value + timbre;
 });
 
-// Format currency
 const currencyFormatter = new Intl.NumberFormat('fr-TN', {
   minimumFractionDigits: 3,
   maximumFractionDigits: 3,
 });
-function formatCurrency(amount: number) {
-  const safe = Number.isFinite(amount) ? amount : 0;
-  return currencyFormatter.format(safe);
+
+function fmt(amount: number) {
+  return currencyFormatter.format(Number.isFinite(amount) ? amount : 0);
 }
 
-/**
- * BIG FIX for "hidden / not fully shown":
- * Textareas were fixed-height (rows=2 / h-20) and content got clipped in the PDF snapshot.
- * This directive auto-resizes textareas to fit their content.
- */
-const autosizeHandlers = new WeakMap<HTMLTextAreaElement, () => void>();
-
-function autosize(el: HTMLTextAreaElement) {
-  if (!el) return;
-  // Allow shrinking, then expand to content
-  el.style.height = 'auto';
-  // +2px prevents last-line clipping due to rounding in some renderers
-  el.style.height = `${el.scrollHeight + 2}px`;
+function tvaPercent() {
+  return ((Number(props.data.tax.tvaRate) || 0) * 100).toFixed(0);
 }
-
-const vAutosize: Directive<HTMLTextAreaElement> = {
-  mounted(el) {
-    const handler = () => autosize(el);
-    autosizeHandlers.set(el, handler);
-
-    // First sizing after mount/render
-    nextTick(handler);
-
-    // Resize on user edits and programmatic updates
-    el.addEventListener('input', handler, { passive: true });
-    el.addEventListener('change', handler, { passive: true });
-  },
-  updated(el) {
-    nextTick(() => autosize(el));
-  },
-  unmounted(el) {
-    const handler = autosizeHandlers.get(el);
-    if (handler) {
-      el.removeEventListener('input', handler);
-      el.removeEventListener('change', handler);
-      autosizeHandlers.delete(el);
-    }
-  },
-};
-
-const emptyRowCount = computed(() => {
-  const min = Number(props.minTableRows) || 0;
-  return Math.max(0, min - props.data.items.length);
-});
 </script>
 
 <template>
-  <div
-    id="invoice-template"
-    class="invoice-a4 bg-white text-black font-sans text-sm relative"
-    :class="{ 'is-export': exportMode }"
-  >
-    <!-- 1. Header -->
-    <div class="flex justify-between items-start mb-8 gap-6">
-      <div class="w-1/2 flex flex-col space-y-1 min-w-0">
+  <div id="invoice-template" class="invoice-page">
+    <!-- Header -->
+    <div class="inv-header">
+      <div class="inv-company">
         <img
           v-if="data.company.logoUrl"
           :src="data.company.logoUrl"
-          class="h-20 object-contain mb-2 w-full object-left"
-          alt="Company Logo"
+          class="inv-logo"
+          alt="Logo"
         />
-
-        <!-- Company name: textarea (wraps + autosize) instead of input (no wrap) -->
-        <textarea
-          v-model="data.company.name"
-          v-autosize
-          rows="1"
-          :readonly="exportMode"
-          class="font-bold text-xl uppercase w-full bg-transparent border-none p-0 focus:ring-0 resize-none overflow-hidden placeholder-gray-300 leading-snug invoice-field"
-          placeholder="SOCIÉTÉ..."
-        />
-
-        <textarea
-          v-model="data.company.address"
-          v-autosize
-          rows="2"
-          :readonly="exportMode"
-          class="text-xs text-gray-600 w-full bg-transparent border-none p-0 focus:ring-0 resize-none overflow-hidden placeholder-gray-300 leading-snug invoice-field"
-          placeholder="Adresse..."
-        ></textarea>
-
-        <div class="flex items-start text-xs text-gray-600 gap-2">
-          <span class="shrink-0">MF:</span>
-          <input
-            v-model="data.company.mf"
-            :readonly="exportMode"
-            class="bg-transparent border-none p-0 focus:ring-0 w-full placeholder-gray-300 invoice-field"
-            placeholder="0000000/X/X/X/000"
-          />
-        </div>
-
-        <div class="flex flex-col text-xs text-gray-600 mt-1 space-y-1">
-          <div class="flex items-start gap-2">
-            <span class="shrink-0">Email:</span>
-            <input
-              v-model="data.company.email"
-              :readonly="exportMode"
-              class="bg-transparent border-none p-0 focus:ring-0 w-full placeholder-gray-300 invoice-field"
-              placeholder="email@exemple.com"
-            />
-          </div>
-
-          <div class="flex items-start gap-2">
-            <span class="shrink-0">GSM:</span>
-            <input
-              :readonly="exportMode"
-              :value="data.company.gsm.join(' / ')"
-              @input="
-                data.company.gsm = ($event.target as HTMLInputElement).value
-                  .split('/')
-                  .map((s) => s.trim())
-                  .filter(Boolean)
-              "
-              class="bg-transparent border-none p-0 focus:ring-0 w-full placeholder-gray-300 invoice-field"
-              placeholder="22 000 000 / 55 000 000"
-            />
-          </div>
-        </div>
+        <div class="inv-company-name">{{ data.company.name }}</div>
+        <div class="inv-company-detail">{{ data.company.address }}</div>
+        <div class="inv-company-detail">MF: {{ data.company.mf }}</div>
+        <div class="inv-company-detail">Email: {{ data.company.email }}</div>
+        <div class="inv-company-detail">GSM: {{ data.company.gsm.join(' / ') }}</div>
       </div>
-
-      <div class="w-1/2 text-right min-w-0">
-        <h2 class="text-4xl font-bold text-gray-800 tracking-widest mb-2">FACTURE</h2>
-        <div class="inline-block text-left border-l-4 border-gray-800 pl-3 py-2 bg-gray-50 pr-3 rounded-sm">
-          <div class="flex items-center justify-between gap-3">
-            <span class="text-sm font-semibold shrink-0">N°:</span>
-            <input
-              v-model="data.invoiceNumber"
-              :readonly="exportMode"
-              class="text-sm font-semibold bg-transparent border-none p-0 focus:ring-0 w-40 text-right invoice-field"
-            />
-          </div>
-          <div class="flex items-center justify-between gap-3">
-            <span class="text-sm shrink-0">Date:</span>
-            <input
-              v-model="data.invoiceDate"
-              :readonly="exportMode"
-              class="text-sm bg-transparent border-none p-0 focus:ring-0 w-40 text-right invoice-field"
-            />
-          </div>
+      <div class="inv-title-block">
+        <div class="inv-title">FACTURE</div>
+        <div class="inv-meta">
+          <span class="inv-meta-label">N°:</span>
+          <span v-if="exportMode" class="inv-meta-value">{{ data.invoiceNumber }}</span>
+          <input v-else v-model="data.invoiceNumber" class="inv-input inv-input-right" />
+        </div>
+        <div class="inv-meta">
+          <span class="inv-meta-label">Date:</span>
+          <span v-if="exportMode" class="inv-meta-value">{{ data.invoiceDate }}</span>
+          <input v-else v-model="data.invoiceDate" class="inv-input inv-input-right" />
         </div>
       </div>
     </div>
 
-    <!-- 2. Client Box -->
-    <div class="flex justify-end mb-8">
-      <div class="w-1/2 border border-gray-800 rounded-lg p-4 bg-gray-50 flex flex-col space-y-2 min-w-0">
-        <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">Client</p>
+    <!-- Separator -->
+    <div class="inv-sep"></div>
 
-        <!-- Client name: textarea so it never gets cut -->
-        <textarea
-          v-model="data.client.name"
-          v-autosize
-          rows="1"
-          :readonly="exportMode"
-          class="font-bold text-lg bg-transparent border-none p-0 focus:ring-0 w-full border-b border-gray-300 border-dashed resize-none overflow-hidden leading-snug invoice-field"
-          placeholder="Nom Client"
-        ></textarea>
-
-        <textarea
-          v-model="data.client.address"
-          v-autosize
-          rows="2"
-          :readonly="exportMode"
-          class="text-sm bg-transparent border-none p-0 focus:ring-0 w-full resize-none overflow-hidden border-b border-gray-300 border-dashed leading-snug invoice-field"
-          placeholder="Adresse Client..."
-        ></textarea>
-
-        <div class="flex justify-between text-sm mt-2 pt-2 border-t border-gray-300 gap-4">
-          <div class="flex flex-col w-1/2 min-w-0">
-            <span class="text-xs text-gray-500">MF</span>
-            <input
-              v-model="data.client.mf"
-              :readonly="exportMode"
-              class="bg-transparent border-none p-0 focus:ring-0 w-full invoice-field"
-              placeholder="MF..."
-            />
-          </div>
-          <div class="flex flex-col w-1/2 text-right min-w-0">
-            <span class="text-xs text-gray-500">Tel</span>
-            <input
-              v-model="data.client.tel"
-              :readonly="exportMode"
-              class="bg-transparent border-none p-0 focus:ring-0 w-full text-right invoice-field"
-              placeholder="Tel..."
-            />
-          </div>
+    <!-- Client -->
+    <div class="inv-client-section">
+      <div class="inv-client-label">CLIENT</div>
+      <div class="inv-client-box">
+        <div class="inv-client-name">{{ data.client.name }}</div>
+        <div class="inv-client-detail">{{ data.client.address }}</div>
+        <div class="inv-client-row">
+          <span>MF: {{ data.client.mf }}</span>
+          <span>Tel: {{ data.client.tel }}</span>
         </div>
       </div>
     </div>
 
-    <!-- 3. Items Table -->
-    <div class="mb-8">
-      <table class="w-full border-collapse border border-gray-300 table-fixed">
-        <thead>
-          <tr class="bg-gray-100 text-[10px] font-bold uppercase text-center tracking-wider">
-            <th class="border border-gray-300 p-1 w-[5%]">N°</th>
-            <th class="border border-gray-300 p-1 w-[35%] text-left pl-2">Désignation</th>
-            <th class="border border-gray-300 p-1 w-[18%]">Durée</th>
-            <th class="border border-gray-300 p-1 w-[12%]">P.U.H.T</th>
-            <th class="border border-gray-300 p-1 w-[8%]">Uté</th>
-            <th class="border border-gray-300 p-1 w-[8%]">Qté</th>
-            <th class="border border-gray-300 p-1 w-[14%]">Montant H.T</th>
-          </tr>
-        </thead>
+    <!-- Items -->
+    <div class="inv-items-section">
+      <div class="inv-items-header">
+        <span class="inv-col-num">#</span>
+        <span class="inv-col-desc">Désignation</span>
+        <span class="inv-col-dur">Durée</span>
+        <span class="inv-col-pu">P.U H.T</span>
+        <span class="inv-col-unite">Unité</span>
+        <span class="inv-col-qte">Qté</span>
+        <span class="inv-col-total">Total H.T</span>
+      </div>
 
-        <tbody>
-          <tr v-for="(item, index) in data.items" :key="index" class="text-xs group hover:bg-gray-50">
-            <td class="border border-gray-300 p-1 text-center text-gray-500 align-top pt-2">
-              {{ index + 1 }}
-            </td>
-
-            <td class="border border-gray-300 p-1 align-top">
-              <textarea
-                v-model="item.designation"
-                v-autosize
-                rows="2"
-                :readonly="exportMode"
-                class="w-full bg-transparent border-none p-1 focus:ring-0 resize-none overflow-hidden text-left leading-snug invoice-field"
-                style="min-height: 40px"
-                placeholder="Désignation..."
-              ></textarea>
-            </td>
-
-            <td class="border border-gray-300 p-1 align-top">
-              <textarea
-                v-model="item.duree"
-                v-autosize
-                rows="2"
-                :readonly="exportMode"
-                class="w-full bg-transparent border-none p-1 focus:ring-0 text-center resize-none overflow-hidden leading-snug invoice-field"
-                style="min-height: 40px"
-                placeholder="Durée..."
-              ></textarea>
-            </td>
-
-            <td class="border border-gray-300 p-1 align-top">
-              <div v-if="exportMode" class="w-full text-right p-1 font-mono">
-                {{ formatCurrency(item.unitPriceHT) }}
-              </div>
-              <input
-                v-else
-                v-model.number="item.unitPriceHT"
-                type="number"
-                step="0.001"
-                class="w-full bg-transparent border-none p-1 focus:ring-0 text-right font-mono invoice-field"
-              />
-            </td>
-
-            <td class="border border-gray-300 p-1 align-top">
-              <input
-                v-model="item.unite"
-                :readonly="exportMode"
-                class="w-full bg-transparent border-none p-1 focus:ring-0 text-center invoice-field"
-              />
-            </td>
-
-            <td class="border border-gray-300 p-1 align-top">
-              <input
-                v-model.number="item.qte"
-                :readonly="exportMode"
-                type="number"
-                step="1"
-                class="w-full bg-transparent border-none p-1 focus:ring-0 text-center font-mono invoice-field"
-              />
-            </td>
-
-            <td class="border border-gray-300 p-1 text-right font-medium bg-gray-50 align-top pt-2 font-mono">
-              {{ formatCurrency(lineTotalHT(item)) }}
-            </td>
-          </tr>
-
-          <!-- Empty rows (multiple) to keep consistent PDF layout -->
-          <tr v-for="n in emptyRowCount" :key="'empty-' + n" class="text-xs">
-            <td class="border border-gray-300 p-2 h-8"></td>
-            <td class="border border-gray-300 p-2 h-8"></td>
-            <td class="border border-gray-300 p-2 h-8"></td>
-            <td class="border border-gray-300 p-2 h-8"></td>
-            <td class="border border-gray-300 p-2 h-8"></td>
-            <td class="border border-gray-300 p-2 h-8"></td>
-            <td class="border border-gray-300 p-2 h-8"></td>
-          </tr>
-        </tbody>
-      </table>
+      <div v-for="(item, idx) in data.items" :key="idx" class="inv-items-row">
+        <span class="inv-col-num">{{ idx + 1 }}</span>
+        <span class="inv-col-desc">{{ item.designation }}</span>
+        <span class="inv-col-dur">{{ item.duree }}</span>
+        <span class="inv-col-pu inv-mono">{{ fmt(item.unitPriceHT) }}</span>
+        <span class="inv-col-unite">{{ item.unite }}</span>
+        <span class="inv-col-qte inv-mono">{{ item.qte }}</span>
+        <span class="inv-col-total inv-mono inv-bold">{{ fmt(lineTotalHT(item)) }}</span>
+      </div>
     </div>
 
-    <!-- 4. Totals & Signature -->
-    <div class="flex justify-between items-start mb-12 page-break-inside-avoid gap-6">
-      <div class="w-1/2 pr-2 min-w-0">
-        <div class="h-full border border-gray-300 p-4 rounded-lg flex flex-col justify-between min-h-[170px]">
-          <p class="text-sm font-bold underline mb-2">Arrêté la présente facture à la somme de :</p>
-
-          <!-- Autosize so it never clips in the PDF -->
-          <textarea
-            v-model="amountInWords"
-            v-autosize
-            rows="3"
-            :readonly="exportMode"
-            class="italic text-sm text-gray-700 w-full bg-transparent border-none p-0 focus:ring-0 resize-none overflow-hidden placeholder-gray-400 leading-snug invoice-field"
-            placeholder="(Saisir le montant en toutes lettres ici...)"
-          ></textarea>
-
-          <div class="mt-8 text-center border-t border-dashed border-gray-400 pt-4">
-            <p class="font-bold">Cachet et Signature</p>
-          </div>
+    <!-- Totals -->
+    <div class="inv-totals-section">
+      <div class="inv-totals-box">
+        <div class="inv-total-line">
+          <span class="inv-total-label">Total H.T</span>
+          <span class="inv-total-value inv-mono">{{ fmt(totalHT) }}</span>
+        </div>
+        <div class="inv-total-line">
+          <span class="inv-total-label">TVA ({{ tvaPercent() }}%)</span>
+          <span class="inv-total-value inv-mono">{{ fmt(totalTVA) }}</span>
+        </div>
+        <div class="inv-total-line">
+          <span class="inv-total-label">Timbre fiscal</span>
+          <span class="inv-total-value inv-mono">{{ fmt(data.tax.timbreFiscal) }}</span>
+        </div>
+        <div class="inv-total-line inv-total-ttc">
+          <span class="inv-total-label">Total T.T.C</span>
+          <span class="inv-total-value inv-mono">{{ fmt(totalTTC) }}</span>
         </div>
       </div>
+    </div>
 
-      <div class="w-1/3 min-w-0">
-        <table class="w-full border-collapse border border-gray-800">
-          <tbody>
-            <tr>
-              <td class="border border-gray-800 p-2 bg-gray-50 font-bold text-right text-sm">Total H.T</td>
-              <td class="border border-gray-800 p-2 text-right font-mono">
-                {{ formatCurrency(totalHT) }}
-              </td>
-            </tr>
-            <tr>
-              <td class="border border-gray-800 p-2 bg-gray-50 font-bold text-right text-sm">
-                TVA
-                <input
-                  v-model.number="data.tax.tvaRate"
-                  :readonly="exportMode"
-                  type="number"
-                  step="0.01"
-                  class="w-12 bg-transparent border-b border-gray-400 text-center p-0 focus:ring-0 text-xs font-mono invoice-field"
-                />
-              </td>
-              <td class="border border-gray-800 p-2 text-right font-mono">
-                {{ formatCurrency(totalTVA) }}
-              </td>
-            </tr>
-            <tr>
-              <td class="border border-gray-800 p-2 bg-gray-50 font-bold text-right text-sm">Timbre</td>
-              <td class="border border-gray-800 p-2 text-right font-mono">
-                <input
-                  v-model.number="data.tax.timbreFiscal"
-                  :readonly="exportMode"
-                  type="number"
-                  step="0.100"
-                  class="w-20 bg-transparent border-none text-right p-0 focus:ring-0 font-mono invoice-field"
-                />
-              </td>
-            </tr>
-            <tr class="bg-gray-800 text-white">
-              <td class="border border-gray-800 p-2 font-bold text-right text-base">Total T.T.C</td>
-              <td class="border border-gray-800 p-2 text-right font-bold text-lg font-mono">
-                {{ formatCurrency(totalTTC) }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+    <!-- Signature -->
+    <div class="inv-signature-section">
+      <div class="inv-signature-box">
+        <div class="inv-signature-title">Cachet et Signature</div>
       </div>
     </div>
 
-    <!-- 5. Footer -->
-    <div class="mt-auto pt-12 pb-4 text-center border-t border-gray-300 text-xs text-gray-500 w-full page-break-inside-avoid">
-      <p>{{ data.company.name }} - {{ data.company.address }}</p>
-      <p>MF: {{ data.company.mf }} - Email: {{ data.company.email }} - GSM: {{ data.company.gsm.join(' / ') }}</p>
+    <!-- Footer -->
+    <div class="inv-footer">
+      <div>{{ data.company.name }} &mdash; {{ data.company.address }}</div>
+      <div>MF: {{ data.company.mf }} | Email: {{ data.company.email }} | GSM: {{ data.company.gsm.join(' / ') }}</div>
     </div>
   </div>
 </template>
 
 <style scoped>
-/* --- Core page sizing --- */
-.invoice-a4 {
+/* ===================== A4 Page ===================== */
+.invoice-page {
   width: 210mm;
-  /* Reduced min-height to prevent forced page breaks when margins are added by PDF generator */
-  min-height: 270mm; 
-  padding: 10mm;
+  min-height: 280mm;
+  padding: 12mm 14mm;
   margin: 0 auto;
-  background: white;
+  background-color: #ffffff;
+  color: #1a1a1a;
+  font-family: 'Segoe UI', Arial, Helvetica, sans-serif;
+  font-size: 11px;
+  line-height: 1.5;
   display: flex;
   flex-direction: column;
-}
-
-/* Ensure consistent sizing (prevents subtle clipping) */
-#invoice-template,
-#invoice-template * {
   box-sizing: border-box;
-}
-
-/* Better PDF/print color fidelity */
-#invoice-template {
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
 
-/* Make “page-break-inside-avoid” actually work */
-.page-break-inside-avoid {
-  break-inside: avoid;
-  page-break-inside: avoid;
+.invoice-page * {
+  box-sizing: border-box;
 }
 
-/* Inputs/Textareas: prevent focus rings/shadows from appearing in PDF */
-.invoice-field:focus {
-  outline: none !important;
-  box-shadow: none !important;
+/* ===================== Header ===================== */
+.inv-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8mm;
 }
 
-/* Hide scrollbars and avoid clipped text: autosize handles height */
-#invoice-template textarea {
-  overflow: hidden !important;
-  resize: none;
-  /* Add buffer for descenders (g, j, p, q, y) */
-  padding-bottom: 2px !important; 
+.inv-company {
+  max-width: 55%;
 }
 
-/* Improve numeric alignment in PDFs */
-#invoice-template .font-mono {
+.inv-logo {
+  height: 60px;
+  max-width: 200px;
+  object-fit: contain;
+  margin-bottom: 6px;
+}
+
+.inv-company-name {
+  font-size: 16px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
+
+.inv-company-detail {
+  font-size: 10px;
+  color: #4b5563;
+  line-height: 1.6;
+}
+
+.inv-title-block {
+  text-align: right;
+}
+
+.inv-title {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  color: #1f2937;
+  margin-bottom: 8px;
+}
+
+.inv-meta {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+  font-size: 12px;
+}
+
+.inv-meta-label {
+  font-weight: 600;
+  color: #374151;
+}
+
+.inv-meta-value {
+  color: #1f2937;
+}
+
+/* ===================== Separator ===================== */
+.inv-sep {
+  height: 2px;
+  background-color: #1f2937;
+  margin-bottom: 8mm;
+}
+
+/* ===================== Client ===================== */
+.inv-client-section {
+  margin-bottom: 8mm;
+  margin-left: auto;
+  width: 55%;
+}
+
+.inv-client-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.inv-client-box {
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  padding: 10px 14px;
+  background-color: #f9fafb;
+}
+
+.inv-client-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
+
+.inv-client-detail {
+  font-size: 11px;
+  color: #4b5563;
+  margin-bottom: 2px;
+}
+
+.inv-client-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #6b7280;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* ===================== Items ===================== */
+.inv-items-section {
+  margin-bottom: 8mm;
+}
+
+.inv-items-header {
+  display: flex;
+  align-items: center;
+  padding: 8px 0;
+  border-top: 2px solid #1f2937;
+  border-bottom: 2px solid #1f2937;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #374151;
+  background-color: #f3f4f6;
+}
+
+.inv-items-row {
+  display: flex;
+  align-items: flex-start;
+  padding: 10px 0;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 11px;
+  color: #1f2937;
+}
+
+/* Column widths */
+.inv-col-num   { width: 5%;  text-align: center; padding: 0 4px; }
+.inv-col-desc  { width: 32%; text-align: left;   padding: 0 6px; }
+.inv-col-dur   { width: 21%; text-align: center; padding: 0 4px; font-size: 10px; }
+.inv-col-pu    { width: 13%; text-align: right;  padding: 0 6px; }
+.inv-col-unite { width: 8%;  text-align: center; padding: 0 4px; }
+.inv-col-qte   { width: 7%;  text-align: center; padding: 0 4px; }
+.inv-col-total { width: 14%; text-align: right;  padding: 0 6px; }
+
+/* ===================== Totals ===================== */
+.inv-totals-section {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10mm;
+}
+
+.inv-totals-box {
+  width: 45%;
+}
+
+.inv-total-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 12px;
+  font-size: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.inv-total-label {
+  font-weight: 600;
+  color: #374151;
+}
+
+.inv-total-value {
+  color: #1f2937;
+}
+
+.inv-total-ttc {
+  background-color: #1f2937;
+  color: #ffffff;
+  border-bottom: none;
+  border-radius: 0 0 4px 4px;
+  font-size: 14px;
+  padding: 8px 12px;
+}
+
+.inv-total-ttc .inv-total-label,
+.inv-total-ttc .inv-total-value {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+/* ===================== Signature ===================== */
+.inv-signature-section {
+  margin-bottom: 10mm;
+}
+
+.inv-signature-box {
+  width: 45%;
+  min-height: 80px;
+  border: 1px dashed #9ca3af;
+  border-radius: 4px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 12px;
+}
+
+.inv-signature-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+/* ===================== Footer ===================== */
+.inv-footer {
+  margin-top: auto;
+  padding-top: 6mm;
+  border-top: 1px solid #d1d5db;
+  text-align: center;
+  font-size: 9px;
+  color: #9ca3af;
+  line-height: 1.6;
+}
+
+/* ===================== Shared ===================== */
+.inv-mono {
   font-variant-numeric: tabular-nums;
+  font-family: 'Courier New', Courier, monospace;
 }
 
-/* Remove number spinners (sometimes they render weirdly in snapshots) */
-#invoice-template input[type='number'] {
-  -moz-appearance: textfield;
+.inv-bold {
+  font-weight: 700;
 }
-#invoice-template input[type='number']::-webkit-outer-spin-button,
-#invoice-template input[type='number']::-webkit-inner-spin-button {
-  -webkit-appearance: none;
+
+/* ===================== Inputs (edit mode only) ===================== */
+.inv-input {
+  border: none;
+  background: transparent;
+  font-size: inherit;
+  font-family: inherit;
+  color: inherit;
+  padding: 0;
   margin: 0;
+  outline: none;
+  width: 140px;
 }
 
-/* Export mode: no caret (cursor) captured in snapshot */
-.is-export input,
-.is-export textarea {
-  caret-color: transparent !important;
+.inv-input:focus {
+  outline: none;
+  box-shadow: none;
+  border-bottom: 1px solid #6366f1;
 }
 
-/* Print rules */
+.inv-input-right {
+  text-align: right;
+}
+
+/* ===================== Print ===================== */
 @page {
   size: A4;
   margin: 0;
 }
 
 @media print {
-  :global(html),
-  :global(body) {
-    margin: 0 !important;
-    padding: 0 !important;
-    background: white !important;
-  }
-
-  .invoice-a4 {
+  .invoice-page {
     width: 210mm;
-    min-height: 290mm; /* Slightly taller for print media where we control margins */
+    min-height: 290mm;
     padding: 10mm;
     margin: 0;
     box-shadow: none;
   }
-}
-
-/* Force Hex colors for html2canvas compatibility (it doesn't support oklch) */
-#invoice-template .bg-white {
-  background-color: #ffffff !important;
-}
-#invoice-template .bg-gray-50 {
-  background-color: #f9fafb !important;
-}
-#invoice-template .bg-gray-100 {
-  background-color: #f3f4f6 !important;
-}
-#invoice-template .bg-gray-800 {
-  background-color: #1f2937 !important;
-}
-#invoice-template .bg-transparent {
-  background-color: transparent !important;
-}
-
-#invoice-template .text-black {
-  color: #000000 !important;
-}
-#invoice-template .text-white {
-  color: #ffffff !important;
-}
-#invoice-template .text-gray-500 {
-  color: #6b7280 !important;
-}
-#invoice-template .text-gray-600 {
-  color: #4b5563 !important;
-}
-#invoice-template .text-gray-700 {
-  color: #374151 !important;
-}
-#invoice-template .text-gray-800 {
-  color: #1f2937 !important;
-}
-#invoice-template .placeholder-gray-300::placeholder {
-  color: #d1d5db !important;
-}
-#invoice-template .placeholder-gray-400::placeholder {
-  color: #9ca3af !important;
-}
-
-#invoice-template .border-gray-200 {
-  border-color: #e5e7eb !important;
-}
-#invoice-template .border-gray-300 {
-  border-color: #d1d5db !important;
-}
-#invoice-template .border-gray-400 {
-  border-color: #9ca3af !important;
-}
-#invoice-template .border-gray-800 {
-  border-color: #1f2937 !important;
 }
 </style>
