@@ -22,11 +22,46 @@ const templateMountRef = ref<HTMLElement | null>(null);
 // ── Frais timbre 2DT/jour ──
 const fraisTimbreEnabled = ref(false);
 const reservationDays = ref(1);
+const reservationTotalPrice = ref(0);
+
+// ── TTC / HT toggle ──
+const pricingMode = ref<'TTC' | 'HT'>('TTC');
 
 watch(fraisTimbreEnabled, (checked) => {
   if (!previewData.value) return;
   previewData.value.tax.fraisTimbre = checked ? reservationDays.value * 2 : 0;
 });
+
+watch(pricingMode, () => {
+  recalculateItems();
+});
+
+function recalculateItems() {
+  if (!previewData.value) return;
+  const price = reservationTotalPrice.value;
+  const nbDays = reservationDays.value;
+  const tvaRate = 0.19;
+  const timbre = 1.0;
+
+  let totalHT: number;
+  let unitPriceHT: number;
+
+  if (pricingMode.value === 'HT') {
+    totalHT = price;
+    unitPriceHT = Number((totalHT / nbDays).toFixed(3));
+  } else {
+    const totalExclStamp = Math.max(0, price - timbre);
+    totalHT = Number((totalExclStamp / (1 + tvaRate)).toFixed(3));
+    unitPriceHT = Number((totalHT / nbDays).toFixed(3));
+  }
+
+  const item = previewData.value.items[0];
+  if (item) {
+    item.unitPriceHT = unitPriceHT;
+    item.totalHT = totalHT;
+    item.qte = nbDays;
+  }
+}
 
 // ── Company settings (persisted in DB) ──
 const companySettings = ref({
@@ -167,10 +202,20 @@ async function generateInvoiceData(reservation: any, tenant: any) {
 
   const tvaRate = 0.19;
   const timbre = 1.0;
-  const totalTTC = Number(reservation.total_price) || 0;
-  const totalExclStamp = Math.max(0, totalTTC - timbre);
-  const totalHT = Number((totalExclStamp / (1 + tvaRate)).toFixed(3));
-  const unitPriceHT = Number((totalHT / nbDays).toFixed(3));
+  const price = Number(reservation.total_price) || 0;
+  reservationTotalPrice.value = price;
+
+  let totalHT: number;
+  let unitPriceHT: number;
+
+  if (pricingMode.value === 'HT') {
+    totalHT = price;
+    unitPriceHT = Number((price / nbDays).toFixed(3));
+  } else {
+    const totalExclStamp = Math.max(0, price - timbre);
+    totalHT = Number((totalExclStamp / (1 + tvaRate)).toFixed(3));
+    unitPriceHT = Number((totalHT / nbDays).toFixed(3));
+  }
 
   let logoUrl = tenant.logo_url as string | undefined;
   if (logoUrl) {
@@ -350,7 +395,7 @@ onMounted(() => {
           </div>
         </div>
 
-        <div class="flex items-center gap-4">
+        <div class="flex items-center gap-3">
           <label class="flex items-center gap-2 cursor-pointer select-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-100">
             <input
               v-model="fraisTimbreEnabled"
@@ -359,6 +404,27 @@ onMounted(() => {
             />
             <span>Frais timbre 2DT/Jour</span>
           </label>
+
+          <div class="flex rounded-lg border border-slate-200 overflow-hidden text-sm font-medium select-none">
+            <button
+              @click="pricingMode = 'TTC'"
+              class="px-3 py-2 transition"
+              :class="pricingMode === 'TTC'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-slate-50 text-slate-600 hover:bg-slate-100'"
+            >
+              TTC
+            </button>
+            <button
+              @click="pricingMode = 'HT'"
+              class="px-3 py-2 transition border-l border-slate-200"
+              :class="pricingMode === 'HT'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-slate-50 text-slate-600 hover:bg-slate-100'"
+            >
+              HT
+            </button>
+          </div>
 
           <button
             @click="downloadPdf"
