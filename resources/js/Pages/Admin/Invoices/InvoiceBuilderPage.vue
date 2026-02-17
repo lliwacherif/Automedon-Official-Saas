@@ -19,6 +19,15 @@ const isExporting = ref(false);
 const previewData = ref<InvoiceData | null>(null);
 const templateMountRef = ref<HTMLElement | null>(null);
 
+// ── Frais timbre 2DT/jour ──
+const fraisTimbreEnabled = ref(false);
+const reservationDays = ref(1);
+
+watch(fraisTimbreEnabled, (checked) => {
+  if (!previewData.value) return;
+  previewData.value.tax.fraisTimbre = checked ? reservationDays.value * 2 : 0;
+});
+
 // ── Company settings (persisted in DB) ──
 const companySettings = ref({
   address: '',
@@ -154,6 +163,7 @@ async function generateInvoiceData(reservation: any, tenant: any) {
   const start = new Date(reservation.start_date);
   const end = new Date(reservation.end_date);
   const nbDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 3600 * 24)));
+  reservationDays.value = nbDays;
 
   const tvaRate = 0.19;
   const timbre = 1.0;
@@ -204,7 +214,8 @@ async function generateInvoiceData(reservation: any, tenant: any) {
     ],
     tax: {
       tvaRate,
-      timbreFiscal: timbre
+      timbreFiscal: timbre,
+      fraisTimbre: fraisTimbreEnabled.value ? nbDays * 2 : 0
     }
   };
 }
@@ -339,15 +350,26 @@ onMounted(() => {
           </div>
         </div>
 
-        <button
-          @click="downloadPdf"
-          :disabled="generating || loading || !previewData"
-          class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <Loader2 v-if="generating" class="h-4 w-4 animate-spin" />
-          <FileDown v-else class="h-4 w-4" />
-          Télécharger PDF
-        </button>
+        <div class="flex items-center gap-4">
+          <label class="flex items-center gap-2 cursor-pointer select-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-100">
+            <input
+              v-model="fraisTimbreEnabled"
+              type="checkbox"
+              class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <span>Frais timbre 2DT/Jour</span>
+          </label>
+
+          <button
+            @click="downloadPdf"
+            :disabled="generating || loading || !previewData"
+            class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Loader2 v-if="generating" class="h-4 w-4 animate-spin" />
+            <FileDown v-else class="h-4 w-4" />
+            Télécharger PDF
+          </button>
+        </div>
       </div>
     </header>
 
@@ -433,6 +455,37 @@ onMounted(() => {
             <Save v-else class="h-4 w-4" />
             {{ settingsSaved ? 'Enregistré !' : 'Enregistrer' }}
           </button>
+        </div>
+
+        <!-- Client Info (per invoice, editable) -->
+        <div v-if="previewData" class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Informations client</p>
+          <h2 class="mt-2 text-base font-semibold text-slate-900">Coordonnées du client</h2>
+          <p class="mt-2 text-xs leading-5 text-slate-500">
+            Modifiez l'adresse et le MF du client pour cette facture.
+          </p>
+
+          <div class="mt-4 space-y-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Adresse client</label>
+              <input
+                v-model="previewData.client.address"
+                type="text"
+                placeholder="Adresse du client..."
+                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Matricule Fiscal (MF)</label>
+              <input
+                v-model="previewData.client.mf"
+                type="text"
+                placeholder="0000000/X/X/X/000"
+                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
         </div>
       </aside>
 

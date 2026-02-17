@@ -29,6 +29,7 @@ export interface InvoiceData {
   tax: {
     tvaRate: number;
     timbreFiscal: number;
+    fraisTimbre?: number;
   };
 }
 
@@ -63,9 +64,11 @@ const totalTVA = computed(() => {
   return totalHT.value * rate;
 });
 
+const fraisTimbre = computed(() => Number(props.data.tax.fraisTimbre) || 0);
+
 const totalTTC = computed(() => {
   const timbre = Number(props.data.tax.timbreFiscal) || 0;
-  return totalHT.value + totalTVA.value + timbre;
+  return totalHT.value + totalTVA.value + timbre + fraisTimbre.value;
 });
 
 const currencyFormatter = new Intl.NumberFormat('fr-TN', {
@@ -167,6 +170,10 @@ function tvaPercent() {
         <div class="inv-total-line">
           <span class="inv-total-label">Timbre fiscal</span>
           <span class="inv-total-value inv-mono">{{ fmt(data.tax.timbreFiscal) }}</span>
+        </div>
+        <div v-if="fraisTimbre > 0" class="inv-total-line">
+          <span class="inv-total-label">Frais timbre (2DT/jour)</span>
+          <span class="inv-total-value inv-mono">{{ fmt(fraisTimbre) }}</span>
         </div>
         <div class="inv-total-line inv-total-ttc">
           <span class="inv-total-label">Total T.T.C</span>
