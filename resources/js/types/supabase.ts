@@ -22,6 +22,7 @@ export interface Database {
                     price_per_day: number | null
                     mileage: number
                     purchase_price: number | null
+                    leasing_advance: number | null
                     transmission: string | null
                     seats: number | null
                     fuel_type: string | null
@@ -42,6 +43,7 @@ export interface Database {
                     price_per_day?: number | null
                     mileage?: number
                     purchase_price?: number | null
+                    leasing_advance?: number | null
                     transmission?: string | null
                     seats?: number | null
                     fuel_type?: string | null
@@ -62,6 +64,7 @@ export interface Database {
                     price_per_day?: number | null
                     mileage?: number
                     purchase_price?: number | null
+                    leasing_advance?: number | null
                     transmission?: string | null
                     seats?: number | null
                     fuel_type?: string | null

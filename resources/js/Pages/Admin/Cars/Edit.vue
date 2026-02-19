@@ -44,6 +44,7 @@ const form = ref({
     image_url: '', // Will store the uploaded image URL
     auto_manage_status: true, // Auto-manage status by default
     purchase_price: null as number | null,
+    leasing_advance: null as number | null,
 });
 
 const fullPlateNumber = computed(() => {
@@ -71,6 +72,7 @@ onMounted(async () => {
             form.value.image_url = car.image_url || '';
             form.value.auto_manage_status = car.auto_manage_status !== false; // Default to true
             form.value.purchase_price = car.purchase_price ?? null;
+            form.value.leasing_advance = car.leasing_advance ?? null;
             previewUrl.value = car.image_url || '';
         }
     }
@@ -156,6 +158,7 @@ async function handleSubmit() {
             image_url: imageUrl || undefined,
             auto_manage_status: form.value.auto_manage_status,
             purchase_price: form.value.purchase_price || null,
+            leasing_advance: form.value.leasing_advance || null,
         };
 
         if (isEditing.value) {
@@ -286,27 +289,47 @@ async function handleSubmit() {
                         <p class="mt-1.5 text-xs text-gray-400">{{ $t('admin.fleet.plate_format') }}</p>
                     </div>
 
-                    <!-- Purchase Price -->
+                    <!-- Purchase Price & Leasing Advance -->
                     <div>
                         <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wider mb-3 flex items-center gap-2">
                             <div class="w-6 h-6 rounded-md bg-emerald-100 flex items-center justify-center">
                                 <DollarSign class="w-3.5 h-3.5 text-emerald-600" />
                             </div>
-                            {{ $t('admin.fleet.purchase_price') }}
+                            Prix &amp; Leasing
                             <span class="text-xs font-normal text-gray-400 normal-case">({{ $t('common.optional') }})</span>
                         </h3>
-                        <div class="form-input-wrapper max-w-xs">
-                            <span class="text-xs font-bold text-gray-400 ml-3 shrink-0">DT</span>
-                            <input 
-                                v-model.number="form.purchase_price" 
-                                type="number" 
-                                step="0.01"
-                                min="0"
-                                class="form-input"
-                                placeholder="Ex: 45000.00"
-                            >
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="form-label">{{ $t('admin.fleet.purchase_price') }}</label>
+                                <div class="form-input-wrapper">
+                                    <span class="text-xs font-bold text-gray-400 ml-3 shrink-0">DT</span>
+                                    <input 
+                                        v-model.number="form.purchase_price" 
+                                        type="number" 
+                                        step="0.01"
+                                        min="0"
+                                        class="form-input"
+                                        placeholder="Ex: 45000.00"
+                                    >
+                                </div>
+                                <p class="mt-1 text-xs text-gray-400">{{ $t('admin.fleet.purchase_price_hint') }}</p>
+                            </div>
+                            <div>
+                                <label class="form-label">{{ $t('admin.fleet.leasing_advance') }}</label>
+                                <div class="form-input-wrapper">
+                                    <span class="text-xs font-bold text-gray-400 ml-3 shrink-0">DT</span>
+                                    <input 
+                                        v-model.number="form.leasing_advance" 
+                                        type="number" 
+                                        step="0.01"
+                                        min="0"
+                                        class="form-input"
+                                        placeholder="Ex: 15000.00"
+                                    >
+                                </div>
+                                <p class="mt-1 text-xs text-gray-400">{{ $t('admin.fleet.leasing_advance_hint') }}</p>
+                            </div>
                         </div>
-                        <p class="mt-1.5 text-xs text-gray-400">{{ $t('admin.fleet.purchase_price_hint') }}</p>
                     </div>
 
                     <!-- Status -->

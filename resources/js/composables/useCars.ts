@@ -15,6 +15,7 @@ export interface Car {
     image_url?: string;
     mileage?: number | null;
     purchase_price?: number | null;
+    leasing_advance?: number | null;
     auto_manage_status?: boolean;
     created_at: string;
     next_reservation?: {
@@ -100,6 +101,7 @@ export function useCars() {
             image_url: imageUrl,
             mileage: dbCar.mileage,
             purchase_price: dbCar.purchase_price ?? null,
+            leasing_advance: dbCar.leasing_advance ?? null,
             auto_manage_status: dbCar.auto_manage_status,
             created_at: dbCar.created_at
         };
@@ -123,8 +125,8 @@ export function useCars() {
             // Fetch cars
             const { data: carsData, error: carsError } = await (supabase
                 .from('cars')
-                .select('id, brand, model, license_plate, status, image_url, mileage, purchase_price, auto_manage_status, created_at')
-                .eq('tenant_id', tenantId) // Filter by Tenant
+                .select('id, brand, model, license_plate, status, image_url, mileage, purchase_price, leasing_advance, auto_manage_status, created_at')
+                .eq('tenant_id', tenantId)
                 .order('brand', { ascending: true })
                 .order('model', { ascending: true }) as any);
 
@@ -251,7 +253,7 @@ export function useCars() {
         try {
             let query = supabase
                 .from('cars')
-                .select('id, brand, model, license_plate, status, image_url, mileage, purchase_price, auto_manage_status, created_at')
+                .select('id, brand, model, license_plate, status, image_url, mileage, purchase_price, leasing_advance, auto_manage_status, created_at')
                 .eq('id', id);
 
             if (tenantId) {
@@ -297,9 +299,10 @@ export function useCars() {
                         image_url: carData.image_url || null,
                         auto_manage_status: carData.auto_manage_status ?? true,
                         purchase_price: carData.purchase_price || null,
+                        leasing_advance: carData.leasing_advance || null,
                     }
                 ])
-                .select('id, brand, model, license_plate, status, image_url, mileage, purchase_price, auto_manage_status, created_at')
+                .select('id, brand, model, license_plate, status, image_url, mileage, purchase_price, leasing_advance, auto_manage_status, created_at')
                 .single();
 
             if (supabaseError) throw supabaseError;
@@ -335,12 +338,13 @@ export function useCars() {
             if (carData.image_url !== undefined) updateData.image_url = carData.image_url || null;
             if (carData.auto_manage_status !== undefined) updateData.auto_manage_status = carData.auto_manage_status;
             if (carData.purchase_price !== undefined) updateData.purchase_price = carData.purchase_price;
+            if (carData.leasing_advance !== undefined) updateData.leasing_advance = carData.leasing_advance;
 
             const { data, error: supabaseError } = await (supabase
                 .from('cars') as any)
                 .update(updateData)
                 .eq('id', id)
-                .select('id, brand, model, license_plate, status, image_url, mileage, purchase_price, auto_manage_status, created_at');
+                .select('id, brand, model, license_plate, status, image_url, mileage, purchase_price, leasing_advance, auto_manage_status, created_at');
 
             if (supabaseError) throw supabaseError;
 
