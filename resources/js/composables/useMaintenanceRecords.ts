@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useTenantStore } from '@/stores/tenant';
 import type { Database } from '@/types/supabase';
 
-export type MaintenanceType = 'OIL_CHANGE' | 'BRAKE_SERVICE' | 'REPAIR' | 'ROUTINE_CHECK' | 'LAVAGE' | 'ASSURANCE' | 'VIGNETTE' | 'LEASING';
+export type MaintenanceType = 'OIL_CHANGE' | 'BRAKE_SERVICE' | 'REPAIR' | 'ROUTINE_CHECK' | 'LAVAGE' | 'ASSURANCE' | 'VIGNETTE' | 'LEASING' | 'TIRES' | 'BATTERY';
 
 export interface MaintenanceRecord {
     id: number;
@@ -29,6 +29,8 @@ export const MAINTENANCE_TYPE_LABELS: Record<MaintenanceType, string> = {
     ASSURANCE: 'Assurance',
     VIGNETTE: 'Vignette',
     LEASING: 'Leasing (Cambiale)',
+    TIRES: 'Pneus',
+    BATTERY: 'Batterie',
 };
 
 export function useMaintenanceRecords() {
