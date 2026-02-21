@@ -41,6 +41,8 @@ const form = ref({
     end_date: '',
     chauffeur_name: '',
     chauffeur_cin: '',
+    client_name: '',
+    client_cin: '',
     price: 0,
     notes: '',
 });
@@ -61,6 +63,8 @@ function openModal() {
         end_date: '',
         chauffeur_name: '',
         chauffeur_cin: '',
+        client_name: '',
+        client_cin: '',
         price: 0,
         notes: '',
     };
@@ -91,6 +95,8 @@ function openEditModal(svc: any) {
         end_date: formatForInput(svc.end_date),
         chauffeur_name: svc.chauffeur_name,
         chauffeur_cin: svc.chauffeur_cin,
+        client_name: svc.client_name || '',
+        client_cin: svc.client_cin || '',
         price: svc.price,
         notes: svc.notes || '',
     };
@@ -127,6 +133,16 @@ async function handleSubmit() {
         }
         if (!form.value.chauffeur_cin.trim()) {
             formError.value = 'Le CIN du chauffeur est requis.';
+            formLoading.value = false;
+            return;
+        }
+        if (!form.value.client_name.trim()) {
+            formError.value = 'Le nom du client est requis.';
+            formLoading.value = false;
+            return;
+        }
+        if (!form.value.client_cin.trim()) {
+            formError.value = 'Le CIN du client est requis.';
             formLoading.value = false;
             return;
         }
@@ -175,6 +191,8 @@ async function handleSubmit() {
             end_date: endIso,
             chauffeur_name: form.value.chauffeur_name,
             chauffeur_cin: form.value.chauffeur_cin,
+            client_name: form.value.client_name,
+            client_cin: form.value.client_cin,
             price: form.value.price,
             notes: form.value.notes || null,
         };
@@ -250,13 +268,14 @@ const formatCurrency = (v: number) => new Intl.NumberFormat('fr-TN', { style: 'c
                             <th class="px-5 py-3.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Véhicule</th>
                             <th class="px-5 py-3.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Dates</th>
                             <th class="px-5 py-3.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Chauffeur</th>
+                            <th class="px-5 py-3.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Client</th>
                             <th class="px-5 py-3.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Prix</th>
                             <th class="px-5 py-3.5 text-right text-[11px] font-bold text-gray-400 uppercase tracking-wider">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr v-if="services.length === 0">
-                            <td colspan="6" class="px-5 py-16 text-center">
+                            <td colspan="7" class="px-5 py-16 text-center">
                                 <div class="flex flex-col items-center">
                                     <div class="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center mb-3">
                                         <Bus class="w-6 h-6 text-gray-300" />
@@ -301,6 +320,17 @@ const formatCurrency = (v: number) => new Intl.NumberFormat('fr-TN', { style: 'c
                                     <div>
                                         <div class="text-sm font-semibold text-gray-900">{{ svc.chauffeur_name }}</div>
                                         <div class="text-xs text-gray-400 font-mono">{{ svc.chauffeur_cin }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-5 py-3.5">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-7 h-7 rounded-md bg-indigo-50 flex items-center justify-center shrink-0">
+                                        <User class="w-3.5 h-3.5 text-indigo-500" />
+                                    </div>
+                                    <div>
+                                        <div class="text-sm font-semibold text-gray-900">{{ svc.client_name }}</div>
+                                        <div class="text-xs text-gray-400 font-mono">{{ svc.client_cin }}</div>
                                     </div>
                                 </div>
                             </td>
@@ -363,8 +393,20 @@ const formatCurrency = (v: number) => new Intl.NumberFormat('fr-TN', { style: 'c
                                 <User class="w-4 h-4 text-gray-500" />
                             </div>
                             <div>
+                                <div class="text-xs text-gray-400">Chauffeur</div>
                                 <div class="text-sm font-semibold text-gray-900">{{ svc.chauffeur_name }}</div>
                                 <div class="text-xs text-gray-400 font-mono">{{ svc.chauffeur_cin }}</div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
+                                <User class="w-4 h-4 text-indigo-500" />
+                            </div>
+                            <div>
+                                <div class="text-xs text-gray-400">Client</div>
+                                <div class="text-sm font-semibold text-gray-900">{{ svc.client_name }}</div>
+                                <div class="text-xs text-gray-400 font-mono">{{ svc.client_cin }}</div>
                             </div>
                         </div>
 
@@ -500,6 +542,24 @@ const formatCurrency = (v: number) => new Intl.NumberFormat('fr-TN', { style: 'c
                                         <div class="form-input-wrapper">
                                             <CreditCard class="form-input-icon" />
                                             <input v-model="form.chauffeur_cin" type="text" required class="form-input" placeholder="CIN">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Client -->
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="form-label">Nom du Client *</label>
+                                        <div class="form-input-wrapper">
+                                            <User class="form-input-icon" />
+                                            <input v-model="form.client_name" type="text" required class="form-input" placeholder="Nom complet">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="form-label">CIN Client *</label>
+                                        <div class="form-input-wrapper">
+                                            <CreditCard class="form-input-icon" />
+                                            <input v-model="form.client_cin" type="text" required class="form-input" placeholder="CIN">
                                         </div>
                                     </div>
                                 </div>

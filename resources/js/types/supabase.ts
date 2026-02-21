@@ -208,6 +208,8 @@ export interface Database {
                     end_date: string
                     chauffeur_name: string
                     chauffeur_cin: string
+                    client_name: string
+                    client_cin: string
                     price: number
                     notes: string | null
                     created_at: string
@@ -222,6 +224,8 @@ export interface Database {
                     end_date: string
                     chauffeur_name: string
                     chauffeur_cin: string
+                    client_name: string
+                    client_cin: string
                     price: number
                     notes?: string | null
                     created_at?: string
@@ -236,6 +240,8 @@ export interface Database {
                     end_date?: string
                     chauffeur_name?: string
                     chauffeur_cin?: string
+                    client_name?: string
+                    client_cin?: string
                     price?: number
                     notes?: string | null
                     created_at?: string
