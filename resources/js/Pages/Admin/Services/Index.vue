@@ -23,6 +23,9 @@ import {
     Compass,
     ChevronDown,
     Clock,
+    Wallet,
+    IdCard,
+    Banknote,
 } from 'lucide-vue-next';
 
 const { services, loading, fetchServices, createService, updateService, deleteService, checkServiceAvailability } = useServices();
@@ -41,9 +44,12 @@ const form = ref({
     end_date: '',
     chauffeur_name: '',
     chauffeur_cin: '',
+    chauffeur_permit: '',
     client_name: '',
     client_cin: '',
     price: 0,
+    payment_method: 'cash' as 'cash' | 'card',
+    advance_payment: 0,
     notes: '',
 });
 
@@ -63,9 +69,12 @@ function openModal() {
         end_date: '',
         chauffeur_name: '',
         chauffeur_cin: '',
+        chauffeur_permit: '',
         client_name: '',
         client_cin: '',
         price: 0,
+        payment_method: 'cash',
+        advance_payment: 0,
         notes: '',
     };
     formError.value = '';
@@ -95,9 +104,12 @@ function openEditModal(svc: any) {
         end_date: formatForInput(svc.end_date),
         chauffeur_name: svc.chauffeur_name,
         chauffeur_cin: svc.chauffeur_cin,
+        chauffeur_permit: svc.chauffeur_permit || '',
         client_name: svc.client_name || '',
         client_cin: svc.client_cin || '',
         price: svc.price,
+        payment_method: svc.payment_method || 'cash',
+        advance_payment: svc.advance_payment || 0,
         notes: svc.notes || '',
     };
     formError.value = '';
@@ -191,9 +203,12 @@ async function handleSubmit() {
             end_date: endIso,
             chauffeur_name: form.value.chauffeur_name,
             chauffeur_cin: form.value.chauffeur_cin,
+            chauffeur_permit: form.value.chauffeur_permit || null,
             client_name: form.value.client_name,
             client_cin: form.value.client_cin,
             price: form.value.price,
+            payment_method: form.value.payment_method,
+            advance_payment: form.value.advance_payment || 0,
             notes: form.value.notes || null,
         };
 
@@ -545,6 +560,13 @@ const formatCurrency = (v: number) => new Intl.NumberFormat('fr-TN', { style: 'c
                                         </div>
                                     </div>
                                 </div>
+                                <div>
+                                    <label class="form-label">N° Permis Chauffeur</label>
+                                    <div class="form-input-wrapper max-w-xs">
+                                        <IdCard class="form-input-icon" />
+                                        <input v-model="form.chauffeur_permit" type="text" class="form-input" placeholder="Numéro de permis">
+                                    </div>
+                                </div>
 
                                 <!-- Client -->
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -556,7 +578,7 @@ const formatCurrency = (v: number) => new Intl.NumberFormat('fr-TN', { style: 'c
                                         </div>
                                     </div>
                                     <div>
-                                        <label class="form-label">CIN Client *</label>
+                                        <label class="form-label">CIN Client/Passport *</label>
                                         <div class="form-input-wrapper">
                                             <CreditCard class="form-input-icon" />
                                             <input v-model="form.client_cin" type="text" required class="form-input" placeholder="CIN">
@@ -570,6 +592,44 @@ const formatCurrency = (v: number) => new Intl.NumberFormat('fr-TN', { style: 'c
                                     <div class="form-input-wrapper">
                                         <DollarSign class="form-input-icon" />
                                         <input v-model.number="form.price" type="number" step="0.01" min="0" required class="form-input" placeholder="Ex: 250.00">
+                                    </div>
+                                </div>
+
+                                <!-- Payment -->
+                                <div class="space-y-3">
+                                    <label class="form-label">Mode de Paiement</label>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <button 
+                                            type="button"
+                                            @click="form.payment_method = 'cash'"
+                                            class="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all ring-1"
+                                            :class="form.payment_method === 'cash' 
+                                                ? 'bg-emerald-50 text-emerald-700 ring-emerald-300 shadow-sm' 
+                                                : 'bg-gray-50 text-gray-500 ring-gray-200 hover:bg-gray-100'"
+                                        >
+                                            <Banknote class="w-4 h-4" />
+                                            Cash
+                                        </button>
+                                        <button 
+                                            type="button"
+                                            @click="form.payment_method = 'card'"
+                                            class="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all ring-1"
+                                            :class="form.payment_method === 'card' 
+                                                ? 'bg-blue-50 text-blue-700 ring-blue-300 shadow-sm' 
+                                                : 'bg-gray-50 text-gray-500 ring-gray-200 hover:bg-gray-100'"
+                                        >
+                                            <CreditCard class="w-4 h-4" />
+                                            Carte
+                                        </button>
+                                    </div>
+
+                                    <div>
+                                        <label class="form-label">Avance (DT)</label>
+                                        <div class="form-input-wrapper max-w-xs">
+                                            <Wallet class="form-input-icon" />
+                                            <input v-model.number="form.advance_payment" type="number" step="0.01" min="0" class="form-input" placeholder="Ex: 100.00">
+                                        </div>
+                                        <p class="mt-1 text-xs text-gray-400 pl-1">Montant avancé par le client (optionnel)</p>
                                     </div>
                                 </div>
 

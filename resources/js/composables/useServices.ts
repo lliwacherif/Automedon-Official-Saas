@@ -16,9 +16,12 @@ export interface Service {
     end_date: string;
     chauffeur_name: string;
     chauffeur_cin: string;
+    chauffeur_permit: string | null;
     client_name: string;
     client_cin: string;
     price: number;
+    payment_method: 'cash' | 'card';
+    advance_payment: number;
     notes: string | null;
     created_at: string;
     updated_at: string;

@@ -208,9 +208,12 @@ export interface Database {
                     end_date: string
                     chauffeur_name: string
                     chauffeur_cin: string
+                    chauffeur_permit: string | null
                     client_name: string
                     client_cin: string
                     price: number
+                    payment_method: string
+                    advance_payment: number
                     notes: string | null
                     created_at: string
                     updated_at: string
@@ -224,9 +227,12 @@ export interface Database {
                     end_date: string
                     chauffeur_name: string
                     chauffeur_cin: string
+                    chauffeur_permit?: string | null
                     client_name: string
                     client_cin: string
                     price: number
+                    payment_method?: string
+                    advance_payment?: number
                     notes?: string | null
                     created_at?: string
                     updated_at?: string
@@ -240,9 +246,12 @@ export interface Database {
                     end_date?: string
                     chauffeur_name?: string
                     chauffeur_cin?: string
+                    chauffeur_permit?: string | null
                     client_name?: string
                     client_cin?: string
                     price?: number
+                    payment_method?: string
+                    advance_payment?: number
                     notes?: string | null
                     created_at?: string
                     updated_at?: string
