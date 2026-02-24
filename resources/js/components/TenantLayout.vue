@@ -2,13 +2,9 @@
 import { ref, watch, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { supabase } from '@/lib/supabase';
-import { useTenantStore } from '@/stores/tenant';
-import { useAuthStore } from '@/stores/auth';
 import { Pause } from 'lucide-vue-next';
 
 const route = useRoute();
-const tenantStore = useTenantStore();
-const authStore = useAuthStore();
 
 const isPaused = ref(false);
 const tenantName = ref('');
@@ -27,7 +23,7 @@ async function checkTenantStatus() {
 
         if (data) {
             tenantName.value = data.name;
-            isPaused.value = data.status !== 'active' && !authStore.isRoot;
+            isPaused.value = data.status !== 'active';
         }
     } catch (e) {
         console.error('Failed to check tenant status:', e);

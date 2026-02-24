@@ -238,7 +238,7 @@ router.beforeEach(async (to, from, next) => {
             return
         }
 
-        if (tenantStore.currentTenant?.status !== 'active' && !authStore.isRoot) {
+        if (tenantStore.currentTenant?.status !== 'active') {
             next({ name: 'tenant.paused', query: { name: tenantStore.currentTenant?.name } })
             return
         }
