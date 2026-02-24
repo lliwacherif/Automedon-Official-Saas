@@ -42,9 +42,8 @@ export const useTenantStore = defineStore('tenant', () => {
         }
     }
 
-    async function fetchTenantBySlug(slug: string) {
-        // If we already have the correct tenant loaded, skip
-        if (currentTenant.value?.slug === slug) return currentTenant.value;
+    async function fetchTenantBySlug(slug: string, forceRefresh = false) {
+        if (!forceRefresh && currentTenant.value?.slug === slug) return currentTenant.value;
 
         loading.value = true;
         error.value = null;
@@ -122,6 +121,22 @@ export const useTenantStore = defineStore('tenant', () => {
         }
     }
 
+    async function toggleTenantStatus(id: string, currentStatus: string) {
+        const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+        try {
+            const { error: updateError } = await supabase
+                .from('tenants')
+                .update({ status: newStatus })
+                .eq('id', id);
+
+            if (updateError) throw updateError;
+            return newStatus;
+        } catch (e: any) {
+            console.error('Error toggling tenant status:', e);
+            throw e;
+        }
+    }
+
     async function deleteTenant(id: string) {
         loading.value = true;
         try {
@@ -177,6 +192,7 @@ export const useTenantStore = defineStore('tenant', () => {
         fetchTenantBySlug,
         fetchAllTenants,
         createTenant,
+        toggleTenantStatus,
         deleteTenant,
         createTenantUser
     };

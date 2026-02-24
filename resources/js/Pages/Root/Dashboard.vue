@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/auth';
 import { useTenantStore } from '@/stores/tenant';
-import { Trash2 } from 'lucide-vue-next';
+import { Trash2, Pause, Play } from 'lucide-vue-next';
 
 const authStore = useAuthStore();
 const tenantStore = useTenantStore();
@@ -87,11 +87,27 @@ const createTenant = async () => {
     }
 };
 
+const togglingStatus = ref<string | null>(null);
+
+const handleToggleStatus = async (tenant: Tenant) => {
+    const action = tenant.status === 'active' ? 'pause' : 'reactivate';
+    if (!confirm(`Are you sure you want to ${action} "${tenant.name}"?`)) return;
+
+    togglingStatus.value = tenant.id;
+    try {
+        const newStatus = await tenantStore.toggleTenantStatus(tenant.id, tenant.status);
+        tenant.status = newStatus;
+    } catch (e: any) {
+        alert('Error updating status: ' + e.message);
+    } finally {
+        togglingStatus.value = null;
+    }
+};
+
 const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this client? This action is irreversible and will delete all associated data (Cars, Reservations, Users).')) {
         try {
             await tenantStore.deleteTenant(id);
-            // Update local list
             tenants.value = tenants.value.filter(t => t.id !== id);
         } catch (e: any) {
             alert('Error deleting tenant: ' + e.message);
@@ -149,10 +165,13 @@ onMounted(() => {
             <div v-if="loading" class="text-center py-12">Loading clients...</div>
             
             <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div v-for="tenant in tenants" :key="tenant.id" class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition">
-                    <div class="h-32 bg-gray-100 flex items-center justify-center p-4">
-                        <img v-if="tenant.logo_url" :src="tenant.logo_url" class="max-h-full max-w-full object-contain" />
+                <div v-for="tenant in tenants" :key="tenant.id" class="bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition" :class="tenant.status !== 'active' ? 'border-red-200 opacity-75' : 'border-gray-200'">
+                    <div class="h-32 bg-gray-100 flex items-center justify-center p-4 relative">
+                        <img v-if="tenant.logo_url" :src="tenant.logo_url" class="max-h-full max-w-full object-contain" :class="{ 'grayscale': tenant.status !== 'active' }" />
                         <span v-else class="text-gray-400 text-6xl">🏢</span>
+                        <div v-if="tenant.status !== 'active'" class="absolute inset-0 bg-red-900/10 flex items-center justify-center">
+                            <span class="bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">Paused</span>
+                        </div>
                     </div>
                     <div class="p-6">
                         <h3 class="text-xl font-bold text-gray-900 mb-1">{{ tenant.name }}</h3>
@@ -160,9 +179,22 @@ onMounted(() => {
                         
                         <div class="flex justify-between items-center mt-4">
                             <span :class="{'bg-green-100 text-green-800': tenant.status === 'active', 'bg-red-100 text-red-800': tenant.status !== 'active'}" class="px-2 py-1 rounded text-xs font-semibold uppercase">
-                                {{ tenant.status }}
+                                {{ tenant.status === 'active' ? 'Active' : 'Paused' }}
                             </span>
-                            <div class="flex gap-2">
+                            <div class="flex items-center gap-2">
+                                <button 
+                                    @click="handleToggleStatus(tenant)" 
+                                    :disabled="togglingStatus === tenant.id"
+                                    class="p-1.5 rounded-lg transition flex items-center gap-1 text-xs font-medium"
+                                    :class="tenant.status === 'active' 
+                                        ? 'text-orange-600 hover:bg-orange-50 hover:text-orange-700' 
+                                        : 'text-green-600 hover:bg-green-50 hover:text-green-700'"
+                                    :title="tenant.status === 'active' ? 'Pause client access' : 'Reactivate client access'"
+                                >
+                                    <Pause v-if="tenant.status === 'active'" class="w-4 h-4" />
+                                    <Play v-else class="w-4 h-4" />
+                                    {{ tenant.status === 'active' ? 'Pause' : 'Activate' }}
+                                </button>
                                 <a :href="`/${tenant.slug}/admin`" target="_blank" class="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1">
                                     Access &rarr;
                                 </a>
