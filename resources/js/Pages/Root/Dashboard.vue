@@ -1,16 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/auth';
 import { useTenantStore } from '@/stores/tenant';
-import { Trash2, Pause, Play } from 'lucide-vue-next';
+import { Trash2, Pause, Play, Plus, ExternalLink, Store, Settings, LogOut, Users, CircleCheck, CirclePause, Building2, Loader2, Upload, X, Globe } from 'lucide-vue-next';
+import { useFileUpload } from '@/composables/useFileUpload';
 
 const authStore = useAuthStore();
 const tenantStore = useTenantStore();
-// Simple file upload logic without full composable dependency if simpler, but let's try to reuse or just fetch directly.
-// Importing useFileUpload if it exists.
-import { useFileUpload } from '@/composables/useFileUpload';
-
 const { uploadFile, uploading: uploadingLogo } = useFileUpload();
 
 interface Tenant {
@@ -25,18 +22,19 @@ interface Tenant {
 const tenants = ref<Tenant[]>([]);
 const loading = ref(true);
 
-// New Tenant Form
 const showCreateModal = ref(false);
 const newTenant = ref({
     name: '',
     slug: '',
     logo_url: '',
-    admin_password: 'admin' // Default
+    admin_password: 'admin'
 });
 const selectedLogoFile = ref<File | null>(null);
 const logoPreview = ref<string | null>(null);
-
 const createLoading = ref(false);
+
+const activeCount = computed(() => tenants.value.filter(t => t.status === 'active').length);
+const pausedCount = computed(() => tenants.value.filter(t => t.status !== 'active').length);
 
 const fetchTenants = async () => {
     loading.value = true;
@@ -60,8 +58,6 @@ const createTenant = async () => {
         let logoUrl = newTenant.value.logo_url;
 
         if (selectedLogoFile.value) {
-            // Upload to 'car-images' (reusing existing bucket for now to avoid permission errors) or 'tenant-logos' if available
-            // Let's use 'car-images' as a fallback safe bucket that we know exists and is public
             const url = await uploadFile(selectedLogoFile.value, 'car-images', 'logos');
             if (url) logoUrl = url;
         }
@@ -70,11 +66,10 @@ const createTenant = async () => {
             newTenant.value.name,
             newTenant.value.slug,
             logoUrl,
-            'admin', // Default username
+            'admin',
             newTenant.value.admin_password
         );
         showCreateModal.value = false;
-        // Reset form
         newTenant.value = { name: '', slug: '', logo_url: '', admin_password: 'admin' };
         selectedLogoFile.value = null;
         logoPreview.value = null;
@@ -119,89 +114,183 @@ const logout = () => {
     authStore.signOut();
 };
 
+const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
 onMounted(() => {
     fetchTenants();
 });
 </script>
 
 <template>
-    <div class="min-h-screen bg-gray-50">
+    <div class="min-h-screen bg-[#0f1117]">
         <!-- Header -->
-        <header class="bg-gray-900 text-white shadow">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-                <div class="flex items-center space-x-3">
-                    <span class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-red-500 to-orange-500">
-                        Automedon Root
-                    </span>
+        <header class="border-b border-white/[0.06] bg-[#0f1117]/80 backdrop-blur-xl sticky top-0 z-40">
+            <div class="max-w-[1400px] mx-auto px-6 h-16 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center">
+                        <Building2 class="w-4 h-4 text-white" />
+                    </div>
+                    <span class="text-lg font-semibold text-white tracking-tight">Automedon</span>
+                    <span class="text-xs font-medium text-white/30 bg-white/[0.06] px-2 py-0.5 rounded-full">ROOT</span>
                 </div>
-                <div class="flex items-center space-x-4">
-                    <span class="text-gray-400">root@automedon</span>
-                    <RouterLink :to="{ name: 'root.store' }" class="text-sm bg-gray-800 hover:bg-gray-700 px-3 py-1 rounded transition">
-                        Store
+                <nav class="flex items-center gap-1">
+                    <RouterLink :to="{ name: 'root.store' }" class="flex items-center gap-2 text-sm text-white/50 hover:text-white hover:bg-white/[0.06] px-3 py-2 rounded-lg transition-all">
+                        <Store class="w-4 h-4" />
+                        <span class="hidden sm:inline">Store</span>
                     </RouterLink>
-                    <RouterLink :to="{ name: 'root.settings' }" class="text-sm bg-gray-800 hover:bg-gray-700 px-3 py-1 rounded transition">
-                        Settings
+                    <RouterLink :to="{ name: 'root.settings' }" class="flex items-center gap-2 text-sm text-white/50 hover:text-white hover:bg-white/[0.06] px-3 py-2 rounded-lg transition-all">
+                        <Settings class="w-4 h-4" />
+                        <span class="hidden sm:inline">Settings</span>
                     </RouterLink>
-                    <button @click="logout" class="text-sm bg-red-900 hover:bg-red-800 px-3 py-1 rounded transition">
-                        Logout
+                    <div class="w-px h-6 bg-white/[0.08] mx-2"></div>
+                    <button @click="logout" class="flex items-center gap-2 text-sm text-red-400/70 hover:text-red-400 hover:bg-red-500/10 px-3 py-2 rounded-lg transition-all">
+                        <LogOut class="w-4 h-4" />
+                        <span class="hidden sm:inline">Logout</span>
                     </button>
-                </div>
+                </nav>
             </div>
         </header>
 
         <!-- Main Content -->
-        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-gray-800">Managed Clients (Tenants)</h2>
+        <main class="max-w-[1400px] mx-auto px-6 py-8">
+            <!-- Stats Row -->
+            <div class="grid grid-cols-3 gap-4 mb-8">
+                <div class="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5">
+                    <div class="flex items-center gap-3 mb-3">
+                        <div class="w-9 h-9 rounded-xl bg-indigo-500/10 flex items-center justify-center">
+                            <Users class="w-4 h-4 text-indigo-400" />
+                        </div>
+                        <span class="text-xs font-medium text-white/40 uppercase tracking-wider">Total Clients</span>
+                    </div>
+                    <p class="text-3xl font-bold text-white">{{ tenants.length }}</p>
+                </div>
+                <div class="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5">
+                    <div class="flex items-center gap-3 mb-3">
+                        <div class="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                            <CircleCheck class="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <span class="text-xs font-medium text-white/40 uppercase tracking-wider">Active</span>
+                    </div>
+                    <p class="text-3xl font-bold text-emerald-400">{{ activeCount }}</p>
+                </div>
+                <div class="bg-white/[0.03] border border-white/[0.06] rounded-2xl p-5">
+                    <div class="flex items-center gap-3 mb-3">
+                        <div class="w-9 h-9 rounded-xl bg-red-500/10 flex items-center justify-center">
+                            <CirclePause class="w-4 h-4 text-red-400" />
+                        </div>
+                        <span class="text-xs font-medium text-white/40 uppercase tracking-wider">Paused</span>
+                    </div>
+                    <p class="text-3xl font-bold text-red-400">{{ pausedCount }}</p>
+                </div>
+            </div>
+
+            <!-- Section Header -->
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h1 class="text-xl font-semibold text-white">Managed Clients</h1>
+                    <p class="text-sm text-white/30 mt-0.5">Create, manage and monitor your tenants</p>
+                </div>
                 <button 
                     @click="showCreateModal = true"
-                    class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2"
+                    class="flex items-center gap-2 bg-white text-gray-900 hover:bg-gray-100 text-sm font-semibold px-4 py-2.5 rounded-xl transition-all shadow-lg shadow-white/5"
                 >
-                    + New Client
+                    <Plus class="w-4 h-4" />
+                    New Client
                 </button>
             </div>
 
-            <!-- Tenant Grid -->
-            <div v-if="loading" class="text-center py-12">Loading clients...</div>
+            <!-- Loading State -->
+            <div v-if="loading" class="flex flex-col items-center justify-center py-24">
+                <Loader2 class="w-8 h-8 text-white/20 animate-spin mb-4" />
+                <p class="text-sm text-white/30">Loading clients...</p>
+            </div>
+
+            <!-- Empty State -->
+            <div v-else-if="tenants.length === 0" class="flex flex-col items-center justify-center py-24 bg-white/[0.02] border border-dashed border-white/[0.08] rounded-2xl">
+                <div class="w-14 h-14 rounded-2xl bg-white/[0.04] flex items-center justify-center mb-4">
+                    <Building2 class="w-7 h-7 text-white/20" />
+                </div>
+                <p class="text-white/40 font-medium mb-1">No clients yet</p>
+                <p class="text-white/20 text-sm mb-6">Create your first client to get started</p>
+                <button @click="showCreateModal = true" class="flex items-center gap-2 text-sm font-medium text-white bg-white/10 hover:bg-white/15 px-4 py-2 rounded-lg transition">
+                    <Plus class="w-4 h-4" />
+                    New Client
+                </button>
+            </div>
             
-            <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div v-for="tenant in tenants" :key="tenant.id" class="bg-white rounded-xl shadow-sm border overflow-hidden hover:shadow-md transition" :class="tenant.status !== 'active' ? 'border-red-200 opacity-75' : 'border-gray-200'">
-                    <div class="h-32 bg-gray-100 flex items-center justify-center p-4 relative">
-                        <img v-if="tenant.logo_url" :src="tenant.logo_url" class="max-h-full max-w-full object-contain" :class="{ 'grayscale': tenant.status !== 'active' }" />
-                        <span v-else class="text-gray-400 text-6xl">🏢</span>
-                        <div v-if="tenant.status !== 'active'" class="absolute inset-0 bg-red-900/10 flex items-center justify-center">
-                            <span class="bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">Paused</span>
-                        </div>
+            <!-- Tenant Grid -->
+            <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                <div 
+                    v-for="tenant in tenants" 
+                    :key="tenant.id" 
+                    class="group relative bg-white/[0.03] border rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/[0.05]"
+                    :class="tenant.status !== 'active' ? 'border-red-500/20' : 'border-white/[0.06] hover:border-white/[0.12]'"
+                >
+                    <!-- Paused Overlay Bar -->
+                    <div v-if="tenant.status !== 'active'" class="bg-red-500/10 border-b border-red-500/20 px-4 py-1.5 flex items-center gap-2">
+                        <CirclePause class="w-3.5 h-3.5 text-red-400" />
+                        <span class="text-xs font-semibold text-red-400 uppercase tracking-wider">Suspended</span>
                     </div>
-                    <div class="p-6">
-                        <h3 class="text-xl font-bold text-gray-900 mb-1">{{ tenant.name }}</h3>
-                        <p class="text-sm text-gray-500 mb-4">Slug: <span class="font-mono bg-gray-100 px-1 rounded">{{ tenant.slug }}</span></p>
-                        
-                        <div class="flex justify-between items-center mt-4">
-                            <span :class="{'bg-green-100 text-green-800': tenant.status === 'active', 'bg-red-100 text-red-800': tenant.status !== 'active'}" class="px-2 py-1 rounded text-xs font-semibold uppercase">
-                                {{ tenant.status === 'active' ? 'Active' : 'Paused' }}
-                            </span>
-                            <div class="flex items-center gap-2">
-                                <button 
-                                    @click="handleToggleStatus(tenant)" 
-                                    :disabled="togglingStatus === tenant.id"
-                                    class="p-1.5 rounded-lg transition flex items-center gap-1 text-xs font-medium"
-                                    :class="tenant.status === 'active' 
-                                        ? 'text-orange-600 hover:bg-orange-50 hover:text-orange-700' 
-                                        : 'text-green-600 hover:bg-green-50 hover:text-green-700'"
-                                    :title="tenant.status === 'active' ? 'Pause client access' : 'Reactivate client access'"
-                                >
-                                    <Pause v-if="tenant.status === 'active'" class="w-4 h-4" />
-                                    <Play v-else class="w-4 h-4" />
-                                    {{ tenant.status === 'active' ? 'Pause' : 'Activate' }}
-                                </button>
-                                <a :href="`/${tenant.slug}/admin`" target="_blank" class="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1">
-                                    Access &rarr;
-                                </a>
-                                <button @click="handleDelete(tenant.id)" class="text-red-500 hover:text-red-700 text-sm font-medium flex items-center gap-1" title="Delete Client">
-                                    <Trash2 class="w-4 h-4" />
-                                </button>
+
+                    <div class="p-5">
+                        <!-- Top: Logo + Info -->
+                        <div class="flex items-start gap-4 mb-5">
+                            <div class="w-14 h-14 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden" :class="tenant.status !== 'active' ? 'bg-white/[0.03]' : 'bg-white/[0.06]'">
+                                <img v-if="tenant.logo_url" :src="tenant.logo_url" class="w-full h-full object-contain p-1.5" :class="{ 'grayscale opacity-50': tenant.status !== 'active' }" />
+                                <Building2 v-else class="w-6 h-6 text-white/20" />
                             </div>
+                            <div class="flex-1 min-w-0">
+                                <h3 class="text-base font-semibold text-white truncate">{{ tenant.name }}</h3>
+                                <div class="flex items-center gap-1.5 mt-1">
+                                    <Globe class="w-3 h-3 text-white/25" />
+                                    <span class="text-xs text-white/30 font-mono truncate">/{{ tenant.slug }}</span>
+                                </div>
+                                <p class="text-xs text-white/20 mt-1">{{ formatDate(tenant.created_at) }}</p>
+                            </div>
+                            <!-- Status Indicator -->
+                            <div class="flex-shrink-0">
+                                <span 
+                                    class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider"
+                                    :class="tenant.status === 'active' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'"
+                                >
+                                    <span class="w-1.5 h-1.5 rounded-full" :class="tenant.status === 'active' ? 'bg-emerald-400' : 'bg-red-400'"></span>
+                                    {{ tenant.status === 'active' ? 'Active' : 'Paused' }}
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="flex items-center gap-2 pt-4 border-t border-white/[0.06]">
+                            <button 
+                                @click="handleToggleStatus(tenant)" 
+                                :disabled="togglingStatus === tenant.id"
+                                class="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all"
+                                :class="tenant.status === 'active' 
+                                    ? 'text-orange-400 bg-orange-500/10 hover:bg-orange-500/20' 
+                                    : 'text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20'"
+                            >
+                                <Loader2 v-if="togglingStatus === tenant.id" class="w-3.5 h-3.5 animate-spin" />
+                                <Pause v-else-if="tenant.status === 'active'" class="w-3.5 h-3.5" />
+                                <Play v-else class="w-3.5 h-3.5" />
+                                {{ tenant.status === 'active' ? 'Pause' : 'Activate' }}
+                            </button>
+                            <a 
+                                :href="`/${tenant.slug}/admin`" 
+                                target="_blank" 
+                                class="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 transition-all"
+                            >
+                                <ExternalLink class="w-3.5 h-3.5" />
+                                Access
+                            </a>
+                            <button 
+                                @click="handleDelete(tenant.id)" 
+                                class="flex items-center justify-center w-9 h-9 rounded-lg text-red-400/50 hover:text-red-400 hover:bg-red-500/10 transition-all" 
+                                title="Delete Client"
+                            >
+                                <Trash2 class="w-4 h-4" />
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -209,51 +298,113 @@ onMounted(() => {
         </main>
         
         <!-- Create Modal -->
-        <div v-if="showCreateModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
-                <h3 class="text-lg font-bold mb-4">Create New Client</h3>
-                <form @submit.prevent="createTenant" class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Client Name</label>
-                        <input v-model="newTenant.name" type="text" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border p-2" placeholder="e.g. GS Cars Rent Car">
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Slug (URL)</label>
-                        <input v-model="newTenant.slug" type="text" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border p-2" placeholder="e.g. gs-cars">
-                        <p class="text-xs text-gray-500 mt-1">Access URL: domain.com/{{ newTenant.slug || 'slug' }}/admin</p>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Logo</label>
-                        <div class="mt-1 flex items-center gap-4">
-                            <div v-if="logoPreview" class="h-12 w-12 rounded overflow-hidden border">
-                                <img :src="logoPreview" class="h-full w-full object-contain" />
-                            </div>
-                            <input 
-                                @change="handleLogoSelect" 
-                                type="file" 
-                                accept="image/*"
-                                class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                            >
+        <Transition name="modal">
+            <div v-if="showCreateModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showCreateModal = false"></div>
+                <div class="relative w-full max-w-lg bg-[#1a1b23] border border-white/[0.08] rounded-2xl shadow-2xl">
+                    <!-- Modal Header -->
+                    <div class="flex items-center justify-between px-6 py-5 border-b border-white/[0.06]">
+                        <div>
+                            <h3 class="text-lg font-semibold text-white">New Client</h3>
+                            <p class="text-xs text-white/30 mt-0.5">Set up a new tenant workspace</p>
                         </div>
-                         <!-- Fallback text input if needed, or remove -->
-                        <!-- <input v-model="newTenant.logo_url" type="text" class="mt-2 block w-full rounded-md border-gray-300 shadow-sm border p-2 text-xs" placeholder="Or paste URL..."> -->
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Admin Password (Username: admin)</label>
-                        <input v-model="newTenant.admin_password" type="text" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 border p-2">
-                    </div>
-
-                    <div class="flex justify-end gap-3 mt-6">
-                        <button type="button" @click="showCreateModal = false" class="text-gray-600 hover:text-gray-800 px-4 py-2">Cancel</button>
-                        <button type="submit" :disabled="createLoading" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
-                            {{ createLoading ? 'Creating...' : 'Create Client' }}
+                        <button @click="showCreateModal = false" class="text-white/30 hover:text-white p-1 rounded-lg hover:bg-white/[0.06] transition">
+                            <X class="w-5 h-5" />
                         </button>
                     </div>
-                </form>
+
+                    <!-- Modal Body -->
+                    <form @submit.prevent="createTenant" class="p-6 space-y-5">
+                        <div>
+                            <label class="block text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">Client Name</label>
+                            <input 
+                                v-model="newTenant.name" 
+                                type="text" 
+                                required 
+                                class="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 transition" 
+                                placeholder="e.g. GS Cars Rent Car"
+                            >
+                        </div>
+                        
+                        <div>
+                            <label class="block text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">Slug (URL)</label>
+                            <div class="relative">
+                                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-white/20 text-sm">/</span>
+                                <input 
+                                    v-model="newTenant.slug" 
+                                    type="text" 
+                                    required 
+                                    class="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl pl-7 pr-4 py-3 text-sm text-white font-mono placeholder-white/20 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 transition" 
+                                    placeholder="gs-cars"
+                                >
+                            </div>
+                            <p class="text-xs text-white/20 mt-1.5 flex items-center gap-1">
+                                <Globe class="w-3 h-3" />
+                                domain.com/<span class="text-white/40">{{ newTenant.slug || 'slug' }}</span>/admin
+                            </p>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">Logo</label>
+                            <div class="flex items-center gap-3">
+                                <div class="w-14 h-14 rounded-xl border border-dashed flex items-center justify-center overflow-hidden flex-shrink-0" :class="logoPreview ? 'border-white/[0.12] bg-white/[0.04]' : 'border-white/[0.08] bg-white/[0.02]'">
+                                    <img v-if="logoPreview" :src="logoPreview" class="w-full h-full object-contain p-1" />
+                                    <Upload v-else class="w-5 h-5 text-white/15" />
+                                </div>
+                                <div class="flex-1">
+                                    <input 
+                                        @change="handleLogoSelect" 
+                                        type="file" 
+                                        accept="image/*"
+                                        class="block w-full text-xs text-white/40 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-white/[0.06] file:text-white/60 hover:file:bg-white/[0.1] file:cursor-pointer file:transition"
+                                    >
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">Admin Password</label>
+                            <input 
+                                v-model="newTenant.admin_password" 
+                                type="text" 
+                                required 
+                                class="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 transition"
+                            >
+                            <p class="text-xs text-white/20 mt-1.5">Username: <span class="text-white/40 font-mono">admin</span></p>
+                        </div>
+
+                        <!-- Modal Footer -->
+                        <div class="flex items-center justify-end gap-3 pt-3 border-t border-white/[0.06]">
+                            <button type="button" @click="showCreateModal = false" class="text-sm text-white/40 hover:text-white px-4 py-2.5 rounded-xl hover:bg-white/[0.06] transition">
+                                Cancel
+                            </button>
+                            <button 
+                                type="submit" 
+                                :disabled="createLoading" 
+                                class="flex items-center gap-2 bg-white text-gray-900 hover:bg-gray-100 text-sm font-semibold px-5 py-2.5 rounded-xl transition-all shadow-lg shadow-white/5 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <Loader2 v-if="createLoading" class="w-4 h-4 animate-spin" />
+                                {{ createLoading ? 'Creating...' : 'Create Client' }}
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
-        </div>
+        </Transition>
     </div>
 </template>
+
+<style scoped>
+.modal-enter-active,
+.modal-leave-active {
+    transition: all 0.2s ease;
+}
+.modal-enter-from,
+.modal-leave-to {
+    opacity: 0;
+}
+.modal-enter-from > div:last-child,
+.modal-leave-to > div:last-child {
+    transform: scale(0.95) translateY(10px);
+}
+</style>
