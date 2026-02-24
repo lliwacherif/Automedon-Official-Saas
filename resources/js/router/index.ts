@@ -20,11 +20,8 @@ const AdminLogin = () => import('../Pages/Admin/Login.vue')
 const AdminCars = () => import('../Pages/Admin/Cars/Index.vue')
 const AdminCarsEdit = () => import('../Pages/Admin/Cars/Edit.vue')
 
-const TenantPaused = () => import('../Pages/TenantPaused.vue')
-
 const routes = [
     { path: '/', component: About, name: 'home' },
-    { path: '/paused', component: TenantPaused, name: 'tenant.paused' },
     { path: '/fleet', component: Home, name: 'fleet' }, // Moved previous home to fleet
     { path: '/about', component: About, name: 'about' },
 
@@ -227,7 +224,7 @@ router.beforeEach(async (to, from, next) => {
         }
     }
 
-    // Tenant Resolution — always fetch fresh to catch status changes (e.g. paused by root)
+    // Tenant Resolution
     if (to.params.tenantSlug) {
         const slug = to.params.tenantSlug as string
         try {
@@ -235,11 +232,6 @@ router.beforeEach(async (to, from, next) => {
         } catch (e) {
             console.error("Tenant not found", e)
             next({ name: 'home' })
-            return
-        }
-
-        if (tenantStore.currentTenant?.status !== 'active') {
-            next({ name: 'tenant.paused', query: { name: tenantStore.currentTenant?.name } })
             return
         }
     }

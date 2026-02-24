@@ -11,6 +11,7 @@ const tenantName = ref('');
 const checking = ref(true);
 
 async function checkTenantStatus() {
+    checking.value = true;
     const slug = route.params.tenantSlug as string;
     if (!slug) { checking.value = false; return; }
 
@@ -34,7 +35,7 @@ async function checkTenantStatus() {
 
 onMounted(checkTenantStatus);
 
-watch(() => route.params.tenantSlug, checkTenantStatus);
+watch(() => route.fullPath, checkTenantStatus);
 </script>
 
 <template>
