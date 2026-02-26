@@ -58,7 +58,9 @@ export function useCars() {
             'Cherry': [],
             'Geely': [],
             'Volkswagen': [],
-            'Suzuki': []
+            'Suzuki': [],
+            'Chevrolet': [],
+            'Fiat': []
         };
 
         cars.value.forEach(car => {
