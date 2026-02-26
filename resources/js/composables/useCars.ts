@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useTenantStore } from '@/stores/tenant';
 import { format } from 'date-fns';
 
-export type CarBrand = 'Renault' | 'Dacia' | 'Skoda' | 'Hyundai' | 'Seat' | 'MG' | 'Mahindra' | 'Kia' | 'Honda' | 'Peugeot' | 'Cherry' | 'Geely' | 'Volkswagen' | 'Suzuki';
+export type CarBrand = 'Renault' | 'Dacia' | 'Skoda' | 'Hyundai' | 'Seat' | 'MG' | 'Mahindra' | 'Kia' | 'Honda' | 'Peugeot' | 'Cherry' | 'Geely' | 'Volkswagen' | 'Suzuki' | 'Chevrolet' | 'Fiat';
 export type CarStatus = 'disponible' | 'loue' | 'maintenance';
 
 export interface Car {
