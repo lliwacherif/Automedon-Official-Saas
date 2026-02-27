@@ -17,6 +17,13 @@ export interface MaintenanceRecord {
     notes: string | null;
     provider: string | null;
     next_due_mileage: number | null;
+    damage_type: string | null;
+    damage_date: string | null;
+    responsible_client_name: string | null;
+    responsible_client_cin: string | null;
+    responsible_client_permit: string | null;
+    linked_reservation_id: number | null;
+    damage_images: string[] | null;
 }
 
 // French labels for maintenance types
