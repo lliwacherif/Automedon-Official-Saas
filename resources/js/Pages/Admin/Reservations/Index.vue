@@ -263,7 +263,7 @@ import { formatDate, formatDateTime } from '@/utils/date';
                                         <div class="text-[11px] text-gray-400 font-medium mt-0.5">{{ res.duration_days }} {{ t('admin.reservations.days') }}</div>
                                     </td>
                                     <td class="px-5 py-3.5">
-                                        <span class="text-sm font-bold text-gray-900">${{ res.total_price.toFixed(2) }}</span>
+                                        <span class="text-sm font-bold text-gray-900">{{ res.total_price.toFixed(2) }} DT</span>
                                     </td>
                                     <td class="px-5 py-3.5">
                                         <span :class="getStatusClass(res.status)" class="status-badge">
@@ -422,7 +422,7 @@ import { formatDate, formatDateTime } from '@/utils/date';
                         <!-- Card Footer -->
                         <div class="px-4 py-3 bg-gray-50/50 border-t border-gray-100 flex justify-between items-center">
                             <div class="text-base font-bold text-gray-900">
-                                {{ res.total_price.toFixed(2) }} TND
+                                {{ res.total_price.toFixed(2) }} DT
                             </div>
                             <div class="flex items-center gap-1">
                                 <button 

@@ -610,14 +610,14 @@ import {
                     </h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
-                            <label class="form-label">{{ t('admin.reservations.price_per_day') }} * (€)</label>
+                            <label class="form-label">{{ t('admin.reservations.price_per_day') }} * (DT)</label>
                             <div class="form-input-wrapper">
                                 <DollarSign class="form-input-icon" />
                                 <input v-model.number="reservation.price_per_day" type="number" step="0.0001" required class="form-input">
                             </div>
                         </div>
                         <div>
-                            <label class="form-label">{{ t('admin.reservations.total_price') }} (€)</label>
+                            <label class="form-label">{{ t('admin.reservations.total_price') }} (DT)</label>
                             <div class="form-input-wrapper bg-gray-50">
                                 <Wallet class="form-input-icon" />
                                 <input v-model="reservation.total_price" type="number" step="0.0001" readonly class="form-input bg-transparent text-lg font-bold">
@@ -631,7 +631,7 @@ import {
                         <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">{{ t('admin.reservations.payment_details') || 'Paiement' }}</h3>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div class="p-3.5 rounded-xl bg-gradient-to-br from-indigo-50 to-violet-50 ring-1 ring-indigo-100">
-                                <label class="text-xs font-bold text-indigo-700 mb-1.5 block">Acompte / Avance (€)</label>
+                                <label class="text-xs font-bold text-indigo-700 mb-1.5 block">Acompte / Avance (DT)</label>
                                 <input 
                                     v-model.number="reservation.advance_payment"
                                     type="number"
@@ -645,10 +645,10 @@ import {
                                 :class="restToPay > 0 ? 'bg-gradient-to-br from-red-50 to-rose-50 ring-red-200' : 'bg-gradient-to-br from-emerald-50 to-green-50 ring-emerald-200'"
                             >
                                 <label class="text-xs font-bold mb-1.5 block" :class="restToPay > 0 ? 'text-red-700' : 'text-emerald-700'">
-                                    Reste à Payer (€)
+                                    Reste à Payer (DT)
                                 </label>
                                 <div class="text-2xl font-extrabold tracking-tight" :class="restToPay > 0 ? 'text-red-600' : 'text-emerald-600'">
-                                    {{ restToPay.toFixed(2) }} €
+                                    {{ restToPay.toFixed(2) }} DT
                                 </div>
                                 <p v-if="restToPay === 0" class="text-[11px] text-emerald-600 mt-1 font-bold flex items-center gap-1">
                                     <CircleCheck class="w-3 h-3" /> Payé en totalité
