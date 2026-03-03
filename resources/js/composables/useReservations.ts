@@ -30,6 +30,7 @@ export interface Reservation {
     price_per_day: number;
     total_price: number;
     advance_payment: number;
+    caution: number;
     // Status
     status: string;
     // Optional
