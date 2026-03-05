@@ -1,23 +1,18 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { useStore, type StoreApp } from '@/composables/useStore';
-import { Plus, Trash2, Loader2, Upload, ShoppingBag, ArrowLeft, Users } from 'lucide-vue-next';
+import { Plus, Trash2, Loader2, Upload, ShoppingBag, ArrowLeft, Users, X, Globe, DollarSign, Building2, Store } from 'lucide-vue-next';
 import ClientAssignmentModal from '@/components/Store/ClientAssignmentModal.vue';
 
 const { apps, loading, error, fetchApps, addApp, deleteApp } = useStore();
 
 const showModal = ref(false);
 const submitting = ref(false);
-const newApp = ref({
-    name: '',
-    description: '',
-    price: 0,
-});
+const newApp = ref({ name: '', description: '', price: 0 });
 const selectedIcon = ref<File | null>(null);
 const iconPreview = ref<string | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
 
-// Assignment Modal State
 const showAssignmentModal = ref(false);
 const selectedAppForAssignment = ref<StoreApp | null>(null);
 
@@ -31,9 +26,7 @@ function closeAssignmentModal() {
     selectedAppForAssignment.value = null;
 }
 
-onMounted(() => {
-    fetchApps();
-});
+onMounted(() => { fetchApps(); });
 
 function handleFileChange(event: Event) {
     const input = event.target as HTMLInputElement;
@@ -45,20 +38,15 @@ function handleFileChange(event: Event) {
 
 async function handleSubmit() {
     if (!newApp.value.name) return;
-    
     submitting.value = true;
     try {
         await addApp(newApp.value, selectedIcon.value || undefined);
         showModal.value = false;
-        // Reset form
         newApp.value = { name: '', description: '', price: 0 };
         selectedIcon.value = null;
         iconPreview.value = null;
-    } catch (e) {
-        console.error(e);
-    } finally {
-        submitting.value = false;
-    }
+    } catch (e) { console.error(e); }
+    finally { submitting.value = false; }
 }
 
 async function handleDelete(id: number) {
@@ -68,204 +56,153 @@ async function handleDelete(id: number) {
 </script>
 
 <template>
-    <div class="min-h-screen bg-gray-50 py-8">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <!-- Header -->
-            <div class="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div class="flex items-center">
-                    <RouterLink 
-                        to="/root/dashboard" 
-                        class="p-2 mr-4 bg-white border border-gray-200 rounded-full text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
-                        title="Back to Dashboard"
-                    >
-                        <ArrowLeft class="w-5 h-5" />
+    <div class="min-h-screen bg-[#0f1117]">
+        <!-- Header -->
+        <header class="border-b border-white/[0.06] bg-[#0f1117]/80 backdrop-blur-xl sticky top-0 z-40">
+            <div class="max-w-[1400px] mx-auto px-6 h-16 flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <RouterLink to="/root/dashboard" class="flex items-center justify-center w-8 h-8 rounded-lg text-white/40 hover:text-white hover:bg-white/[0.06] transition-all">
+                        <ArrowLeft class="w-4 h-4" />
                     </RouterLink>
-                    <div>
-                        <h1 class="text-3xl font-bold text-gray-900 tracking-tight">App Store Management</h1>
-                        <p class="mt-1 text-sm text-gray-500">Manage applications available for your tenants.</p>
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center">
+                            <Store class="w-4 h-4 text-white" />
+                        </div>
+                        <div>
+                            <span class="text-sm font-semibold text-white">App Store</span>
+                            <p class="text-xs text-white/30">Manage applications for tenants</p>
+                        </div>
                     </div>
                 </div>
-                <button
-                    @click="showModal = true"
-                    class="inline-flex items-center px-5 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md transition-all transform hover:-translate-y-0.5"
-                >
-                    <Plus class="h-5 w-5 mr-2" />
-                    Add New App
+                <button @click="showModal = true" class="flex items-center gap-2 bg-white text-gray-900 hover:bg-gray-100 text-sm font-semibold px-4 py-2 rounded-xl transition-all shadow-lg shadow-white/5">
+                    <Plus class="w-4 h-4" /> New App
                 </button>
             </div>
+        </header>
 
-            <!-- Error Message -->
-            <div v-if="error" class="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg shadow-sm">
-                <div class="flex">
-                    <div class="flex-shrink-0">
-                        <Trash2 class="h-5 w-5 text-red-500" />
-                    </div>
-                    <div class="ml-3">
-                        <p class="text-sm font-medium text-red-800">Error</p>
-                        <p class="text-sm text-red-700 mt-1">{{ error }}</p>
-                    </div>
-                </div>
+        <main class="max-w-[1400px] mx-auto px-6 py-8">
+            <!-- Error -->
+            <div v-if="error" class="mb-6 flex items-center gap-2.5 bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl text-sm">
+                <span>{{ error }}</span>
             </div>
 
-            <!-- Loading State -->
-            <div v-if="loading && !showModal" class="flex justify-center py-20">
-                <Loader2 class="animate-spin h-10 w-10 text-indigo-600" />
+            <!-- Loading -->
+            <div v-if="loading && !showModal" class="flex flex-col items-center justify-center py-24">
+                <Loader2 class="w-8 h-8 text-white/20 animate-spin mb-4" />
+                <p class="text-sm text-white/30">Loading apps...</p>
             </div>
 
             <!-- Apps Grid -->
-            <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <!-- App Card -->
-                <div v-for="app in apps" :key="app.id" class="group bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col">
-                    <div class="p-6 flex-1">
-                        <div class="flex items-start justify-between">
-                            <div class="h-14 w-14 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center overflow-hidden flex-shrink-0">
-                                <img v-if="app.icon_url" :src="app.icon_url" :alt="app.name" class="h-full w-full object-cover transform group-hover:scale-110 transition-transform duration-500" />
-                                <ShoppingBag v-else class="h-7 w-7 text-indigo-500" />
+            <div v-else class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                <div v-for="app in apps" :key="app.id" class="group bg-white/[0.03] border border-white/[0.06] hover:border-white/[0.12] rounded-2xl overflow-hidden transition-all duration-300 hover:bg-white/[0.05]">
+                    <div class="p-5">
+                        <div class="flex items-start gap-4">
+                            <div class="w-14 h-14 rounded-xl bg-white/[0.06] flex items-center justify-center overflow-hidden flex-shrink-0">
+                                <img v-if="app.icon_url" :src="app.icon_url" :alt="app.name" class="w-full h-full object-cover" />
+                                <ShoppingBag v-else class="w-6 h-6 text-white/20" />
                             </div>
-                            <div class="flex items-center space-x-2">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                    {{ app.price > 0 ? `${app.price.toFixed(2)} DT` : 'Free' }}
-                                </span>
-                                <button
-                                    @click="openAssignmentModal(app)"
-                                    class="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
-                                    title="Assign to Clients"
-                                >
-                                    <Users class="h-4 w-4" />
-                                </button>
-                                <button
-                                    @click="handleDelete(app.id)"
-                                    class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                                    title="Delete App"
-                                >
-                                    <Trash2 class="h-4 w-4" />
-                                </button>
+                            <div class="flex-1 min-w-0">
+                                <h3 class="text-base font-semibold text-white truncate">{{ app.name }}</h3>
+                                <p class="text-sm text-white/30 mt-1 line-clamp-2 leading-relaxed">{{ app.description }}</p>
                             </div>
-                        </div>
-                        <div class="mt-4">
-                            <h3 class="text-lg font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">{{ app.name }}</h3>
-                            <p class="mt-2 text-sm text-gray-600 line-clamp-3 leading-relaxed">{{ app.description }}</p>
                         </div>
                     </div>
-                    <div class="bg-gray-50 px-6 py-3 border-t border-gray-100 text-xs text-gray-500 flex justify-between items-center">
-                        <span>Status: <span class="font-medium text-green-600">Active</span></span>
-                        <span>ID: {{ app.id }}</span>
+                    <div class="px-5 py-3 border-t border-white/[0.06] flex items-center justify-between">
+                        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider" :class="app.price > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-white/[0.06] text-white/40'">
+                            {{ app.price > 0 ? `${app.price.toFixed(2)} DT` : 'Free' }}
+                        </span>
+                        <div class="flex items-center gap-1">
+                            <button @click="openAssignmentModal(app)" class="p-2 rounded-lg text-indigo-400/60 hover:text-indigo-400 hover:bg-indigo-500/10 transition-all" title="Manage Access">
+                                <Users class="w-4 h-4" />
+                            </button>
+                            <button @click="handleDelete(app.id)" class="p-2 rounded-lg text-red-400/50 hover:text-red-400 hover:bg-red-500/10 transition-all" title="Delete">
+                                <Trash2 class="w-4 h-4" />
+                            </button>
+                        </div>
                     </div>
                 </div>
-                
-                <!-- Empty State -->
-                <div v-if="apps.length === 0" class="col-span-full py-16 text-center bg-white rounded-xl border border-dashed border-gray-300">
-                    <ShoppingBag class="mx-auto h-12 w-12 text-gray-300" />
-                    <h3 class="mt-2 text-sm font-medium text-gray-900">No apps available</h3>
-                    <p class="mt-1 text-sm text-gray-500">Get started by adding a new application to the store.</p>
+
+                <!-- Empty -->
+                <div v-if="apps.length === 0" class="col-span-full flex flex-col items-center justify-center py-24 bg-white/[0.02] border border-dashed border-white/[0.08] rounded-2xl">
+                    <div class="w-14 h-14 rounded-2xl bg-white/[0.04] flex items-center justify-center mb-4">
+                        <ShoppingBag class="w-7 h-7 text-white/20" />
+                    </div>
+                    <p class="text-white/40 font-medium mb-1">No apps yet</p>
+                    <p class="text-white/20 text-sm mb-6">Add your first application to the store</p>
+                    <button @click="showModal = true" class="flex items-center gap-2 text-sm font-medium text-white bg-white/10 hover:bg-white/15 px-4 py-2 rounded-lg transition">
+                        <Plus class="w-4 h-4" /> New App
+                    </button>
                 </div>
             </div>
+        </main>
 
-            <!-- Add App Modal -->
-            <div v-if="showModal" class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-                <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                    <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" @click="showModal = false"></div>
-
-                    <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-                    <div class="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg w-full">
-                        <div class="bg-indigo-600 px-4 py-3 sm:px-6">
-                            <h3 class="text-lg leading-6 font-medium text-white" id="modal-title">Add New Application</h3>
+        <!-- Add App Modal -->
+        <Transition name="modal">
+            <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showModal = false"></div>
+                <div class="relative w-full max-w-lg bg-[#1a1b23] border border-white/[0.08] rounded-2xl shadow-2xl">
+                    <div class="flex items-center justify-between px-6 py-5 border-b border-white/[0.06]">
+                        <div>
+                            <h3 class="text-lg font-semibold text-white">New Application</h3>
+                            <p class="text-xs text-white/30 mt-0.5">Add an app to the store</p>
                         </div>
-                        
-                        <form @submit.prevent="handleSubmit" class="p-6 space-y-5">
-                            <!-- Icon Upload -->
-                            <div class="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer relative" @click="fileInput?.click()">
-                                <input
-                                    ref="fileInput"
-                                    type="file"
-                                    accept="image/*"
-                                    @change="handleFileChange"
-                                    class="hidden"
-                                />
-                                <div v-if="iconPreview" class="h-24 w-24 relative">
-                                    <img :src="iconPreview" class="h-full w-full object-contain rounded-lg" />
-                                    <div class="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity rounded-lg">
-                                        <p class="text-white text-xs font-medium">Change</p>
-                                    </div>
-                                </div>
-                                <div v-else class="text-center">
-                                    <Upload class="mx-auto h-10 w-10 text-gray-400" />
-                                    <p class="mt-2 text-sm text-gray-500">Click to upload app icon</p>
-                                </div>
-                            </div>
-
-                            <!-- Inputs -->
-                            <div class="space-y-4">
-                                <div>
-                                    <label for="name" class="block text-sm font-medium text-gray-700">App Name</label>
-                                    <input
-                                        type="text"
-                                        id="name"
-                                        v-model="newApp.name"
-                                        required
-                                        placeholder="e.g. Premium Analytics"
-                                        class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2.5 border"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label for="description" class="block text-sm font-medium text-gray-700">Description</label>
-                                    <textarea
-                                        id="description"
-                                        v-model="newApp.description"
-                                        rows="3"
-                                        placeholder="Describe features and benefits..."
-                                        class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2.5 border"
-                                    ></textarea>
-                                </div>
-
-                                <div>
-                                    <label for="price" class="block text-sm font-medium text-gray-700">Price (DT)</label>
-                                    <div class="mt-1 relative rounded-md shadow-sm">
-                                        <input
-                                            type="number"
-                                            id="price"
-                                            v-model.number="newApp.price"
-                                            min="0"
-                                            step="0.01"
-                                            class="block w-full pl-3 pr-12 border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2.5 border"
-                                        />
-                                        <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                            <span class="text-gray-500 sm:text-sm font-medium">DT</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="mt-6 flex justify-end gap-3 border-t border-gray-100 pt-5">
-                                <button
-                                    type="button"
-                                    @click="showModal = false"
-                                    class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    :disabled="submitting"
-                                    class="px-4 py-2 bg-indigo-600 border border-transparent rounded-lg text-sm font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                                >
-                                    <Loader2 v-if="submitting" class="animate-spin -ml-1 mr-2 h-4 w-4" />
-                                    {{ submitting ? 'Saving...' : 'Save Application' }}
-                                </button>
-                            </div>
-                        </form>
+                        <button @click="showModal = false" class="text-white/30 hover:text-white p-1 rounded-lg hover:bg-white/[0.06] transition"><X class="w-5 h-5" /></button>
                     </div>
+
+                    <form @submit.prevent="handleSubmit" class="p-6 space-y-5">
+                        <!-- Icon Upload -->
+                        <div class="flex flex-col items-center justify-center p-5 border-2 border-dashed border-white/[0.08] rounded-xl hover:border-white/[0.15] hover:bg-white/[0.02] transition cursor-pointer" @click="fileInput?.click()">
+                            <input ref="fileInput" type="file" accept="image/*" @change="handleFileChange" class="hidden" />
+                            <div v-if="iconPreview" class="w-20 h-20 rounded-xl overflow-hidden ring-2 ring-white/[0.1]">
+                                <img :src="iconPreview" class="w-full h-full object-cover" />
+                            </div>
+                            <div v-else class="text-center">
+                                <Upload class="mx-auto w-8 h-8 text-white/15 mb-2" />
+                                <p class="text-xs text-white/30">Click to upload app icon</p>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">App Name</label>
+                            <div class="relative">
+                                <ShoppingBag class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                                <input v-model="newApp.name" type="text" required placeholder="e.g. Premium Analytics" class="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 transition" />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">Description</label>
+                            <textarea v-model="newApp.description" rows="3" placeholder="Describe features and benefits..." class="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 transition"></textarea>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-white/50 uppercase tracking-wider mb-2">Price (DT)</label>
+                            <div class="relative">
+                                <DollarSign class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                                <input v-model.number="newApp.price" type="number" min="0" step="0.01" class="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl pl-10 pr-14 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/30 transition" />
+                                <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-white/30 font-semibold">DT</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-end gap-3 pt-3 border-t border-white/[0.06]">
+                            <button type="button" @click="showModal = false" class="text-sm text-white/40 hover:text-white px-4 py-2.5 rounded-xl hover:bg-white/[0.06] transition">Cancel</button>
+                            <button type="submit" :disabled="submitting" class="flex items-center gap-2 bg-white text-gray-900 hover:bg-gray-100 text-sm font-semibold px-5 py-2.5 rounded-xl transition-all shadow-lg shadow-white/5 disabled:opacity-50 disabled:cursor-not-allowed">
+                                <Loader2 v-if="submitting" class="w-4 h-4 animate-spin" />
+                                {{ submitting ? 'Saving...' : 'Save Application' }}
+                            </button>
+                        </div>
+                    </form>
                 </div>
             </div>
+        </Transition>
 
-            <!-- Client Assignment Modal -->
-            <ClientAssignmentModal
-                :show="showAssignmentModal"
-                :app="selectedAppForAssignment"
-                @close="closeAssignmentModal"
-            />
-        </div>
+        <!-- Client Assignment Modal -->
+        <ClientAssignmentModal :show="showAssignmentModal" :app="selectedAppForAssignment" @close="closeAssignmentModal" />
     </div>
 </template>
+
+<style scoped>
+.modal-enter-active, .modal-leave-active { transition: all 0.2s ease; }
+.modal-enter-from, .modal-leave-to { opacity: 0; }
+.modal-enter-from > div:last-child, .modal-leave-to > div:last-child { transform: scale(0.95) translateY(10px); }
+</style>
