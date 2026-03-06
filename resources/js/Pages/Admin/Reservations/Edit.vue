@@ -94,6 +94,7 @@ const reservation = ref<Partial<Reservation>>({
     total_price: 0,
     advance_payment: 0,
     caution: 0,
+    caution_currency: 'DT',
     car_id: 0,
     status: 'confirmed',
     pickup_location: '',
@@ -229,6 +230,7 @@ async function handleSubmit() {
             total_price: reservation.value.total_price!,
             advance_payment: reservation.value.advance_payment || 0,
             caution: reservation.value.caution || 0,
+            caution_currency: reservation.value.caution_currency || 'DT',
             status: reservation.value.status || 'confirmed',
             pickup_location: reservation.value.pickup_location || null,
             return_location: reservation.value.return_location || null,
@@ -662,16 +664,26 @@ import {
                     <!-- Caution / Security Deposit -->
                     <div class="mt-4 pt-4 border-t border-gray-100">
                         <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Caution / Dépôt de Garantie</h3>
-                        <div class="p-3.5 rounded-xl bg-gradient-to-br from-amber-50 to-yellow-50 ring-1 ring-amber-200 max-w-sm">
-                            <label class="text-xs font-bold text-amber-700 mb-1.5 block">Montant Caution (DT)</label>
-                            <input 
-                                v-model.number="reservation.caution"
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                class="w-full px-3 py-2 text-sm border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 bg-white"
-                                placeholder="0.00"
-                            >
+                        <div class="p-3.5 rounded-xl bg-gradient-to-br from-amber-50 to-yellow-50 ring-1 ring-amber-200 max-w-md">
+                            <label class="text-xs font-bold text-amber-700 mb-1.5 block">Montant Caution</label>
+                            <div class="flex gap-2">
+                                <input 
+                                    v-model.number="reservation.caution"
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    class="flex-1 px-3 py-2 text-sm border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 bg-white"
+                                    placeholder="0.00"
+                                >
+                                <select 
+                                    v-model="reservation.caution_currency"
+                                    class="w-24 px-2 py-2 text-sm font-semibold border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 bg-white text-amber-800 appearance-none text-center cursor-pointer"
+                                >
+                                    <option value="DT">DT</option>
+                                    <option value="EUR">EUR €</option>
+                                    <option value="USD">USD $</option>
+                                </select>
+                            </div>
                             <p class="text-[11px] text-amber-600 mt-1.5">Montant remboursable à la fin de la location</p>
                         </div>
                     </div>

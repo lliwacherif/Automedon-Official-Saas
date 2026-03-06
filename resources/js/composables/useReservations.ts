@@ -31,6 +31,7 @@ export interface Reservation {
     total_price: number;
     advance_payment: number;
     caution: number;
+    caution_currency: string;
     // Status
     status: string;
     // Optional
