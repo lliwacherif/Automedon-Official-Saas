@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref, watch } from 'vue';
+import { nextTick, onMounted, ref, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ArrowLeft, FileDown, Loader2, Save, Check } from 'lucide-vue-next';
+import { ArrowLeft, FileDown, Loader2, Save, Check, Plus, X, ClipboardList, ChevronDown, Car } from 'lucide-vue-next';
 import InvoiceTemplate, { type InvoiceData } from '@/components/Invoices/InvoiceTemplate.vue';
 import { formatDateTime } from '@/utils/date';
 import { supabase } from '@/lib/supabase';
@@ -21,15 +21,36 @@ const templateMountRef = ref<HTMLElement | null>(null);
 
 // ── Frais timbre 2DT/jour ──
 const fraisTimbreEnabled = ref(false);
-const reservationDays = ref(1);
-const reservationTotalPrice = ref(0);
 
 // ── TTC / HT toggle ──
 const pricingMode = ref<'TTC' | 'HT'>('TTC');
 
+// ── Multi-reservation state ──
+const primaryReservationId = ref<number | null>(null);
+const primaryClientCin = ref('');
+const clientReservations = ref<any[]>([]);
+const selectedReservationIds = ref<Set<number>>(new Set());
+const loadingClientRes = ref(false);
+const showReservationPicker = ref(false);
+
+interface ItemMeta {
+  reservationId: number;
+  days: number;
+  price: number;
+}
+const itemsMetadata = ref<ItemMeta[]>([]);
+
+const totalDaysAllItems = computed(() => itemsMetadata.value.reduce((s, m) => s + m.days, 0));
+const totalPriceAllItems = computed(() => itemsMetadata.value.reduce((s, m) => s + m.price, 0));
+
+const availableReservations = computed(() =>
+  clientReservations.value.filter(r => !selectedReservationIds.value.has(r.id))
+);
+
+// ── Watchers ──
 watch(fraisTimbreEnabled, (checked) => {
   if (!previewData.value) return;
-  previewData.value.tax.fraisTimbre = checked ? reservationDays.value * 2 : 0;
+  previewData.value.tax.fraisTimbre = checked ? totalDaysAllItems.value * 2 : 0;
 });
 
 watch(pricingMode, () => {
@@ -38,28 +59,32 @@ watch(pricingMode, () => {
 
 function recalculateItems() {
   if (!previewData.value) return;
-  const price = reservationTotalPrice.value;
-  const nbDays = reservationDays.value;
   const tvaRate = 0.19;
   const timbre = 1.0;
 
-  let totalHT: number;
-  let unitPriceHT: number;
+  previewData.value.items.forEach((item, idx) => {
+    const meta = itemsMetadata.value[idx];
+    if (!meta) return;
 
-  if (pricingMode.value === 'HT') {
-    totalHT = price;
-    unitPriceHT = Number((totalHT / nbDays).toFixed(3));
-  } else {
-    const totalExclStamp = Math.max(0, price - timbre);
-    totalHT = Number((totalExclStamp / (1 + tvaRate)).toFixed(3));
-    unitPriceHT = Number((totalHT / nbDays).toFixed(3));
-  }
+    let totalHT: number;
+    let unitPriceHT: number;
 
-  const item = previewData.value.items[0];
-  if (item) {
+    if (pricingMode.value === 'HT') {
+      totalHT = meta.price;
+      unitPriceHT = Number((totalHT / meta.days).toFixed(3));
+    } else {
+      const totalExclStamp = Math.max(0, meta.price - timbre);
+      totalHT = Number((totalExclStamp / (1 + tvaRate)).toFixed(3));
+      unitPriceHT = Number((totalHT / meta.days).toFixed(3));
+    }
+
     item.unitPriceHT = unitPriceHT;
     item.totalHT = totalHT;
-    item.qte = nbDays;
+    item.qte = meta.days;
+  });
+
+  if (fraisTimbreEnabled.value) {
+    previewData.value.tax.fraisTimbre = totalDaysAllItems.value * 2;
   }
 }
 
@@ -160,6 +185,94 @@ async function toDataUrl(url: string): Promise<string> {
   });
 }
 
+// ── Fetch all reservations for the same client ──
+async function fetchClientReservations(cin: string) {
+  loadingClientRes.value = true;
+  try {
+    const { data } = await supabase
+      .from('reservations')
+      .select('*, car:cars(brand, model, license_plate)')
+      .eq('client_cin', cin)
+      .eq('tenant_id', tenantStore.currentTenant?.id || '')
+      .order('start_date', { ascending: false });
+    clientReservations.value = data || [];
+  } catch (e) {
+    console.error('Error fetching client reservations:', e);
+  } finally {
+    loadingClientRes.value = false;
+  }
+}
+
+// ── Build a line item from a reservation ──
+function buildLineItem(reservation: any, mode: 'TTC' | 'HT') {
+  const start = new Date(reservation.start_date);
+  const end = new Date(reservation.end_date);
+  const nbDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 3600 * 24)));
+  const price = Number(reservation.total_price) || 0;
+  const tvaRate = 0.19;
+  const timbre = 1.0;
+
+  let totalHT: number;
+  let unitPriceHT: number;
+
+  if (mode === 'HT') {
+    totalHT = price;
+    unitPriceHT = Number((price / nbDays).toFixed(3));
+  } else {
+    const totalExclStamp = Math.max(0, price - timbre);
+    totalHT = Number((totalExclStamp / (1 + tvaRate)).toFixed(3));
+    unitPriceHT = Number((totalHT / nbDays).toFixed(3));
+  }
+
+  const carLabel = reservation.car
+    ? `${reservation.car.brand || ''} ${reservation.car.model || ''}`.trim()
+    : 'Véhicule';
+
+  return {
+    item: {
+      designation: `Location véhicule ${carLabel}`,
+      duree: `${formatDateTime(reservation.start_date)} au ${formatDateTime(reservation.end_date)}`,
+      unitPriceHT,
+      unite: 'Jours',
+      qte: nbDays,
+      totalHT
+    },
+    meta: { reservationId: reservation.id, days: nbDays, price }
+  };
+}
+
+// ── Add a reservation to the invoice ──
+function addReservationToInvoice(reservation: any) {
+  if (!previewData.value) return;
+  if (selectedReservationIds.value.has(reservation.id)) return;
+
+  const { item, meta } = buildLineItem(reservation, pricingMode.value);
+  previewData.value.items.push(item);
+  itemsMetadata.value.push(meta);
+  selectedReservationIds.value.add(reservation.id);
+
+  if (fraisTimbreEnabled.value) {
+    previewData.value.tax.fraisTimbre = totalDaysAllItems.value * 2;
+  }
+}
+
+// ── Remove a reservation from the invoice ──
+function removeReservationFromInvoice(reservationId: number) {
+  if (!previewData.value) return;
+  if (reservationId === primaryReservationId.value) return;
+
+  const idx = itemsMetadata.value.findIndex(m => m.reservationId === reservationId);
+  if (idx === -1) return;
+
+  previewData.value.items.splice(idx, 1);
+  itemsMetadata.value.splice(idx, 1);
+  selectedReservationIds.value.delete(reservationId);
+
+  if (fraisTimbreEnabled.value) {
+    previewData.value.tax.fraisTimbre = totalDaysAllItems.value * 2;
+  }
+}
+
 // ── Load reservation + generate invoice data ──
 async function loadReservation(id: string) {
   loading.value = true;
@@ -174,7 +287,14 @@ async function loadReservation(id: string) {
 
     if (error) throw error;
     if (data) {
+      primaryReservationId.value = data.id;
+      primaryClientCin.value = data.client_cin || '';
+      selectedReservationIds.value = new Set([data.id]);
       await generateInvoiceData(data, tenantStore.currentTenant);
+
+      if (data.client_cin) {
+        fetchClientReservations(data.client_cin);
+      }
     }
   } catch (e) {
     console.error('Error loading reservation', e);
@@ -195,34 +315,15 @@ async function generateInvoiceData(reservation: any, tenant: any) {
     ? `INV-${reservation.contract_number}`
     : `DRAFT-${Date.now().toString().slice(-4)}`;
 
-  const start = new Date(reservation.start_date);
-  const end = new Date(reservation.end_date);
-  const nbDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 3600 * 24)));
-  reservationDays.value = nbDays;
-
-  const tvaRate = 0.19;
-  const timbre = 1.0;
-  const price = Number(reservation.total_price) || 0;
-  reservationTotalPrice.value = price;
-
-  let totalHT: number;
-  let unitPriceHT: number;
-
-  if (pricingMode.value === 'HT') {
-    totalHT = price;
-    unitPriceHT = Number((price / nbDays).toFixed(3));
-  } else {
-    const totalExclStamp = Math.max(0, price - timbre);
-    totalHT = Number((totalExclStamp / (1 + tvaRate)).toFixed(3));
-    unitPriceHT = Number((totalHT / nbDays).toFixed(3));
-  }
+  const { item, meta } = buildLineItem(reservation, pricingMode.value);
+  itemsMetadata.value = [meta];
 
   let logoUrl = tenant.logo_url as string | undefined;
   if (logoUrl) {
     try {
       logoUrl = await toDataUrl(logoUrl);
     } catch {
-      // Keep original URL if conversion fails.
+      // Keep original URL
     }
   }
 
@@ -247,20 +348,11 @@ async function generateInvoiceData(reservation: any, tenant: any) {
       mf: 'Client MF...',
       tel: reservation.client_phone || ''
     },
-    items: [
-      {
-        designation: `Location véhicule ${reservation.car?.brand || ''} ${reservation.car?.model || ''}`.trim(),
-        duree: `${formatDateTime(reservation.start_date)} au ${formatDateTime(reservation.end_date)}`,
-        unitPriceHT,
-        unite: 'Jours',
-        qte: nbDays,
-        totalHT
-      }
-    ],
+    items: [item],
     tax: {
-      tvaRate,
-      timbreFiscal: timbre,
-      fraisTimbre: fraisTimbreEnabled.value ? nbDays * 2 : 0
+      tvaRate: 0.19,
+      timbreFiscal: 1.0,
+      fraisTimbre: fraisTimbreEnabled.value ? meta.days * 2 : 0
     }
   };
 }
@@ -292,11 +384,7 @@ function createA4ExportClone(sourceEl: HTMLElement) {
   return {
     clone,
     cleanup: () => {
-      try {
-        document.body.removeChild(host);
-      } catch {
-        // No-op.
-      }
+      try { document.body.removeChild(host); } catch { }
     }
   };
 }
@@ -370,6 +458,10 @@ function goBack() {
   router.back();
 }
 
+function formatDate(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString('fr-TN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 onMounted(() => {
   if (route.params.id) {
     loadReservation(route.params.id as string);
@@ -380,8 +472,8 @@ onMounted(() => {
 <template>
   <div class="invoice-editor-page min-h-screen">
     <header class="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur">
-      <div class="mx-auto flex h-16 max-w-[1500px] items-center justify-between px-4 sm:px-6 lg:px-8">
-        <div class="flex items-center gap-3">
+      <div class="mx-auto flex h-16 max-w-[1500px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+        <div class="flex items-center gap-3 shrink-0">
           <button
             @click="goBack"
             class="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
@@ -395,7 +487,96 @@ onMounted(() => {
           </div>
         </div>
 
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2 flex-wrap justify-end">
+          <!-- Reservation Picker -->
+          <div class="relative">
+            <button
+              @click="showReservationPicker = !showReservationPicker"
+              class="flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700 transition hover:bg-indigo-100"
+            >
+              <ClipboardList class="h-4 w-4" />
+              <span class="hidden sm:inline">Réservations</span>
+              <span class="inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full bg-indigo-600 text-[10px] font-bold text-white">
+                {{ selectedReservationIds.size }}
+              </span>
+              <ChevronDown class="h-3.5 w-3.5" :class="{ 'rotate-180': showReservationPicker }" />
+            </button>
+
+            <!-- Dropdown -->
+            <Transition name="dropdown">
+              <div v-if="showReservationPicker" class="absolute right-0 top-full mt-2 w-[380px] max-h-[400px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl z-50 flex flex-col">
+                <!-- Selected -->
+                <div class="p-3 border-b border-slate-100 bg-slate-50/50 shrink-0">
+                  <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Incluses dans la facture</p>
+                  <div class="space-y-1.5">
+                    <div v-for="meta in itemsMetadata" :key="meta.reservationId" class="flex items-center justify-between bg-white rounded-lg px-3 py-2 ring-1 ring-indigo-100">
+                      <div class="flex items-center gap-2 min-w-0">
+                        <div class="w-6 h-6 rounded bg-indigo-100 flex items-center justify-center shrink-0">
+                          <Car class="w-3 h-3 text-indigo-600" />
+                        </div>
+                        <div class="min-w-0">
+                          <p class="text-xs font-semibold text-slate-800 truncate">
+                            {{ clientReservations.find(r => r.id === meta.reservationId)?.car?.brand || '' }}
+                            {{ clientReservations.find(r => r.id === meta.reservationId)?.car?.model || '' }}
+                          </p>
+                          <p class="text-[10px] text-slate-400">{{ meta.days }}j &middot; {{ meta.price.toFixed(2) }} DT</p>
+                        </div>
+                      </div>
+                      <button
+                        v-if="meta.reservationId !== primaryReservationId"
+                        @click="removeReservationFromInvoice(meta.reservationId)"
+                        class="shrink-0 p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition"
+                      >
+                        <X class="w-3.5 h-3.5" />
+                      </button>
+                      <span v-else class="text-[9px] font-bold text-indigo-500 uppercase">Principal</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Available -->
+                <div class="flex-1 overflow-y-auto p-3">
+                  <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Autres réservations du client</p>
+                  <div v-if="loadingClientRes" class="flex items-center justify-center py-6">
+                    <Loader2 class="w-5 h-5 text-slate-300 animate-spin" />
+                  </div>
+                  <div v-else-if="availableReservations.length === 0" class="py-6 text-center text-xs text-slate-400">
+                    Aucune autre réservation
+                  </div>
+                  <div v-else class="space-y-1.5">
+                    <button
+                      v-for="res in availableReservations"
+                      :key="res.id"
+                      @click="addReservationToInvoice(res)"
+                      class="w-full flex items-center justify-between rounded-lg px-3 py-2.5 text-left ring-1 ring-slate-100 hover:ring-indigo-200 hover:bg-indigo-50/50 transition group"
+                    >
+                      <div class="flex items-center gap-2.5 min-w-0">
+                        <div class="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center shrink-0 group-hover:bg-indigo-100 transition">
+                          <Car class="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 transition" />
+                        </div>
+                        <div class="min-w-0">
+                          <p class="text-xs font-semibold text-slate-800 truncate">
+                            #{{ res.reservation_number || res.id }} &middot; {{ res.car?.brand || '' }} {{ res.car?.model || '' }}
+                          </p>
+                          <p class="text-[10px] text-slate-400 truncate">
+                            {{ formatDate(res.start_date) }} - {{ formatDate(res.end_date) }}
+                          </p>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-2 shrink-0">
+                        <span class="text-xs font-bold text-slate-600">{{ Number(res.total_price || 0).toFixed(2) }} DT</span>
+                        <div class="w-6 h-6 rounded bg-indigo-100 flex items-center justify-center opacity-0 group-hover:opacity-100 transition">
+                          <Plus class="w-3.5 h-3.5 text-indigo-600" />
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </Transition>
+          </div>
+
+          <!-- Frais timbre -->
           <label class="flex items-center gap-2 cursor-pointer select-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-100">
             <input
               v-model="fraisTimbreEnabled"
@@ -405,6 +586,7 @@ onMounted(() => {
             <span>Frais timbre 2DT/Jour</span>
           </label>
 
+          <!-- TTC / HT -->
           <div class="flex rounded-lg border border-slate-200 overflow-hidden text-sm font-medium select-none">
             <button
               @click="pricingMode = 'TTC'"
@@ -426,6 +608,7 @@ onMounted(() => {
             </button>
           </div>
 
+          <!-- Download PDF -->
           <button
             @click="downloadPdf"
             :disabled="generating || loading || !previewData"
@@ -433,11 +616,14 @@ onMounted(() => {
           >
             <Loader2 v-if="generating" class="h-4 w-4 animate-spin" />
             <FileDown v-else class="h-4 w-4" />
-            Télécharger PDF
+            <span class="hidden sm:inline">Télécharger PDF</span>
           </button>
         </div>
       </div>
     </header>
+
+    <!-- Click-away overlay for picker -->
+    <div v-if="showReservationPicker" class="fixed inset-0 z-30" @click="showReservationPicker = false"></div>
 
     <main class="mx-auto grid max-w-[1500px] grid-cols-1 gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[320px_minmax(0,1fr)] lg:px-8">
       <aside class="h-fit space-y-5">
@@ -468,42 +654,19 @@ onMounted(() => {
           <div class="mt-4 space-y-3">
             <div>
               <label class="block text-xs font-medium text-slate-600 mb-1">Adresse</label>
-              <input
-                v-model="companySettings.address"
-                type="text"
-                placeholder="Av. Exemple, Ville 1000"
-                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              />
+              <input v-model="companySettings.address" type="text" placeholder="Av. Exemple, Ville 1000" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
             </div>
-
             <div>
               <label class="block text-xs font-medium text-slate-600 mb-1">Matricule Fiscal (MF)</label>
-              <input
-                v-model="companySettings.mf"
-                type="text"
-                placeholder="0000000/X/X/X/000"
-                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              />
+              <input v-model="companySettings.mf" type="text" placeholder="0000000/X/X/X/000" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
             </div>
-
             <div>
               <label class="block text-xs font-medium text-slate-600 mb-1">Email</label>
-              <input
-                v-model="companySettings.email"
-                type="email"
-                placeholder="contact@exemple.com"
-                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              />
+              <input v-model="companySettings.email" type="email" placeholder="contact@exemple.com" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
             </div>
-
             <div>
               <label class="block text-xs font-medium text-slate-600 mb-1">GSM</label>
-              <input
-                v-model="companySettings.gsm"
-                type="text"
-                placeholder="22 000 000 / 55 000 000"
-                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              />
+              <input v-model="companySettings.gsm" type="text" placeholder="22 000 000 / 55 000 000" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
               <p class="mt-1 text-[10px] text-slate-400">Séparez les numéros par /</p>
             </div>
           </div>
@@ -523,7 +686,7 @@ onMounted(() => {
           </button>
         </div>
 
-        <!-- Client Info (per invoice, editable) -->
+        <!-- Client Info -->
         <div v-if="previewData" class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Informations client</p>
           <h2 class="mt-2 text-base font-semibold text-slate-900">Coordonnées du client</h2>
@@ -534,22 +697,11 @@ onMounted(() => {
           <div class="mt-4 space-y-3">
             <div>
               <label class="block text-xs font-medium text-slate-600 mb-1">Adresse client</label>
-              <input
-                v-model="previewData.client.address"
-                type="text"
-                placeholder="Adresse du client..."
-                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              />
+              <input v-model="previewData.client.address" type="text" placeholder="Adresse du client..." class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
             </div>
-
             <div>
               <label class="block text-xs font-medium text-slate-600 mb-1">Matricule Fiscal (MF)</label>
-              <input
-                v-model="previewData.client.mf"
-                type="text"
-                placeholder="0000000/X/X/X/000"
-                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              />
+              <input v-model="previewData.client.mf" type="text" placeholder="0000000/X/X/X/000" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
             </div>
           </div>
         </div>
@@ -615,4 +767,9 @@ onMounted(() => {
   size: A4;
   margin: 0;
 }
+
+.dropdown-enter-active { transition: all 0.15s ease-out; }
+.dropdown-leave-active { transition: all 0.1s ease-in; }
+.dropdown-enter-from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+.dropdown-leave-to { opacity: 0; transform: translateY(-4px) scale(0.97); }
 </style>
