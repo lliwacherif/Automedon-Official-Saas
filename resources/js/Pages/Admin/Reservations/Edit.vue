@@ -564,13 +564,12 @@ import {
                         </div>
 
                         <div>
-                            <label class="form-label">Numéro de Contrat (Max 4)</label>
+                            <label class="form-label">Numéro de Contrat</label>
                             <div class="form-input-wrapper">
                                 <Hash class="form-input-icon" />
                                 <input 
                                     v-model="reservation.contract_number"
                                     type="text"
-                                    maxlength="4"
                                     placeholder="Ex: 1234"
                                     class="form-input uppercase"
                                 >
