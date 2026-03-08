@@ -206,11 +206,13 @@ export function useKPI() {
         const startStr = dateRange.value.start.toISOString()
         const endStr = dateRange.value.end.toISOString()
 
-        // Fetch Reservations (Revenue)
+        // Fetch Reservations (Revenue) — only count reservations that have actually started
+        const nowStr = new Date().toISOString()
         let resQuery = supabase
             .from('reservations')
             .select('total_price, status, created_at, start_date, end_date')
             .neq('status', 'cancelled')
+            .lte('start_date', nowStr)
             .or(`start_date.lte.${format(dateRange.value.end, 'yyyy-MM-dd')},end_date.gte.${format(dateRange.value.start, 'yyyy-MM-dd')}`)
 
         if (tenantStore.currentTenant?.id) {
@@ -288,11 +290,12 @@ export function useKPI() {
         const startStr = dateRange.value.start.toISOString()
         const endStr = dateRange.value.end.toISOString()
 
+        const chartNow = new Date().toISOString()
         let chartQuery = supabase
             .from('reservations')
-            .select('total_price, created_at')
-            .gte('created_at', startStr)
-            .lte('created_at', endStr)
+            .select('total_price, start_date')
+            .gte('start_date', startStr)
+            .lte('start_date', chartNow)
             .neq('status', 'cancelled')
 
         if (tenantStore.currentTenant?.id) {
@@ -319,10 +322,9 @@ export function useKPI() {
         const resData = reservations as any[]
         const chartSvcData = (chartServices || []) as any[]
 
-        // Group by Date (reservations + services)
         const dailyRevenue: Record<string, number> = {}
         resData.forEach(r => {
-            const date = format(parseISO(r.created_at), 'yyyy-MM-dd')
+            const date = format(parseISO(r.start_date), 'yyyy-MM-dd')
             dailyRevenue[date] = (dailyRevenue[date] || 0) + Number(r.total_price)
         })
         chartSvcData.forEach(s => {
