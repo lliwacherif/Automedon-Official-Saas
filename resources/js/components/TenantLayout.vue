@@ -2,13 +2,15 @@
 import { ref, watch, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { supabase } from '@/lib/supabase';
-import { Pause } from 'lucide-vue-next';
+import { Pause, AlertTriangle, X } from 'lucide-vue-next';
 
 const route = useRoute();
 
 const isPaused = ref(false);
 const tenantName = ref('');
 const checking = ref(true);
+const paymentAlert = ref(false);
+const alertDismissed = ref(false);
 
 async function checkTenantStatus() {
     checking.value = true;
@@ -18,13 +20,15 @@ async function checkTenantStatus() {
     try {
         const { data } = await supabase
             .from('tenants')
-            .select('status, name')
+            .select('status, name, payment_alert')
             .eq('slug', slug)
             .single();
 
         if (data) {
             tenantName.value = data.name;
             isPaused.value = data.status !== 'active';
+            paymentAlert.value = !!data.payment_alert;
+            if (!data.payment_alert) alertDismissed.value = false;
         }
     } catch (e) {
         console.error('Failed to check tenant status:', e);
@@ -66,6 +70,25 @@ watch(() => route.fullPath, checkTenantStatus);
     </div>
 
     <div v-else class="tenant-layout">
+        <!-- Payment Alert Banner -->
+        <div v-if="paymentAlert && !alertDismissed" class="sticky top-0 z-50 bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 py-3 shadow-lg">
+            <div class="max-w-7xl mx-auto flex items-center justify-between gap-3">
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                        <AlertTriangle class="w-4 h-4" />
+                    </div>
+                    <div class="min-w-0">
+                        <p class="text-sm font-bold">Paiement requis / Payment Required</p>
+                        <p class="text-xs text-white/80 mt-0.5">
+                            Votre paiement doit être régularisé pour éviter la désactivation de votre compte. Veuillez contacter l'administration.
+                        </p>
+                    </div>
+                </div>
+                <button @click="alertDismissed = true" class="shrink-0 p-1.5 rounded-lg hover:bg-white/20 transition">
+                    <X class="w-4 h-4" />
+                </button>
+            </div>
+        </div>
         <RouterView />
     </div>
 </template>

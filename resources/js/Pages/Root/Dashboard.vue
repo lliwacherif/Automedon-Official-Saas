@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from 'vue';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/auth';
 import { useTenantStore } from '@/stores/tenant';
-import { Trash2, Pause, Play, Plus, ExternalLink, Store, Settings, LogOut, Users, CircleCheck, CirclePause, Building2, Loader2, Upload, X, Globe } from 'lucide-vue-next';
+import { Trash2, Pause, Play, Plus, ExternalLink, Store, Settings, LogOut, Users, CircleCheck, CirclePause, Building2, Loader2, Upload, X, Globe, Bell, BellOff } from 'lucide-vue-next';
 import { useFileUpload } from '@/composables/useFileUpload';
 
 const authStore = useAuthStore();
@@ -17,6 +17,7 @@ interface Tenant {
     logo_url: string;
     status: string;
     created_at: string;
+    payment_alert: boolean;
 }
 
 const tenants = ref<Tenant[]>([]);
@@ -107,6 +108,15 @@ const handleDelete = async (id: string) => {
         } catch (e: any) {
             alert('Error deleting tenant: ' + e.message);
         }
+    }
+};
+
+const handleToggleAlert = async (tenant: Tenant) => {
+    try {
+        const newVal = await tenantStore.togglePaymentAlert(tenant.id, tenant.payment_alert);
+        tenant.payment_alert = newVal;
+    } catch (e: any) {
+        alert('Error toggling alert: ' + e.message);
     }
 };
 
@@ -284,6 +294,17 @@ onMounted(() => {
                                 <ExternalLink class="w-3.5 h-3.5" />
                                 Access
                             </a>
+                            <button 
+                                @click="handleToggleAlert(tenant)"
+                                class="flex items-center justify-center w-9 h-9 rounded-lg transition-all"
+                                :class="tenant.payment_alert 
+                                    ? 'text-amber-400 bg-amber-500/10 hover:bg-amber-500/20' 
+                                    : 'text-white/20 hover:text-amber-400 hover:bg-amber-500/10'"
+                                :title="tenant.payment_alert ? 'Désactiver alerte paiement' : 'Activer alerte paiement'"
+                            >
+                                <Bell v-if="!tenant.payment_alert" class="w-4 h-4" />
+                                <BellOff v-else class="w-4 h-4" />
+                            </button>
                             <button 
                                 @click="handleDelete(tenant.id)" 
                                 class="flex items-center justify-center w-9 h-9 rounded-lg text-red-400/50 hover:text-red-400 hover:bg-red-500/10 transition-all" 

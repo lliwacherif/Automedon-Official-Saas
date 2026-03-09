@@ -8,6 +8,7 @@ export interface Tenant {
     slug: string;
     logo_url: string;
     status: 'active' | 'inactive';
+    payment_alert: boolean;
 }
 
 // Helper: SHA-256 for password hashing (matches Auth Store)
@@ -137,6 +138,21 @@ export const useTenantStore = defineStore('tenant', () => {
         }
     }
 
+    async function togglePaymentAlert(id: string, current: boolean) {
+        try {
+            const { error: updateError } = await supabase
+                .from('tenants')
+                .update({ payment_alert: !current })
+                .eq('id', id);
+
+            if (updateError) throw updateError;
+            return !current;
+        } catch (e: any) {
+            console.error('Error toggling payment alert:', e);
+            throw e;
+        }
+    }
+
     async function deleteTenant(id: string) {
         loading.value = true;
         try {
@@ -193,6 +209,7 @@ export const useTenantStore = defineStore('tenant', () => {
         fetchAllTenants,
         createTenant,
         toggleTenantStatus,
+        togglePaymentAlert,
         deleteTenant,
         createTenantUser
     };
