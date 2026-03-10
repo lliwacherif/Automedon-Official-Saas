@@ -258,16 +258,13 @@ export function useReservations() {
         }
     }
 
-    // Check availability for a specific car and date range
     async function checkAvailability(carId: number, startDate: string, endDate: string, excludeReservationId?: number) {
-        loading.value = true;
-
         const tenantId = tenantStore.currentTenant?.id;
 
         try {
             let query = supabase
                 .from('reservations')
-                .select('id')
+                .select('id, reservation_number, start_date, end_date, status')
                 .eq('car_id', carId)
                 .in('status', ['confirmed', 'active'])
                 .lt('start_date', endDate)
@@ -283,14 +280,19 @@ export function useReservations() {
 
             const { data, error: supabaseError } = await query;
 
-            if (supabaseError) throw supabaseError;
+            if (supabaseError) {
+                console.error('Availability check query failed:', supabaseError);
+                return true;
+            }
 
-            return data && data.length === 0;
+            if (data && data.length > 0) {
+                console.warn('Conflicting reservations found:', data);
+            }
+
+            return !data || data.length === 0;
         } catch (e: any) {
-            console.error('Availability check failed:', e);
-            return false;
-        } finally {
-            loading.value = false;
+            console.error('Availability check exception:', e);
+            return true;
         }
     }
 
