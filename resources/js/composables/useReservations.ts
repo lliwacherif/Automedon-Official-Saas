@@ -67,7 +67,6 @@ export function useReservations() {
         return res;
     };
 
-    // Fetch all reservations (for admin)
     async function fetchReservations(page = 1, search = '', status = 'all') {
         loading.value = true;
         error.value = null;
@@ -93,12 +92,9 @@ export function useReservations() {
                 query = query.eq('status', status);
             }
 
-            const from = (page - 1) * 10;
-            const to = from + 9;
-
             const { data, count, error: supabaseError } = await query
-                .range(from, to)
-                .order('created_at', { ascending: false });
+                .order('created_at', { ascending: false })
+                .limit(1000);
 
             if (supabaseError) throw supabaseError;
 
