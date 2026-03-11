@@ -152,12 +152,12 @@ async function handleSubmit() {
             formLoading.value = false;
             return;
         }
-        if (!form.value.client_name.trim()) {
+        if (false) {
             formError.value = 'Le nom du client est requis.';
             formLoading.value = false;
             return;
         }
-        if (!form.value.client_cin.trim()) {
+        if (false) {
             formError.value = 'Le CIN du client est requis.';
             formLoading.value = false;
             return;
@@ -208,8 +208,8 @@ async function handleSubmit() {
             chauffeur_name: form.value.chauffeur_name,
             chauffeur_cin: form.value.chauffeur_cin,
             chauffeur_permit: form.value.chauffeur_permit || null,
-            client_name: form.value.client_name,
-            client_cin: form.value.client_cin,
+            client_name: form.value.client_name || null,
+            client_cin: form.value.client_cin || null,
             price: form.value.price,
             payment_method: form.value.payment_method,
             advance_payment: form.value.advance_payment || 0,
@@ -576,17 +576,17 @@ const formatCurrency = (v: number) => new Intl.NumberFormat('fr-TN', { style: 'c
                                 <!-- Client -->
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
-                                        <label class="form-label">Nom du Client *</label>
+                                        <label class="form-label">Nom du Client</label>
                                         <div class="form-input-wrapper">
                                             <User class="form-input-icon" />
-                                            <input v-model="form.client_name" type="text" required class="form-input" placeholder="Nom complet">
+                                            <input v-model="form.client_name" type="text" class="form-input" placeholder="Nom complet">
                                         </div>
                                     </div>
                                     <div>
-                                        <label class="form-label">CIN Client/Passport *</label>
+                                        <label class="form-label">CIN Client/Passport</label>
                                         <div class="form-input-wrapper">
                                             <CreditCard class="form-input-icon" />
-                                            <input v-model="form.client_cin" type="text" required class="form-input" placeholder="CIN">
+                                            <input v-model="form.client_cin" type="text" class="form-input" placeholder="CIN">
                                         </div>
                                     </div>
                                 </div>
