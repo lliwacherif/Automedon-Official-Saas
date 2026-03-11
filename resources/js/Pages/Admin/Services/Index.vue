@@ -26,6 +26,7 @@ import {
     Wallet,
     IdCard,
     Banknote,
+    Hash,
 } from 'lucide-vue-next';
 
 const { services, loading, fetchServices, createService, updateService, deleteService, checkServiceAvailability } = useServices();
@@ -50,6 +51,7 @@ const form = ref({
     price: 0,
     payment_method: 'cash' as 'cash' | 'card',
     advance_payment: 0,
+    contract_number: '',
     notes: '',
 });
 
@@ -75,6 +77,7 @@ function openModal() {
         price: 0,
         payment_method: 'cash',
         advance_payment: 0,
+        contract_number: '',
         notes: '',
     };
     formError.value = '';
@@ -110,6 +113,7 @@ function openEditModal(svc: any) {
         price: svc.price,
         payment_method: svc.payment_method || 'cash',
         advance_payment: svc.advance_payment || 0,
+        contract_number: svc.contract_number || '',
         notes: svc.notes || '',
     };
     formError.value = '';
@@ -209,6 +213,7 @@ async function handleSubmit() {
             price: form.value.price,
             payment_method: form.value.payment_method,
             advance_payment: form.value.advance_payment || 0,
+            contract_number: form.value.contract_number || null,
             notes: form.value.notes || null,
         };
 
@@ -630,6 +635,15 @@ const formatCurrency = (v: number) => new Intl.NumberFormat('fr-TN', { style: 'c
                                             <input v-model.number="form.advance_payment" type="number" step="0.01" min="0" class="form-input" placeholder="Ex: 100.00">
                                         </div>
                                         <p class="mt-1 text-xs text-gray-400 pl-1">Montant avancé par le client (optionnel)</p>
+                                    </div>
+                                </div>
+
+                                <!-- Contract Number -->
+                                <div>
+                                    <label class="form-label">Numéro de Contrat</label>
+                                    <div class="form-input-wrapper max-w-xs">
+                                        <Hash class="form-input-icon" />
+                                        <input v-model="form.contract_number" type="text" class="form-input uppercase" placeholder="Ex: 1234">
                                     </div>
                                 </div>
 
