@@ -46,7 +46,8 @@ export function useServices() {
                 .from('services')
                 .select('*, car:cars(*)')
                 .eq('tenant_id', tenantId)
-                .order('created_at', { ascending: false });
+                .order('created_at', { ascending: false })
+                .limit(1000);
 
             if (err) throw err;
 
