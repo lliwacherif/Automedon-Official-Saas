@@ -294,13 +294,14 @@ export function useCars() {
                 .from('cars') as any)
                 .insert([
                     {
-                        tenant_id: tenantId, // Important!
+                        tenant_id: tenantId,
                         brand: carData.brand,
                         model: carData.model,
                         license_plate: carData.plate_number,
                         status: carData.status,
                         image_url: carData.image_url || null,
                         auto_manage_status: carData.auto_manage_status ?? true,
+                        transmission: (carData as any).transmission || null,
                         purchase_price: carData.purchase_price || null,
                         leasing_advance: carData.leasing_advance || null,
                     }
@@ -340,6 +341,7 @@ export function useCars() {
             if (carData.status !== undefined) updateData.status = carData.status;
             if (carData.image_url !== undefined) updateData.image_url = carData.image_url || null;
             if (carData.auto_manage_status !== undefined) updateData.auto_manage_status = carData.auto_manage_status;
+            if ((carData as any).transmission !== undefined) updateData.transmission = (carData as any).transmission || null;
             if (carData.purchase_price !== undefined) updateData.purchase_price = carData.purchase_price;
             if (carData.leasing_advance !== undefined) updateData.leasing_advance = carData.leasing_advance;
 
