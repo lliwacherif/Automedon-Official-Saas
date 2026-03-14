@@ -98,13 +98,14 @@ export function useCars() {
             id: dbCar.id,
             brand: dbCar.brand,
             model: dbCar.model,
-            plate_number: dbCar.license_plate, // Map license_plate to plate_number
+            plate_number: dbCar.license_plate,
             status: dbCar.status,
             image_url: imageUrl,
             mileage: dbCar.mileage,
             purchase_price: dbCar.purchase_price ?? null,
             leasing_advance: dbCar.leasing_advance ?? null,
             auto_manage_status: dbCar.auto_manage_status,
+            transmission: dbCar.transmission || null,
             created_at: dbCar.created_at
         };
     };
