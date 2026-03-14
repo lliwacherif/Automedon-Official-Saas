@@ -167,9 +167,9 @@ const onReservationSuccess = () => {
                             <!-- Gradient overlay -->
                             <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent"></div>
 
-                            <!-- Status Badge -->
-                            <div class="absolute top-3 left-3">
-                                <span 
+                            <!-- Status Badge + Transmission -->
+                            <div class="absolute top-3 left-3 flex items-center gap-1.5">
+                                <span
                                     class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded-full backdrop-blur-md shadow-sm"
                                     :class="{
                                         'bg-emerald-500/90 text-white': car.status === 'disponible',
@@ -181,6 +181,9 @@ const onReservationSuccess = () => {
                                     <CircleX v-else-if="car.status === 'loue'" class="w-3 h-3" />
                                     <Wrench v-else class="w-3 h-3" />
                                     {{ car.status === 'disponible' ? 'Disponible' : car.status === 'loue' ? 'Loué' : 'Maintenance' }}
+                                </span>
+                                <span v-if="(car as any).transmission" class="inline-flex items-center px-2 py-1 text-[10px] font-bold rounded-full backdrop-blur-md shadow-sm bg-white/80 text-gray-800">
+                                    {{ (car as any).transmission === 'auto' ? 'Auto' : 'M' }}
                                 </span>
                             </div>
 
