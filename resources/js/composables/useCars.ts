@@ -127,7 +127,7 @@ export function useCars() {
             // Fetch cars
             const { data: carsData, error: carsError } = await (supabase
                 .from('cars')
-                .select('id, brand, model, license_plate, status, image_url, mileage, purchase_price, leasing_advance, auto_manage_status, created_at')
+                .select('id, brand, model, license_plate, status, image_url, mileage, purchase_price, leasing_advance, auto_manage_status, transmission, created_at')
                 .eq('tenant_id', tenantId)
                 .order('brand', { ascending: true })
                 .order('model', { ascending: true }) as any);
@@ -255,7 +255,7 @@ export function useCars() {
         try {
             let query = supabase
                 .from('cars')
-                .select('id, brand, model, license_plate, status, image_url, mileage, purchase_price, leasing_advance, auto_manage_status, created_at')
+                .select('id, brand, model, license_plate, status, image_url, mileage, purchase_price, leasing_advance, auto_manage_status, transmission, created_at')
                 .eq('id', id);
 
             if (tenantId) {
@@ -304,7 +304,7 @@ export function useCars() {
                         leasing_advance: carData.leasing_advance || null,
                     }
                 ])
-                .select('id, brand, model, license_plate, status, image_url, mileage, purchase_price, leasing_advance, auto_manage_status, created_at')
+                .select('id, brand, model, license_plate, status, image_url, mileage, purchase_price, leasing_advance, auto_manage_status, transmission, created_at')
                 .single();
 
             if (supabaseError) throw supabaseError;
@@ -346,7 +346,7 @@ export function useCars() {
                 .from('cars') as any)
                 .update(updateData)
                 .eq('id', id)
-                .select('id, brand, model, license_plate, status, image_url, mileage, purchase_price, leasing_advance, auto_manage_status, created_at');
+                .select('id, brand, model, license_plate, status, image_url, mileage, purchase_price, leasing_advance, auto_manage_status, transmission, created_at');
 
             if (supabaseError) throw supabaseError;
 

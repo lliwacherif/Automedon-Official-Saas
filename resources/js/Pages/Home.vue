@@ -207,9 +207,14 @@ const onReservationSuccess = () => {
                         <!-- Card Body -->
                         <div class="p-4 flex flex-col gap-3">
                             <!-- Quick Specs -->
-                            <div v-if="car.mileage" class="flex items-center gap-1.5 text-xs text-gray-500">
-                                <Gauge class="w-3.5 h-3.5" />
-                                <span>{{ car.mileage?.toLocaleString() }} km</span>
+                            <div class="flex items-center gap-3 text-xs text-gray-500">
+                                <div v-if="car.mileage" class="flex items-center gap-1.5">
+                                    <Gauge class="w-3.5 h-3.5" />
+                                    <span>{{ car.mileage?.toLocaleString() }} km</span>
+                                </div>
+                                <div v-if="(car as any).transmission" class="flex items-center gap-1 px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-semibold text-[10px] uppercase">
+                                    {{ (car as any).transmission === 'auto' ? 'Auto' : 'Manuel' }}
+                                </div>
                             </div>
 
                             <!-- Action Buttons -->

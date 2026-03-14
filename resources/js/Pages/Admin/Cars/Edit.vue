@@ -42,7 +42,8 @@ const form = ref({
     plate_suffix: '', // e.g., "4521"
     status: 'disponible' as CarStatus, // Default status
     image_url: '', // Will store the uploaded image URL
-    auto_manage_status: true, // Auto-manage status by default
+    auto_manage_status: true,
+    transmission: '' as '' | 'manual' | 'auto',
     purchase_price: null as number | null,
     leasing_advance: null as number | null,
 });
@@ -70,7 +71,8 @@ onMounted(async () => {
             form.value.plate_suffix = plateSuffix;
             form.value.status = car.status;
             form.value.image_url = car.image_url || '';
-            form.value.auto_manage_status = car.auto_manage_status !== false; // Default to true
+            form.value.auto_manage_status = car.auto_manage_status !== false;
+            form.value.transmission = (car as any).transmission || '';
             form.value.purchase_price = car.purchase_price ?? null;
             form.value.leasing_advance = car.leasing_advance ?? null;
             previewUrl.value = car.image_url || '';
@@ -150,13 +152,14 @@ async function handleSubmit() {
             }
         }
 
-        const carData = {
+        const carData: any = {
             brand: form.value.brand,
             model: form.value.model,
             plate_number: fullPlateNumber.value,
             status: form.value.status,
             image_url: imageUrl || undefined,
             auto_manage_status: form.value.auto_manage_status,
+            transmission: form.value.transmission || null,
             purchase_price: form.value.purchase_price || null,
             leasing_advance: form.value.leasing_advance || null,
         };
@@ -236,13 +239,38 @@ async function handleSubmit() {
                                 <label class="form-label">{{ $t('admin.fleet.model') }} *</label>
                                 <div class="form-input-wrapper">
                                     <CarIcon class="form-input-icon" />
-                                    <input 
-                                        v-model="form.model" 
-                                        type="text" 
-                                        required 
+                                    <input
+                                        v-model="form.model"
+                                        type="text"
+                                        required
                                         class="form-input"
                                         placeholder="Ex: Clio 5"
                                     >
+                                </div>
+                            </div>
+                            <div>
+                                <label class="form-label">Boîte de vitesse</label>
+                                <div class="flex gap-2">
+                                    <button
+                                        type="button"
+                                        @click="form.transmission = 'manual'"
+                                        class="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ring-1"
+                                        :class="form.transmission === 'manual'
+                                            ? 'bg-indigo-50 text-indigo-700 ring-indigo-300 shadow-sm'
+                                            : 'bg-gray-50 text-gray-500 ring-gray-200 hover:bg-gray-100'"
+                                    >
+                                        Manuelle
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="form.transmission = 'auto'"
+                                        class="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ring-1"
+                                        :class="form.transmission === 'auto'
+                                            ? 'bg-indigo-50 text-indigo-700 ring-indigo-300 shadow-sm'
+                                            : 'bg-gray-50 text-gray-500 ring-gray-200 hover:bg-gray-100'"
+                                    >
+                                        Automatique
+                                    </button>
                                 </div>
                             </div>
                         </div>
