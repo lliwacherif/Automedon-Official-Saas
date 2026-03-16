@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useTenantStore } from '@/stores/tenant';
 import { Trash2, Pause, Play, Plus, ExternalLink, Store, Settings, LogOut, Users, CircleCheck, CirclePause, Building2, Loader2, Upload, X, Globe, Bell, BellOff } from 'lucide-vue-next';
 import { useFileUpload } from '@/composables/useFileUpload';
+import { compressImage } from '@/utils/image';
 
 const authStore = useAuthStore();
 const tenantStore = useTenantStore();
@@ -56,11 +57,27 @@ const handleLogoSelect = (event: Event) => {
 const createTenant = async () => {
     createLoading.value = true;
     try {
-        let logoUrl = newTenant.value.logo_url;
+        let logoUrl = '';
 
         if (selectedLogoFile.value) {
-            const url = await uploadFile(selectedLogoFile.value, 'car-images', 'logos');
-            if (url) logoUrl = url;
+            try {
+                let fileToUpload = selectedLogoFile.value;
+                if (fileToUpload.type.startsWith('image/') && !fileToUpload.type.includes('svg')) {
+                    fileToUpload = await compressImage(fileToUpload, 512, 512, 0.7);
+                }
+                const url = await uploadFile(fileToUpload, 'car-images', 'logos');
+                if (url) logoUrl = url;
+            } catch (uploadErr) {
+                console.error('Logo upload failed:', uploadErr);
+            }
+
+            if (!logoUrl) {
+                const proceed = confirm('Logo upload failed (file may be too large). Create client without logo?');
+                if (!proceed) {
+                    createLoading.value = false;
+                    return;
+                }
+            }
         }
 
         await tenantStore.createTenant(
