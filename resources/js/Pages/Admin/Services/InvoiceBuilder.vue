@@ -172,10 +172,14 @@ function buildItemFromService(svc: any, mode: 'HT' | 'TTC') {
   }
 
   const typeLabel = svc.service_type === 'transfert' ? 'Transfert' : 'Excursion';
-  const carLabel = svc.car ? `${svc.car.brand || ''} ${svc.car.model || ''}`.trim() : '';
+  const plate = svc.car?.license_plate || '';
+  const carModel = svc.car ? `${svc.car.brand || ''} ${svc.car.model || ''}`.trim() : '';
+  const clientPart = svc.client_name ? ` de ${svc.client_name}` : '';
+  const vehiclePart = plate ? ` avec le véhicule ${plate}${carModel ? ' ' + carModel : ''}` : (carModel ? ` avec ${carModel}` : '');
+  const datePart = ` du: ${formatDate(svc.start_date)}`;
 
   return {
-    designation: `${typeLabel}${carLabel ? ' — ' + carLabel : ''}${svc.contract_number ? ' (N°' + svc.contract_number + ')' : ''}`,
+    designation: `${typeLabel}${clientPart}${vehiclePart}${datePart}`,
     duree: `${formatDateTime(svc.start_date)} au ${formatDateTime(svc.end_date)}`,
     unitPriceHT,
     unite: 'Jours',
