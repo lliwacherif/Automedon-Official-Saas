@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { RouterLink } from 'vue-router';
 import { useServices, type ServiceType } from '@/composables/useServices';
 import { useCars } from '@/composables/useCars';
+import { useTenantLink } from '@/composables/useTenantLink';
 import { formatDateTime } from '@/utils/date';
 import DateTimeInput from '@/components/DateTimeInput.vue';
+
+const { tenantPath } = useTenantLink();
 import {
     Bus,
     Plus,
@@ -262,13 +266,22 @@ const formatCurrency = (v: number) => new Intl.NumberFormat('fr-TN', { style: 'c
                         <p class="text-sm text-gray-500">{{ services.length }} service{{ services.length !== 1 ? 's' : '' }} enregistré{{ services.length !== 1 ? 's' : '' }}</p>
                     </div>
                 </div>
-                <button 
-                    @click="openModal"
-                    class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 rounded-xl shadow-md shadow-indigo-200 hover:shadow-lg hover:shadow-indigo-300 transition-all"
-                >
-                    <Plus class="w-4 h-4" />
-                    Nouveau Service
-                </button>
+                <div class="flex items-center gap-2">
+                    <RouterLink
+                        :to="tenantPath('/admin/services/invoice')"
+                        class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-xl ring-1 ring-indigo-200 transition-all"
+                    >
+                        <FileText class="w-4 h-4" />
+                        Facture Pro
+                    </RouterLink>
+                    <button
+                        @click="openModal"
+                        class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 rounded-xl shadow-md shadow-indigo-200 hover:shadow-lg hover:shadow-indigo-300 transition-all"
+                    >
+                        <Plus class="w-4 h-4" />
+                        Nouveau Service
+                    </button>
+                </div>
             </div>
 
             <!-- Loading -->
