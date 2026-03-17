@@ -174,7 +174,8 @@ function buildItemFromService(svc: any, mode: 'HT' | 'TTC') {
   const typeLabel = svc.service_type === 'transfert' ? 'Transfert' : 'Excursion';
   const plate = svc.car?.license_plate || '';
   const carModel = svc.car ? `${svc.car.brand || ''} ${svc.car.model || ''}`.trim() : '';
-  const clientPart = svc.client_name ? ` de ${svc.client_name}` : '';
+  const clientName = svc.client_name || svc.chauffeur_name || '';
+  const clientPart = clientName ? ` de ${clientName}` : '';
   const vehiclePart = plate ? ` avec le véhicule ${plate}${carModel ? ' ' + carModel : ''}` : (carModel ? ` avec ${carModel}` : '');
   const datePart = ` du: ${formatDate(svc.start_date)}`;
 
