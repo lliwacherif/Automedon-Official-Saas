@@ -31,16 +31,21 @@ import {
     IdCard,
     Banknote,
     Hash,
+    Building2,
 } from 'lucide-vue-next';
 
 const { services, loading, fetchServices, createService, updateService, deleteService, checkServiceAvailability } = useServices();
 const { cars, fetchCars } = useCars();
+
+import { useB2BClients } from '@/composables/useB2BClients';
+const { clients: b2bClients, fetchClients: fetchB2BClients } = useB2BClients();
 
 const isModalOpen = ref(false);
 const isEditMode = ref(false);
 const editingServiceId = ref<number | null>(null);
 const formLoading = ref(false);
 const formError = ref('');
+const clientMode = ref<'regular' | 'agency'>('regular');
 
 const form = ref({
     service_type: 'transfert' as ServiceType,
@@ -59,8 +64,16 @@ const form = ref({
     notes: '',
 });
 
+function selectB2BClient(clientId: string) {
+    const c = b2bClients.value.find(b => String(b.id) === clientId);
+    if (c) {
+        form.value.client_name = c.company_name;
+        form.value.client_cin = c.mf || '';
+    }
+}
+
 onMounted(async () => {
-    await Promise.all([fetchServices(), fetchCars()]);
+    await Promise.all([fetchServices(), fetchCars(), fetchB2BClients()]);
 });
 
 const availableCars = computed(() => cars.value || []);
@@ -68,6 +81,7 @@ const availableCars = computed(() => cars.value || []);
 function openModal() {
     isEditMode.value = false;
     editingServiceId.value = null;
+    clientMode.value = 'regular';
     form.value = {
         service_type: 'transfert',
         car_id: 0,
@@ -146,15 +160,17 @@ async function handleSubmit() {
             formLoading.value = false;
             return;
         }
-        if (!form.value.chauffeur_name.trim()) {
-            formError.value = 'Le nom du chauffeur est requis.';
-            formLoading.value = false;
-            return;
-        }
-        if (!form.value.chauffeur_cin.trim()) {
-            formError.value = 'Le CIN du chauffeur est requis.';
-            formLoading.value = false;
-            return;
+        if (clientMode.value === 'regular') {
+            if (!form.value.chauffeur_name.trim()) {
+                formError.value = 'Le nom du chauffeur est requis.';
+                formLoading.value = false;
+                return;
+            }
+            if (!form.value.chauffeur_cin.trim()) {
+                formError.value = 'Le CIN du chauffeur est requis.';
+                formLoading.value = false;
+                return;
+            }
         }
         if (false) {
             formError.value = 'Le nom du client est requis.';
@@ -209,9 +225,9 @@ async function handleSubmit() {
             car_id: form.value.car_id,
             start_date: startIso,
             end_date: endIso,
-            chauffeur_name: form.value.chauffeur_name,
-            chauffeur_cin: form.value.chauffeur_cin,
-            chauffeur_permit: form.value.chauffeur_permit || null,
+            chauffeur_name: clientMode.value === 'regular' ? form.value.chauffeur_name : (form.value.client_name || 'Agence'),
+            chauffeur_cin: clientMode.value === 'regular' ? form.value.chauffeur_cin : '-',
+            chauffeur_permit: clientMode.value === 'regular' ? (form.value.chauffeur_permit || null) : null,
             client_name: form.value.client_name || null,
             client_cin: form.value.client_cin || null,
             price: form.value.price,
@@ -267,6 +283,13 @@ const formatCurrency = (v: number) => new Intl.NumberFormat('fr-TN', { style: 'c
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
+                    <RouterLink
+                        :to="tenantPath('/admin/services/b2b-clients')"
+                        class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-violet-700 bg-violet-50 hover:bg-violet-100 rounded-xl ring-1 ring-violet-200 transition-all"
+                    >
+                        <Building2 class="w-4 h-4" />
+                        Agences
+                    </RouterLink>
                     <RouterLink
                         :to="tenantPath('/admin/services/invoice')"
                         class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-xl ring-1 ring-indigo-200 transition-all"
@@ -561,48 +584,93 @@ const formatCurrency = (v: number) => new Intl.NumberFormat('fr-TN', { style: 'c
                                     <Clock class="w-3 h-3 inline-block mr-0.5" /> Durée minimale: 1 heure. Même jour autorisé.
                                 </p>
 
-                                <!-- Chauffeur -->
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div>
-                                        <label class="form-label">Nom du Chauffeur *</label>
-                                        <div class="form-input-wrapper">
-                                            <User class="form-input-icon" />
-                                            <input v-model="form.chauffeur_name" type="text" required class="form-input" placeholder="Nom complet">
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label class="form-label">CIN Chauffeur *</label>
-                                        <div class="form-input-wrapper">
-                                            <CreditCard class="form-input-icon" />
-                                            <input v-model="form.chauffeur_cin" type="text" required class="form-input" placeholder="CIN">
-                                        </div>
-                                    </div>
-                                </div>
+                                <!-- Client Type Toggle -->
                                 <div>
-                                    <label class="form-label">N° Permis Chauffeur</label>
-                                    <div class="form-input-wrapper max-w-xs">
-                                        <IdCard class="form-input-icon" />
-                                        <input v-model="form.chauffeur_permit" type="text" class="form-input" placeholder="Numéro de permis">
+                                    <label class="form-label mb-2">Type de client</label>
+                                    <div class="flex gap-2">
+                                        <button type="button" @click="clientMode = 'regular'" class="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ring-1" :class="clientMode === 'regular' ? 'bg-indigo-50 text-indigo-700 ring-indigo-300 shadow-sm' : 'bg-gray-50 text-gray-500 ring-gray-200 hover:bg-gray-100'">
+                                            <User class="w-4 h-4" /> Client
+                                        </button>
+                                        <button type="button" @click="clientMode = 'agency'" class="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ring-1" :class="clientMode === 'agency' ? 'bg-violet-50 text-violet-700 ring-violet-300 shadow-sm' : 'bg-gray-50 text-gray-500 ring-gray-200 hover:bg-gray-100'">
+                                            <Building2 class="w-4 h-4" /> Agence B2B
+                                        </button>
                                     </div>
                                 </div>
 
-                                <!-- Client -->
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div>
-                                        <label class="form-label">Nom du Client</label>
-                                        <div class="form-input-wrapper">
-                                            <User class="form-input-icon" />
-                                            <input v-model="form.client_name" type="text" class="form-input" placeholder="Nom complet">
+                                <!-- Regular Client Mode: Chauffeur + Client -->
+                                <template v-if="clientMode === 'regular'">
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="form-label">Nom du Chauffeur *</label>
+                                            <div class="form-input-wrapper">
+                                                <User class="form-input-icon" />
+                                                <input v-model="form.chauffeur_name" type="text" required class="form-input" placeholder="Nom complet">
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="form-label">CIN Chauffeur *</label>
+                                            <div class="form-input-wrapper">
+                                                <CreditCard class="form-input-icon" />
+                                                <input v-model="form.chauffeur_cin" type="text" required class="form-input" placeholder="CIN">
+                                            </div>
                                         </div>
                                     </div>
                                     <div>
-                                        <label class="form-label">CIN Client/Passport</label>
-                                        <div class="form-input-wrapper">
-                                            <CreditCard class="form-input-icon" />
-                                            <input v-model="form.client_cin" type="text" class="form-input" placeholder="CIN">
+                                        <label class="form-label">N° Permis Chauffeur</label>
+                                        <div class="form-input-wrapper max-w-xs">
+                                            <IdCard class="form-input-icon" />
+                                            <input v-model="form.chauffeur_permit" type="text" class="form-input" placeholder="Numéro de permis">
                                         </div>
                                     </div>
-                                </div>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="form-label">Nom du Client</label>
+                                            <div class="form-input-wrapper">
+                                                <User class="form-input-icon" />
+                                                <input v-model="form.client_name" type="text" class="form-input" placeholder="Nom complet">
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="form-label">CIN Client/Passport</label>
+                                            <div class="form-input-wrapper">
+                                                <CreditCard class="form-input-icon" />
+                                                <input v-model="form.client_cin" type="text" class="form-input" placeholder="CIN">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                <!-- Agency Mode: Select from B2B list -->
+                                <template v-else>
+                                    <div class="p-3 rounded-xl bg-violet-50 ring-1 ring-violet-200">
+                                        <label class="form-label text-violet-700">Sélectionner une Agence</label>
+                                        <div class="form-input-wrapper mt-1">
+                                            <Building2 class="form-input-icon" />
+                                            <select @change="selectB2BClient(($event.target as HTMLSelectElement).value)" class="form-input appearance-none cursor-pointer">
+                                                <option value="">-- Choisir une agence --</option>
+                                                <option v-for="b in b2bClients" :key="b.id" :value="String(b.id)">{{ b.company_name }}</option>
+                                            </select>
+                                            <ChevronDown class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                                        </div>
+                                        <p class="text-[11px] text-violet-500 mt-1.5">Ou saisir manuellement ci-dessous</p>
+                                    </div>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                            <label class="form-label">Nom Agence / Client *</label>
+                                            <div class="form-input-wrapper">
+                                                <Building2 class="form-input-icon" />
+                                                <input v-model="form.client_name" type="text" required class="form-input" placeholder="Nom de l'agence">
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="form-label">MF / Référence</label>
+                                            <div class="form-input-wrapper">
+                                                <CreditCard class="form-input-icon" />
+                                                <input v-model="form.client_cin" type="text" class="form-input" placeholder="Matricule fiscal">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
 
                                 <!-- Price -->
                                 <div>

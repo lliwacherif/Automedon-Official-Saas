@@ -149,6 +149,12 @@ const routes = [
                 meta: { requiresAuth: true, requiresAdmin: true }
             },
             {
+                path: 'admin/services/b2b-clients',
+                component: () => import('../Pages/Admin/Services/B2BClients.vue'),
+                name: 'admin.services.b2b',
+                meta: { requiresAuth: true, requiresAdmin: true }
+            },
+            {
                 path: 'admin/maintenance',
                 component: () => import('../Pages/Admin/Maintenance/Index.vue'),
                 name: 'admin.maintenance.index',

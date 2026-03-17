@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { nextTick, onMounted, ref, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { ArrowLeft, FileDown, Loader2, Save, Check, Plus, X, ClipboardList, Car, Calendar, ChevronDown, Building2, User, Search } from 'lucide-vue-next';
+import { ArrowLeft, FileDown, Loader2, Save, Check, Plus, X, ClipboardList, Car, Calendar, ChevronDown, Building2, User, Search, Users } from 'lucide-vue-next';
+import { useB2BClients } from '@/composables/useB2BClients';
 import InvoiceTemplate, { type InvoiceData } from '@/components/Invoices/InvoiceTemplate.vue';
 import { formatDateTime } from '@/utils/date';
 import { supabase } from '@/lib/supabase';
@@ -45,6 +46,20 @@ const availableServices = computed(() => {
   }
   return list;
 });
+
+// ── B2B Clients ──
+const { clients: b2bClients, fetchClients: fetchB2BClients } = useB2BClients();
+
+function selectB2BClientForInvoice(clientId: string) {
+  const c = b2bClients.value.find(b => String(b.id) === clientId);
+  if (c) {
+    clientInfo.value.name = c.company_name;
+    clientInfo.value.address = c.address || '';
+    clientInfo.value.mf = c.mf || '';
+    clientInfo.value.tel = c.phone || '';
+    rebuildPreview();
+  }
+}
 
 // ── Client info (B2B editable) ──
 const clientInfo = ref({
@@ -288,7 +303,7 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString('fr-TN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-onMounted(() => fetchAllServices());
+onMounted(() => { fetchAllServices(); fetchB2BClients(); });
 </script>
 
 <template>
@@ -421,7 +436,17 @@ onMounted(() => fetchAllServices());
             <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Client / Agence (B2B)</p>
           </div>
           <h2 class="text-base font-semibold text-slate-900">Coordonnées client</h2>
-          <p class="mt-1 text-xs text-slate-400">Personnalisez les infos client sur la facture</p>
+          <p class="mt-1 text-xs text-slate-400">Sélectionnez une agence ou saisissez manuellement</p>
+
+          <!-- B2B Client Selector -->
+          <div v-if="b2bClients.length > 0" class="mt-3 p-3 rounded-xl bg-violet-50 ring-1 ring-violet-200">
+            <label class="block text-xs font-semibold text-violet-700 mb-1.5">Sélectionner une agence</label>
+            <select @change="selectB2BClientForInvoice(($event.target as HTMLSelectElement).value)" class="w-full rounded-lg border border-violet-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 appearance-none cursor-pointer">
+              <option value="">-- Choisir --</option>
+              <option v-for="b in b2bClients" :key="b.id" :value="String(b.id)">{{ b.company_name }}</option>
+            </select>
+          </div>
+
           <div class="mt-4 space-y-3">
             <div>
               <label class="block text-xs font-medium text-slate-600 mb-1">Nom / Raison sociale</label>
