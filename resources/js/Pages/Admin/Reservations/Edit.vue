@@ -5,6 +5,7 @@ import { useReservationDocuments } from '@/composables/useReservationDocuments';
 import { useCars } from '@/composables/useCars';
 import { useTenantLink } from '@/composables/useTenantLink';
 import { useReportedClients, type ReportedClient } from '@/composables/useReportedClients';
+import { useContractAI } from '@/composables/useContractAI';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 
@@ -64,12 +65,89 @@ const { checkClientStatus } = useReportedClients();
 const route = useRoute();
 const router = useRouter();
 
+const { isAnalyzing, analysisError, filledFieldsCount, analyzeContract, hasSecondDriver } = useContractAI();
+
 const isEditMode = computed(() => !!route.params.id && route.params.id !== 'new');
 const loading = ref(false);
 const initialLoading = ref(true);
 const previewFile = ref<File | null>(null);
 const previewUrl = ref<string | null>(null);
 const showPreview = ref(false);
+
+// AI Contract Scanner State
+const showAiScan = ref(false);
+const aiScanFile = ref<File | null>(null);
+const aiScanPreviewUrl = ref<string | null>(null);
+const aiScanStep = ref<'upload' | 'analyzing' | 'done' | 'error'>('upload');
+const aiDragOver = ref(false);
+
+function openAiScan() {
+    showAiScan.value = true;
+    aiScanStep.value = 'upload';
+    aiScanFile.value = null;
+    aiScanPreviewUrl.value = null;
+    analysisError.value = null;
+}
+
+function closeAiScan() {
+    if (aiScanPreviewUrl.value) {
+        URL.revokeObjectURL(aiScanPreviewUrl.value);
+    }
+    showAiScan.value = false;
+    aiScanFile.value = null;
+    aiScanPreviewUrl.value = null;
+    aiScanStep.value = 'upload';
+    aiDragOver.value = false;
+}
+
+function handleAiFileSelect(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files[0]) {
+        setAiFile(input.files[0]);
+        input.value = '';
+    }
+}
+
+function handleAiDrop(event: DragEvent) {
+    aiDragOver.value = false;
+    const file = event.dataTransfer?.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+        setAiFile(file);
+    }
+}
+
+function setAiFile(file: File) {
+    if (aiScanPreviewUrl.value) {
+        URL.revokeObjectURL(aiScanPreviewUrl.value);
+    }
+    aiScanFile.value = file;
+    aiScanPreviewUrl.value = URL.createObjectURL(file);
+}
+
+async function startAiAnalysis() {
+    if (!aiScanFile.value) return;
+    aiScanStep.value = 'analyzing';
+
+    try {
+        const result = await analyzeContract(aiScanFile.value, cars.value || []);
+        applyAiResult(result);
+        aiScanStep.value = 'done';
+    } catch {
+        aiScanStep.value = 'error';
+    }
+}
+
+function applyAiResult(result: Partial<Reservation>) {
+    for (const [key, value] of Object.entries(result)) {
+        if (value != null && value !== '' && key in reservation.value) {
+            (reservation.value as any)[key] = value;
+        }
+    }
+
+    if (hasSecondDriver(result)) {
+        showSecondDriver.value = true;
+    }
+}
 
 // Reported Client State
 const reportedClientWarning = ref<ReportedClient | null>(null);
@@ -353,7 +431,7 @@ import {
     ClipboardList, User, CreditCard, Phone, Mail, IdCard, Car, Calendar, Clock, Hash, 
     DollarSign, Wallet, MapPin, FileText, Plus, Minus, Loader2, CircleCheck, 
     AlertTriangle, X, Eye, Trash2, Upload, Image,
-    Users, ChevronDown,
+    Users, ChevronDown, Sparkles, ScanLine, CheckCircle2, RotateCcw,
 } from 'lucide-vue-next';
 </script>
 
@@ -362,19 +440,33 @@ import {
         <div class="max-w-3xl mx-auto p-5 md:p-6 space-y-5">
 
             <!-- Header -->
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-200">
-                    <ClipboardList class="w-5 h-5 text-white" />
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-200">
+                        <ClipboardList class="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold text-gray-900 tracking-tight">
+                            {{ isEditMode ? t('admin.reservations.edit_title') : t('admin.reservations.new_title') }}
+                        </h1>
+                        <p v-if="isEditMode && reservation.reservation_number" class="text-sm text-gray-500">
+                            {{ reservation.reservation_number }}
+                        </p>
+                        <p v-else class="text-sm text-gray-500">Remplissez les informations de la réservation</p>
+                    </div>
                 </div>
-                <div>
-                    <h1 class="text-xl font-bold text-gray-900 tracking-tight">
-                        {{ isEditMode ? t('admin.reservations.edit_title') : t('admin.reservations.new_title') }}
-                    </h1>
-                    <p v-if="isEditMode && reservation.reservation_number" class="text-sm text-gray-500">
-                        {{ reservation.reservation_number }}
-                    </p>
-                    <p v-else class="text-sm text-gray-500">Remplissez les informations de la réservation</p>
-                </div>
+
+                <button
+                    v-if="!isEditMode"
+                    type="button"
+                    @click="openAiScan"
+                    class="ai-scan-btn group relative inline-flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-white rounded-xl shadow-lg transition-all hover:scale-[1.03] active:scale-[0.98]"
+                >
+                    <span class="ai-scan-btn-bg"></span>
+                    <Sparkles class="w-4 h-4 relative z-10" />
+                    <span class="relative z-10 hidden sm:inline">AI Scan</span>
+                    <ScanLine class="w-4 h-4 relative z-10 hidden sm:inline" />
+                </button>
             </div>
 
             <!-- Loading -->
@@ -933,6 +1025,174 @@ import {
                     </div>
                 </Transition>
             </Teleport>
+
+            <!-- AI Contract Scanner Modal -->
+            <Teleport to="body">
+                <Transition name="modal">
+                    <div v-if="showAiScan" class="fixed inset-0 z-50 overflow-y-auto">
+                        <div class="fixed inset-0 bg-black/60 backdrop-blur-sm" @click="aiScanStep !== 'analyzing' && closeAiScan()"></div>
+                        <div class="flex min-h-full items-center justify-center p-4">
+                            <div class="modal-container relative bg-white rounded-2xl shadow-2xl max-w-xl w-full overflow-hidden">
+                                <!-- Modal Header -->
+                                <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-violet-50 to-purple-50">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-md shadow-violet-200">
+                                            <Sparkles class="w-4 h-4 text-white" />
+                                        </div>
+                                        <div>
+                                            <h3 class="text-base font-bold text-gray-900">AI Contract Scanner</h3>
+                                            <p class="text-xs text-gray-500">Gemma 3 Vision</p>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        v-if="aiScanStep !== 'analyzing'"
+                                        @click="closeAiScan" 
+                                        class="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-white/80 transition-colors"
+                                    >
+                                        <X class="w-5 h-5" />
+                                    </button>
+                                </div>
+
+                                <div class="p-6">
+                                    <!-- Step: Upload -->
+                                    <div v-if="aiScanStep === 'upload'">
+                                        <div v-if="!aiScanFile">
+                                            <label 
+                                                class="block cursor-pointer"
+                                                @dragover.prevent="aiDragOver = true"
+                                                @dragleave.prevent="aiDragOver = false"
+                                                @drop.prevent="handleAiDrop"
+                                            >
+                                                <input 
+                                                    type="file" 
+                                                    accept="image/*"
+                                                    capture="environment"
+                                                    @change="handleAiFileSelect"
+                                                    class="hidden"
+                                                >
+                                                <div 
+                                                    class="flex flex-col items-center justify-center gap-3 px-6 py-10 border-2 border-dashed rounded-2xl transition-all"
+                                                    :class="aiDragOver 
+                                                        ? 'border-violet-400 bg-violet-50/60 scale-[1.01]' 
+                                                        : 'border-gray-200 hover:border-violet-300 hover:bg-violet-50/30'"
+                                                >
+                                                    <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-100 to-purple-100 flex items-center justify-center">
+                                                        <ScanLine class="w-7 h-7 text-violet-600" />
+                                                    </div>
+                                                    <div class="text-center">
+                                                        <p class="text-sm font-bold text-gray-700">Importer une image du contrat</p>
+                                                        <p class="text-xs text-gray-400 mt-1">Glisser-déposer ou cliquer pour sélectionner</p>
+                                                        <p class="text-xs text-gray-400 mt-0.5">Supporte les contrats en Arabe, Français, Anglais</p>
+                                                    </div>
+                                                </div>
+                                            </label>
+                                        </div>
+
+                                        <div v-else>
+                                            <div class="rounded-xl overflow-hidden ring-1 ring-gray-200 mb-4 max-h-72 overflow-y-auto">
+                                                <img :src="aiScanPreviewUrl!" alt="Contract preview" class="w-full h-auto" />
+                                            </div>
+                                            <p class="text-xs text-gray-500 mb-4 flex items-center gap-1.5">
+                                                <Image class="w-3.5 h-3.5" />
+                                                {{ aiScanFile.name }} ({{ (aiScanFile.size / 1024 / 1024).toFixed(2) }} MB)
+                                            </p>
+
+                                            <div class="flex justify-between">
+                                                <button 
+                                                    type="button"
+                                                    @click="aiScanFile = null; if (aiScanPreviewUrl) { URL.revokeObjectURL(aiScanPreviewUrl); aiScanPreviewUrl = null; }"
+                                                    class="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-xl ring-1 ring-gray-200 transition-all"
+                                                >
+                                                    Changer
+                                                </button>
+                                                <button 
+                                                    type="button"
+                                                    @click="startAiAnalysis"
+                                                    class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 rounded-xl shadow-lg shadow-violet-200 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                                >
+                                                    <Sparkles class="w-4 h-4" />
+                                                    Analyser le contrat
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Step: Analyzing -->
+                                    <div v-else-if="aiScanStep === 'analyzing'" class="flex flex-col items-center justify-center py-8">
+                                        <div class="relative mb-6">
+                                            <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-violet-100 to-purple-100 flex items-center justify-center">
+                                                <Sparkles class="w-9 h-9 text-violet-600 animate-pulse" />
+                                            </div>
+                                            <div class="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-white shadow-md flex items-center justify-center">
+                                                <Loader2 class="w-5 h-5 text-violet-600 animate-spin" />
+                                            </div>
+                                        </div>
+                                        <h4 class="text-base font-bold text-gray-900 mb-1">Analyse en cours...</h4>
+                                        <p class="text-sm text-gray-500 text-center max-w-xs">
+                                            Gemma AI analyse votre contrat et extrait les informations
+                                        </p>
+                                        <div class="mt-5 flex gap-1">
+                                            <div class="w-2 h-2 rounded-full bg-violet-400 animate-bounce" style="animation-delay: 0ms"></div>
+                                            <div class="w-2 h-2 rounded-full bg-violet-400 animate-bounce" style="animation-delay: 150ms"></div>
+                                            <div class="w-2 h-2 rounded-full bg-violet-400 animate-bounce" style="animation-delay: 300ms"></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Step: Done -->
+                                    <div v-else-if="aiScanStep === 'done'" class="flex flex-col items-center justify-center py-6">
+                                        <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-100 to-green-100 flex items-center justify-center mb-4">
+                                            <CheckCircle2 class="w-8 h-8 text-emerald-600" />
+                                        </div>
+                                        <h4 class="text-base font-bold text-gray-900 mb-1">Analyse terminée</h4>
+                                        <p class="text-sm text-gray-500 mb-4">
+                                            <span class="font-bold text-emerald-600">{{ filledFieldsCount }}</span> champs remplis automatiquement
+                                        </p>
+                                        <div class="bg-emerald-50 rounded-xl p-3 ring-1 ring-emerald-200 text-sm text-emerald-700 mb-5 max-w-sm text-center">
+                                            Les données extraites ont été appliquées au formulaire. Vérifiez et complétez les informations manquantes.
+                                        </div>
+                                        <button 
+                                            type="button"
+                                            @click="closeAiScan"
+                                            class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 rounded-xl shadow-md shadow-emerald-200 transition-all"
+                                        >
+                                            <CheckCircle2 class="w-4 h-4" />
+                                            Fermer et vérifier
+                                        </button>
+                                    </div>
+
+                                    <!-- Step: Error -->
+                                    <div v-else-if="aiScanStep === 'error'" class="flex flex-col items-center justify-center py-6">
+                                        <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-red-100 to-rose-100 flex items-center justify-center mb-4">
+                                            <AlertTriangle class="w-8 h-8 text-red-600" />
+                                        </div>
+                                        <h4 class="text-base font-bold text-gray-900 mb-1">Erreur d'analyse</h4>
+                                        <p class="text-sm text-gray-500 mb-4 text-center max-w-xs">
+                                            {{ analysisError || "Impossible d'analyser le contrat. Vérifiez l'image et réessayez." }}
+                                        </p>
+                                        <div class="flex gap-3">
+                                            <button 
+                                                type="button"
+                                                @click="closeAiScan"
+                                                class="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-xl ring-1 ring-gray-200 transition-all"
+                                            >
+                                                Fermer
+                                            </button>
+                                            <button 
+                                                type="button"
+                                                @click="aiScanStep = 'upload'"
+                                                class="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-gradient-to-r from-violet-600 to-purple-600 rounded-xl shadow-md shadow-violet-200 transition-all"
+                                            >
+                                                <RotateCcw class="w-4 h-4" />
+                                                Réessayer
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </Transition>
+            </Teleport>
         </div>
     </div>
 </template>
@@ -1010,6 +1270,36 @@ import {
     font-weight: 700;
     border-radius: 0.375rem;
     text-transform: capitalize;
+}
+
+.ai-scan-btn {
+    background: linear-gradient(135deg, #7c3aed, #9333ea, #a855f7);
+    overflow: hidden;
+}
+
+.ai-scan-btn-bg {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, #9333ea, #7c3aed, #6d28d9);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.ai-scan-btn:hover .ai-scan-btn-bg {
+    opacity: 1;
+}
+
+@keyframes ai-shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+.ai-scan-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+    animation: ai-shimmer 3s infinite;
 }
 
 /* Modal animation */
