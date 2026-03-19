@@ -1041,7 +1041,7 @@ import {
                                         </div>
                                         <div>
                                             <h3 class="text-base font-bold text-gray-900">AI Contract Scanner</h3>
-                                            <p class="text-xs text-gray-500">Gemma 3 Vision</p>
+                                            <p class="text-xs text-gray-500">Powered by Orion</p>
                                         </div>
                                     </div>
                                     <button 
@@ -1129,7 +1129,7 @@ import {
                                         </div>
                                         <h4 class="text-base font-bold text-gray-900 mb-1">Analyse en cours...</h4>
                                         <p class="text-sm text-gray-500 text-center max-w-xs">
-                                            Gemma AI analyse votre contrat et extrait les informations
+                                            Orion analyse votre contrat et extrait les informations
                                         </p>
                                         <div class="mt-5 flex gap-1">
                                             <div class="w-2 h-2 rounded-full bg-violet-400 animate-bounce" style="animation-delay: 0ms"></div>
