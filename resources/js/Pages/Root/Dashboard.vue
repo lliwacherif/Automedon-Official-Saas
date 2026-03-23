@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from 'vue';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/auth';
 import { useTenantStore } from '@/stores/tenant';
-import { Trash2, Pause, Play, Plus, ExternalLink, Store, Settings, LogOut, Users, CircleCheck, CirclePause, Building2, Loader2, Upload, X, Globe, Bell, BellOff } from 'lucide-vue-next';
+import { Trash2, Pause, Play, Plus, ExternalLink, Store, Settings, LogOut, Users, CircleCheck, CirclePause, Building2, Loader2, Upload, X, Globe, Bell, BellOff, CreditCard, Calendar, Check, Minus, ChevronUp, ChevronDown, Clock, AlertTriangle } from 'lucide-vue-next';
 import { useFileUpload } from '@/composables/useFileUpload';
 import { compressImage } from '@/utils/image';
 
@@ -19,6 +19,9 @@ interface Tenant {
     status: string;
     created_at: string;
     payment_alert: boolean;
+    membership_type: 'monthly' | 'yearly' | null;
+    membership_months: number | null;
+    membership_paid: boolean;
 }
 
 const tenants = ref<Tenant[]>([]);
@@ -134,6 +137,67 @@ const handleToggleAlert = async (tenant: Tenant) => {
         tenant.payment_alert = newVal;
     } catch (e: any) {
         alert('Error toggling alert: ' + e.message);
+    }
+};
+
+const showSubscriptionModal = ref(false);
+const subscriptionTenant = ref<Tenant | null>(null);
+const subscriptionForm = ref({
+    membership_type: null as 'monthly' | 'yearly' | null,
+    membership_months: 1 as number,
+    membership_paid: false
+});
+const subscriptionSaving = ref(false);
+
+const openSubscriptionModal = (tenant: Tenant) => {
+    subscriptionTenant.value = tenant;
+    subscriptionForm.value = {
+        membership_type: tenant.membership_type || null,
+        membership_months: tenant.membership_months || 1,
+        membership_paid: tenant.membership_paid ?? false
+    };
+    showSubscriptionModal.value = true;
+};
+
+const getNextPaymentDate = computed(() => {
+    if (!subscriptionTenant.value) return null;
+    const created = new Date(subscriptionTenant.value.created_at);
+    if (subscriptionForm.value.membership_type === 'monthly') {
+        const next = new Date(created);
+        next.setMonth(next.getMonth() + subscriptionForm.value.membership_months);
+        return next;
+    }
+    if (subscriptionForm.value.membership_type === 'yearly') {
+        const next = new Date(created);
+        next.setFullYear(next.getFullYear() + 1);
+        return next;
+    }
+    return null;
+});
+
+const isPaymentOverdue = computed(() => {
+    if (!getNextPaymentDate.value) return false;
+    return getNextPaymentDate.value < new Date();
+});
+
+const saveSubscription = async () => {
+    if (!subscriptionTenant.value) return;
+    subscriptionSaving.value = true;
+    try {
+        await tenantStore.updateSubscription(
+            subscriptionTenant.value.id,
+            subscriptionForm.value.membership_type,
+            subscriptionForm.value.membership_type === 'monthly' ? subscriptionForm.value.membership_months : null,
+            subscriptionForm.value.membership_paid
+        );
+        subscriptionTenant.value.membership_type = subscriptionForm.value.membership_type;
+        subscriptionTenant.value.membership_months = subscriptionForm.value.membership_type === 'monthly' ? subscriptionForm.value.membership_months : null;
+        subscriptionTenant.value.membership_paid = subscriptionForm.value.membership_paid;
+        showSubscriptionModal.value = false;
+    } catch (e: any) {
+        alert('Error saving subscription: ' + e.message);
+    } finally {
+        subscriptionSaving.value = false;
     }
 };
 
@@ -323,6 +387,16 @@ onMounted(() => {
                                 <BellOff v-else class="w-4 h-4" />
                             </button>
                             <button 
+                                @click="openSubscriptionModal(tenant)"
+                                class="flex items-center justify-center w-9 h-9 rounded-lg transition-all"
+                                :class="tenant.membership_type 
+                                    ? 'text-violet-400 bg-violet-500/10 hover:bg-violet-500/20' 
+                                    : 'text-white/20 hover:text-violet-400 hover:bg-violet-500/10'"
+                                title="Subscription"
+                            >
+                                <CreditCard class="w-4 h-4" />
+                            </button>
+                            <button 
                                 @click="handleDelete(tenant.id)" 
                                 class="flex items-center justify-center w-9 h-9 rounded-lg text-red-400/50 hover:text-red-400 hover:bg-red-500/10 transition-all" 
                                 title="Delete Client"
@@ -426,6 +500,191 @@ onMounted(() => {
                             </button>
                         </div>
                     </form>
+                </div>
+            </div>
+        </Transition>
+
+        <!-- Subscription Modal -->
+        <Transition name="modal">
+            <div v-if="showSubscriptionModal && subscriptionTenant" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showSubscriptionModal = false"></div>
+                <div class="relative w-full max-w-md bg-[#1a1b23] border border-white/[0.08] rounded-2xl shadow-2xl">
+                    <!-- Modal Header -->
+                    <div class="flex items-center justify-between px-6 py-5 border-b border-white/[0.06]">
+                        <div class="flex items-center gap-3">
+                            <div class="w-9 h-9 rounded-xl bg-violet-500/10 flex items-center justify-center">
+                                <CreditCard class="w-4 h-4 text-violet-400" />
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-semibold text-white">Subscription</h3>
+                                <p class="text-xs text-white/30 mt-0.5">{{ subscriptionTenant.name }}</p>
+                            </div>
+                        </div>
+                        <button @click="showSubscriptionModal = false" class="text-white/30 hover:text-white p-1 rounded-lg hover:bg-white/[0.06] transition">
+                            <X class="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    <!-- Modal Body -->
+                    <div class="p-6 space-y-6">
+                        <!-- Client Creation Date -->
+                        <div class="flex items-center gap-3 p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
+                            <div class="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
+                                <Calendar class="w-4.5 h-4.5 text-indigo-400" />
+                            </div>
+                            <div>
+                                <p class="text-xs font-semibold text-white/40 uppercase tracking-wider">Client Since</p>
+                                <p class="text-sm font-semibold text-white mt-0.5">{{ formatDate(subscriptionTenant.created_at) }}</p>
+                            </div>
+                        </div>
+
+                        <!-- Membership Type -->
+                        <div>
+                            <label class="block text-xs font-semibold text-white/50 uppercase tracking-wider mb-3">Membership Type</label>
+                            <div class="grid grid-cols-2 gap-3">
+                                <button 
+                                    type="button"
+                                    @click="subscriptionForm.membership_type = 'monthly'"
+                                    class="relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all"
+                                    :class="subscriptionForm.membership_type === 'monthly' 
+                                        ? 'border-violet-500/50 bg-violet-500/10' 
+                                        : 'border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] hover:bg-white/[0.04]'"
+                                >
+                                    <div v-if="subscriptionForm.membership_type === 'monthly'" class="absolute top-2 right-2">
+                                        <Check class="w-4 h-4 text-violet-400" />
+                                    </div>
+                                    <div class="w-10 h-10 rounded-xl flex items-center justify-center" :class="subscriptionForm.membership_type === 'monthly' ? 'bg-violet-500/20' : 'bg-white/[0.04]'">
+                                        <Calendar class="w-5 h-5" :class="subscriptionForm.membership_type === 'monthly' ? 'text-violet-400' : 'text-white/30'" />
+                                    </div>
+                                    <span class="text-sm font-semibold" :class="subscriptionForm.membership_type === 'monthly' ? 'text-violet-300' : 'text-white/50'">Monthly</span>
+                                </button>
+                                <button 
+                                    type="button"
+                                    @click="subscriptionForm.membership_type = 'yearly'"
+                                    class="relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all"
+                                    :class="subscriptionForm.membership_type === 'yearly' 
+                                        ? 'border-violet-500/50 bg-violet-500/10' 
+                                        : 'border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] hover:bg-white/[0.04]'"
+                                >
+                                    <div v-if="subscriptionForm.membership_type === 'yearly'" class="absolute top-2 right-2">
+                                        <Check class="w-4 h-4 text-violet-400" />
+                                    </div>
+                                    <div class="w-10 h-10 rounded-xl flex items-center justify-center" :class="subscriptionForm.membership_type === 'yearly' ? 'bg-violet-500/20' : 'bg-white/[0.04]'">
+                                        <CreditCard class="w-5 h-5" :class="subscriptionForm.membership_type === 'yearly' ? 'text-violet-400' : 'text-white/30'" />
+                                    </div>
+                                    <span class="text-sm font-semibold" :class="subscriptionForm.membership_type === 'yearly' ? 'text-violet-300' : 'text-white/50'">Yearly</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Months Subscribed (only for monthly) -->
+                        <div v-if="subscriptionForm.membership_type === 'monthly'">
+                            <label class="block text-xs font-semibold text-white/50 uppercase tracking-wider mb-3">Months Subscribed</label>
+                            <div class="flex items-center gap-4 p-4 bg-white/[0.03] border border-white/[0.06] rounded-xl">
+                                <div class="flex items-center gap-3 flex-1">
+                                    <button 
+                                        type="button"
+                                        @click="subscriptionForm.membership_months = Math.max(1, subscriptionForm.membership_months - 1)"
+                                        class="w-9 h-9 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] flex items-center justify-center text-white/50 hover:text-white transition-all"
+                                    >
+                                        <Minus class="w-4 h-4" />
+                                    </button>
+                                    <div class="flex-1 text-center">
+                                        <span class="text-2xl font-bold text-white">{{ subscriptionForm.membership_months }}</span>
+                                        <span class="text-sm text-white/30 ml-1.5">{{ subscriptionForm.membership_months === 1 ? 'month' : 'months' }}</span>
+                                    </div>
+                                    <button 
+                                        type="button"
+                                        @click="subscriptionForm.membership_months = Math.min(24, subscriptionForm.membership_months + 1)"
+                                        class="w-9 h-9 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] flex items-center justify-center text-white/50 hover:text-white transition-all"
+                                    >
+                                        <Plus class="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex gap-2 mt-2">
+                                <button 
+                                    v-for="q in [1, 3, 6, 12]" :key="q"
+                                    type="button"
+                                    @click="subscriptionForm.membership_months = q"
+                                    class="flex-1 text-xs font-semibold py-1.5 rounded-lg transition-all"
+                                    :class="subscriptionForm.membership_months === q 
+                                        ? 'bg-violet-500/20 text-violet-300 border border-violet-500/30' 
+                                        : 'bg-white/[0.03] text-white/30 border border-white/[0.06] hover:bg-white/[0.06] hover:text-white/50'"
+                                >
+                                    {{ q }}mo
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Next Payment Date -->
+                        <div v-if="getNextPaymentDate" class="flex items-center gap-3 p-4 rounded-xl border" :class="isPaymentOverdue ? 'bg-red-500/5 border-red-500/20' : 'bg-white/[0.03] border-white/[0.06]'">
+                            <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" :class="isPaymentOverdue ? 'bg-red-500/10' : 'bg-amber-500/10'">
+                                <AlertTriangle v-if="isPaymentOverdue" class="w-4.5 h-4.5 text-red-400" />
+                                <Clock v-else class="w-4.5 h-4.5 text-amber-400" />
+                            </div>
+                            <div class="flex-1">
+                                <p class="text-xs font-semibold uppercase tracking-wider" :class="isPaymentOverdue ? 'text-red-400/60' : 'text-white/40'">Next Payment</p>
+                                <p class="text-sm font-semibold mt-0.5" :class="isPaymentOverdue ? 'text-red-300' : 'text-white'">{{ formatDate(getNextPaymentDate.toISOString()) }}</p>
+                            </div>
+                            <span 
+                                v-if="isPaymentOverdue"
+                                class="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full bg-red-500/15 text-red-400"
+                            >Overdue</span>
+                        </div>
+
+                        <!-- Paid Toggle -->
+                        <div>
+                            <label class="block text-xs font-semibold text-white/50 uppercase tracking-wider mb-3">Payment Status</label>
+                            <div 
+                                class="flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer"
+                                :class="subscriptionForm.membership_paid 
+                                    ? 'border-emerald-500/30 bg-emerald-500/5' 
+                                    : 'border-white/[0.06] bg-white/[0.02]'"
+                                @click="subscriptionForm.membership_paid = !subscriptionForm.membership_paid"
+                            >
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-xl flex items-center justify-center" :class="subscriptionForm.membership_paid ? 'bg-emerald-500/15' : 'bg-white/[0.04]'">
+                                        <Check v-if="subscriptionForm.membership_paid" class="w-5 h-5 text-emerald-400" />
+                                        <X v-else class="w-5 h-5 text-white/25" />
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-semibold" :class="subscriptionForm.membership_paid ? 'text-emerald-300' : 'text-white/50'">
+                                            {{ subscriptionForm.membership_paid ? 'Paid' : 'Not Paid' }}
+                                        </p>
+                                        <p class="text-xs mt-0.5" :class="subscriptionForm.membership_paid ? 'text-emerald-400/50' : 'text-white/20'">
+                                            {{ subscriptionForm.membership_paid ? 'Subscription payment received' : 'Awaiting payment' }}
+                                        </p>
+                                    </div>
+                                </div>
+                                <!-- Toggle Switch -->
+                                <div 
+                                    class="relative w-11 h-6 rounded-full transition-colors flex-shrink-0"
+                                    :class="subscriptionForm.membership_paid ? 'bg-emerald-500' : 'bg-white/10'"
+                                >
+                                    <div 
+                                        class="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform"
+                                        :class="subscriptionForm.membership_paid ? 'translate-x-[22px]' : 'translate-x-0.5'"
+                                    ></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Modal Footer -->
+                    <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/[0.06]">
+                        <button type="button" @click="showSubscriptionModal = false" class="text-sm text-white/40 hover:text-white px-4 py-2.5 rounded-xl hover:bg-white/[0.06] transition">
+                            Cancel
+                        </button>
+                        <button 
+                            @click="saveSubscription"
+                            :disabled="subscriptionSaving" 
+                            class="flex items-center gap-2 bg-violet-500 text-white hover:bg-violet-400 text-sm font-semibold px-5 py-2.5 rounded-xl transition-all shadow-lg shadow-violet-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <Loader2 v-if="subscriptionSaving" class="w-4 h-4 animate-spin" />
+                            {{ subscriptionSaving ? 'Saving...' : 'Save Changes' }}
+                        </button>
+                    </div>
                 </div>
             </div>
         </Transition>

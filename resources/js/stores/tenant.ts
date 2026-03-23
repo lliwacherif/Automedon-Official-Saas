@@ -9,6 +9,10 @@ export interface Tenant {
     logo_url: string;
     status: 'active' | 'inactive';
     payment_alert: boolean;
+    membership_type: 'monthly' | 'yearly' | null;
+    membership_months: number | null;
+    membership_paid: boolean;
+    created_at: string;
 }
 
 // Helper: SHA-256 for password hashing (matches Auth Store)
@@ -153,6 +157,25 @@ export const useTenantStore = defineStore('tenant', () => {
         }
     }
 
+    async function updateSubscription(id: string, membershipType: 'monthly' | 'yearly' | null, membershipMonths: number | null, membershipPaid: boolean) {
+        try {
+            const { error: updateError } = await supabase
+                .from('tenants')
+                .update({
+                    membership_type: membershipType,
+                    membership_months: membershipType === 'monthly' ? membershipMonths : null,
+                    membership_paid: membershipPaid
+                })
+                .eq('id', id);
+
+            if (updateError) throw updateError;
+            return { membership_type: membershipType, membership_months: membershipMonths, membership_paid: membershipPaid };
+        } catch (e: any) {
+            console.error('Error updating subscription:', e);
+            throw e;
+        }
+    }
+
     async function deleteTenant(id: string) {
         loading.value = true;
         try {
@@ -210,6 +233,7 @@ export const useTenantStore = defineStore('tenant', () => {
         createTenant,
         toggleTenantStatus,
         togglePaymentAlert,
+        updateSubscription,
         deleteTenant,
         createTenantUser
     };
