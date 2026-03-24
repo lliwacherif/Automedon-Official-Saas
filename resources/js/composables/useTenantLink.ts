@@ -1,24 +1,31 @@
 // resources/js/composables/useTenantLink.ts
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 import { useTenantStore } from '@/stores/tenant';
 import { useRoute } from 'vue-router';
+
+const SLUG_STORAGE_KEY = 'automedon_tenant_slug';
 
 export function useTenantLink() {
     const tenantStore = useTenantStore();
     const route = useRoute();
 
-    // Helper to get current slug, falling back to route params if store isn't ready
     const currentSlug = computed(() => {
-        return tenantStore.currentTenant?.slug || (route.params.tenantSlug as string) || '';
+        const storeSlug = tenantStore.currentTenant?.slug;
+        const routeSlug = route.params.tenantSlug as string | undefined;
+        const resolved = storeSlug || routeSlug || '';
+
+        if (resolved) {
+            try { sessionStorage.setItem(SLUG_STORAGE_KEY, resolved); } catch {}
+            return resolved;
+        }
+
+        // Last resort: recover from sessionStorage so slug is never lost mid-session
+        try { return sessionStorage.getItem(SLUG_STORAGE_KEY) || ''; } catch { return ''; }
     });
 
-    // Generate a path prefixed with the tenant slug
     function tenantPath(path: string) {
-        // If no slug (e.g. root or home), return original path ?
-        // Or assume this is only used in tenant context
         if (!currentSlug.value) return path;
 
-        // Remove leading slash to avoid double slash
         const cleanPath = path.startsWith('/') ? path.slice(1) : path;
         return `/${currentSlug.value}/${cleanPath}`;
     }

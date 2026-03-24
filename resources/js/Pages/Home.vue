@@ -5,11 +5,13 @@ import { useAuthStore } from '@/stores/auth';
 import { useRouter } from 'vue-router';
 import ReservationModal from '@/components/ReservationModal.vue';
 import CarAvailabilityModal from '@/components/CarAvailabilityModal.vue';
+import { useTenantLink } from '@/composables/useTenantLink';
 import { Eye, Calendar, Key, Fuel, Gauge, Users, CircleCheck, CircleX, Wrench, Search, Filter, ChevronDown, Car as CarIcon, Loader2 } from 'lucide-vue-next';
 
 const { cars, loading, fetchCars } = useCars();
 const authStore = useAuthStore();
 const router = useRouter();
+const { tenantPath } = useTenantLink();
 
 const filters = ref({
     search: '',
@@ -70,7 +72,10 @@ const closeAvailabilityModal = () => {
 };
 
 const openBookingModal = (car: Car) => {
-    // Auth check removed to allow guest reservations
+    if (authStore.isAdmin) {
+        router.push(tenantPath(`/admin/reservations/new?car_id=${car.id}`));
+        return;
+    }
     selectedCar.value = car;
     showReservationModal.value = true;
 };

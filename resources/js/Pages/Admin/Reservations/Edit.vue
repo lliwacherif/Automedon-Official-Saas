@@ -220,6 +220,11 @@ onMounted(async () => {
             // Fetch documents
             await fetchDocuments(Number(route.params.id));
         }
+    } else {
+        const preselectedCarId = route.query.car_id;
+        if (preselectedCarId) {
+            reservation.value.car_id = Number(preselectedCarId);
+        }
     }
     
     initialLoading.value = false;

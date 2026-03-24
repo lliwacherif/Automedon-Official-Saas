@@ -236,6 +236,17 @@ router.beforeEach(async (to, from, next) => {
         }
     }
 
+    // Redirect bare top-level routes back to tenant-scoped versions if a tenant session exists
+    const bareRoutes: Record<string, string> = { 'fleet': 'tenant.fleet', 'about': 'tenant.about' }
+    if (!to.params.tenantSlug && bareRoutes[to.name as string]) {
+        const savedSlug = tenantStore.currentTenant?.slug
+            || (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('automedon_tenant_slug') : null)
+        if (savedSlug) {
+            next({ name: bareRoutes[to.name as string], params: { tenantSlug: savedSlug } })
+            return
+        }
+    }
+
     // Tenant Resolution
     if (to.params.tenantSlug) {
         const slug = to.params.tenantSlug as string
