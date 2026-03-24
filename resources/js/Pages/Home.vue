@@ -13,7 +13,8 @@ const router = useRouter();
 
 const filters = ref({
     search: '',
-    status: 'all'
+    status: 'all',
+    transmission: 'all' as 'all' | 'auto' | 'manual'
 });
 
 // Modal States
@@ -34,7 +35,10 @@ const filteredCars = computed(() => {
         result = result.filter(car => car.status === filters.value.status);
     }
 
-    // Filtre par recherche (brand ou model)
+    if (filters.value.transmission !== 'all') {
+        result = result.filter(car => (car as any).transmission === filters.value.transmission);
+    }
+
     if (filters.value.search) {
         const searchLower = filters.value.search.toLowerCase();
         result = result.filter(car => 
@@ -115,7 +119,7 @@ const onReservationSuccess = () => {
                                 >
                             </div>
                         </div>
-                        <div class="sm:w-64">
+                        <div class="sm:w-56">
                             <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Statut</label>
                             <div class="relative">
                                 <Filter class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -129,6 +133,26 @@ const onReservationSuccess = () => {
                                     <option value="maintenance">{{ $t('admin.fleet.maintenance') }}</option>
                                 </select>
                                 <ChevronDown class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Transmission</label>
+                            <div class="flex bg-gray-100 rounded-xl p-0.5 ring-1 ring-gray-200/50">
+                                <button 
+                                    v-for="opt in ([
+                                        { value: 'all', label: 'Tous' },
+                                        { value: 'auto', label: 'Auto' },
+                                        { value: 'manual', label: 'Manuel' }
+                                    ] as const)"
+                                    :key="opt.value"
+                                    @click="filters.transmission = opt.value"
+                                    class="relative px-4 py-2 text-sm font-semibold rounded-[10px] transition-all duration-200 whitespace-nowrap"
+                                    :class="filters.transmission === opt.value 
+                                        ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200/80' 
+                                        : 'text-gray-400 hover:text-gray-600'"
+                                >
+                                    {{ opt.label }}
+                                </button>
                             </div>
                         </div>
                     </div>

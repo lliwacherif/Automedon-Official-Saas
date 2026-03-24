@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue';
+import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue';
 import { supabase } from '@/lib/supabase';
 import { type Car } from '@/composables/useCars';
 import { 
@@ -18,12 +18,13 @@ import {
     isSameDay,
     compareAsc,
     startOfDay,
-    endOfDay
+    endOfDay,
+    differenceInDays,
+    differenceInHours
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { X, ChevronLeft, ChevronRight, Check, AlertCircle, Calendar as CalendarIcon, Clock } from 'lucide-vue-next';
+import { X, ChevronLeft, ChevronRight, Check, AlertCircle, Calendar as CalendarIcon, Clock, Dot, Wrench, CarFront } from 'lucide-vue-next';
 import { formatDateTime } from '@/utils/date';
-
 import { useAuthStore } from '@/stores/auth';
 
 const props = defineProps<{
@@ -39,9 +40,29 @@ const currentMonth = ref(new Date());
 const reservations = ref<any[]>([]);
 const loading = ref(false);
 
-// Fetch reservations when car changes or modal opens
+// Touch swipe support
+const touchStartX = ref(0);
+const touchEndX = ref(0);
+const swiping = ref(false);
+
+function onTouchStart(e: TouchEvent) {
+    touchStartX.value = e.changedTouches[0].screenX;
+    swiping.value = true;
+}
+function onTouchEnd(e: TouchEvent) {
+    if (!swiping.value) return;
+    touchEndX.value = e.changedTouches[0].screenX;
+    const diff = touchStartX.value - touchEndX.value;
+    if (Math.abs(diff) > 60) {
+        if (diff > 0) nextMonth();
+        else prevMonth();
+    }
+    swiping.value = false;
+}
+
 watch(() => [props.show, props.car], async ([isShow, newCar]) => {
     if (isShow && newCar) {
+        currentMonth.value = new Date();
         await fetchReservations((newCar as Car).id);
     }
 }, { immediate: true });
@@ -49,7 +70,6 @@ watch(() => [props.show, props.car], async ([isShow, newCar]) => {
 async function fetchReservations(carId: number) {
     loading.value = true;
     try {
-        // Fetch reservations
         const { data, error } = await supabase
             .from('reservations')
             .select('id, start_date, end_date, status')
@@ -58,7 +78,6 @@ async function fetchReservations(carId: number) {
 
         if (error) throw error;
 
-        // Fetch services for this car too
         const { data: svcData, error: svcError } = await supabase
             .from('services')
             .select('id, start_date, end_date, service_type')
@@ -66,13 +85,12 @@ async function fetchReservations(carId: number) {
 
         if (svcError) throw svcError;
 
-        // Merge reservations + services into a single array
         const today = startOfDay(new Date());
 
         const filteredRes = (data || []).filter((res: any) => {
             const endDate = endOfDay(parseISO(res.end_date));
             return compareAsc(endDate, today) >= 0;
-        });
+        }).map((res: any) => ({ ...res, _type: 'reservation' }));
 
         const filteredSvc = (svcData || []).filter((svc: any) => {
             const endDate = endOfDay(parseISO(svc.end_date));
@@ -80,6 +98,7 @@ async function fetchReservations(carId: number) {
         }).map((svc: any) => ({
             ...svc,
             status: 'active',
+            _type: 'service',
         }));
 
         reservations.value = [...filteredRes, ...filteredSvc];
@@ -91,31 +110,50 @@ async function fetchReservations(carId: number) {
 }
 
 const calendarDays = computed(() => {
-    // Start of the month
     const monthStart = startOfMonth(currentMonth.value);
-    // End of the month
     const monthEnd = endOfMonth(currentMonth.value);
-    
-    // Start of the week for the first day of month (Monday start)
-    const startDate = startOfWeek(monthStart, { weekStartsOn: 1 }); // 1 = Monday
-    // End of the week for the last day of month
+    const startDate = startOfWeek(monthStart, { weekStartsOn: 1 });
     const endDate = endOfWeek(monthEnd, { weekStartsOn: 1 });
-
     return eachDayOfInterval({ start: startDate, end: endDate });
 });
 
-function isDateReserved(date: Date) {
-    return reservations.value.some(res => {
+function getDateReservations(date: Date) {
+    return reservations.value.filter(res => {
         const startDate = startOfDay(parseISO(res.start_date));
         const endDate = endOfDay(parseISO(res.end_date));
         return isWithinInterval(date, { start: startDate, end: endDate });
     });
 }
 
+function isDateReserved(date: Date) {
+    return getDateReservations(date).length > 0;
+}
+
+function getDateType(date: Date): 'reservation' | 'service' | 'both' | null {
+    const items = getDateReservations(date);
+    if (items.length === 0) return null;
+    const hasRes = items.some(i => i._type === 'reservation');
+    const hasSvc = items.some(i => i._type === 'service');
+    if (hasRes && hasSvc) return 'both';
+    if (hasSvc) return 'service';
+    return 'reservation';
+}
+
+function isRangeStart(date: Date) {
+    return reservations.value.some(res => isSameDay(date, startOfDay(parseISO(res.start_date))));
+}
+
+function isRangeEnd(date: Date) {
+    return reservations.value.some(res => isSameDay(date, startOfDay(parseISO(res.end_date))));
+}
+
+function isRangeMiddle(date: Date) {
+    return isDateReserved(date) && !isRangeStart(date) && !isRangeEnd(date);
+}
+
 const activeReservation = computed(() => {
     const now = new Date();
     return reservations.value.find(res => {
-        // Use exact timestamps for precise 'Active' status
         const startDate = parseISO(res.start_date);
         const endDate = parseISO(res.end_date);
         return isWithinInterval(now, { start: startDate, end: endDate });
@@ -124,149 +162,176 @@ const activeReservation = computed(() => {
 
 const futureReservations = computed(() => {
     const today = startOfDay(new Date());
-    // Filter for reservations starting today or later
     const future = reservations.value.filter(res => {
-        // Exclude the currently active reservation from the upcoming list
-        if (activeReservation.value && res.id === activeReservation.value.id) {
-            return false;
-        }
-
+        if (activeReservation.value && res.id === activeReservation.value.id) return false;
         const startDate = startOfDay(parseISO(res.start_date));
-        return compareAsc(startDate, today) >= 0; // startDate >= today
+        return compareAsc(startDate, today) >= 0;
     });
-    // Sort by date ascending
     return future.sort((a, b) => compareAsc(parseISO(a.start_date), parseISO(b.start_date)));
 });
+
+function getDuration(startDate: string, endDate: string) {
+    const days = differenceInDays(parseISO(endDate), parseISO(startDate));
+    if (days < 1) {
+        const hours = differenceInHours(parseISO(endDate), parseISO(startDate));
+        return `${hours}h`;
+    }
+    return `${days}j`;
+}
 
 function nextMonth() {
     currentMonth.value = addMonths(currentMonth.value, 1);
 }
-
 function prevMonth() {
     currentMonth.value = subMonths(currentMonth.value, 1);
 }
+function goToToday() {
+    currentMonth.value = new Date();
+}
+
+const isCurrentMonth = computed(() => isSameMonth(currentMonth.value, new Date()));
 
 function close() {
     emit('close');
 }
 
-const isAvailableToday = computed(() => {
-    return !activeReservation.value;
-});
+const isAvailableToday = computed(() => !activeReservation.value);
 
-// Short weekday names for mobile
 const weekdaysMobile = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 const weekdaysDesktop = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+
+// Tooltip
+const hoveredDate = ref<Date | null>(null);
+const tooltipInfo = computed(() => {
+    if (!hoveredDate.value) return null;
+    const items = getDateReservations(hoveredDate.value);
+    if (items.length === 0) return null;
+    return items;
+});
 </script>
 
 <template>
     <Teleport to="body">
         <Transition
-            enter-active-class="transition-opacity duration-200 ease-out"
+            enter-active-class="transition-all duration-250 ease-out"
             enter-from-class="opacity-0"
             enter-to-class="opacity-100"
-            leave-active-class="transition-opacity duration-150 ease-in"
+            leave-active-class="transition-all duration-200 ease-in"
             leave-from-class="opacity-100"
             leave-to-class="opacity-0"
         >
             <div v-if="show" class="fixed inset-0 z-[100]" role="dialog" aria-modal="true">
                 <!-- Backdrop -->
-                <div class="fixed inset-0 bg-black/60 backdrop-blur-sm" aria-hidden="true" @click="close"></div>
+                <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" aria-hidden="true" @click="close"></div>
 
-                <!-- Modal Content - Full screen on mobile, centered card on desktop -->
+                <!-- Modal Content -->
                 <div class="fixed inset-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 
-                            w-full h-full sm:w-[95vw] sm:max-w-[900px] sm:h-auto sm:max-h-[90vh] sm:rounded-2xl
+                            w-full h-full sm:w-[95vw] sm:max-w-[920px] sm:h-auto sm:max-h-[90vh] sm:rounded-2xl
                             bg-white shadow-2xl overflow-hidden flex flex-col">
                     
-                    <!-- Header - Sticky on mobile -->
-                    <div class="sticky top-0 z-20 flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b bg-white/95 backdrop-blur-sm">
-                        <div class="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                            <div class="p-1.5 sm:p-2 bg-indigo-100 rounded-lg shrink-0">
-                                <CalendarIcon class="w-4 h-4 sm:w-5 sm:h-5 text-indigo-600" />
+                    <!-- Header -->
+                    <div class="sticky top-0 z-20 flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-gray-100 bg-white">
+                        <div class="flex items-center gap-3 min-w-0 flex-1">
+                            <div class="p-2 bg-gradient-to-br from-indigo-50 to-violet-50 rounded-xl shrink-0 ring-1 ring-indigo-100">
+                                <CalendarIcon class="w-4.5 h-4.5 sm:w-5 sm:h-5 text-indigo-600" />
                             </div>
                             <div class="min-w-0">
-                                <h3 class="text-sm sm:text-lg font-semibold text-gray-900 truncate">
+                                <h3 class="text-sm sm:text-lg font-bold text-gray-900 truncate">
                                     {{ car?.brand }} {{ car?.model }}
-                                    <span v-if="authStore.isAdmin" class="ml-2 text-gray-500 font-normal text-sm">
+                                    <span v-if="authStore.isAdmin" class="ml-1.5 text-gray-400 font-medium text-xs sm:text-sm">
                                         {{ car?.plate_number }}
                                     </span>
                                 </h3>
-                                <p class="text-xs text-gray-500 hidden sm:block">Calendrier de disponibilité</p>
+                                <p class="text-[11px] sm:text-xs text-gray-400 mt-0.5">Calendrier de disponibilité</p>
                             </div>
                         </div>
                         <button 
                             @click="close" 
-                            class="p-2 -mr-2 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors touch-manipulation"
+                            class="p-2 -mr-1 rounded-xl hover:bg-gray-100 active:bg-gray-200 transition-colors touch-manipulation"
                         >
-                            <X class="h-5 w-5 sm:h-6 sm:w-6 text-gray-500" />
-                            <span class="sr-only">Fermer</span>
+                            <X class="h-5 w-5 text-gray-400" />
                         </button>
                     </div>
 
                     <!-- Scrollable Content -->
                     <div class="flex-1 overflow-y-auto overscroll-contain">
                         <div class="p-4 sm:p-6">
-                            <!-- Status Banner - Mobile optimized -->
+                            <!-- Status Banner -->
                             <div 
-                                class="flex items-center gap-3 p-3 sm:p-4 rounded-xl mb-4 sm:mb-6 transition-all"
+                                class="flex items-center gap-3 px-4 py-3 sm:py-3.5 rounded-xl mb-5 sm:mb-6"
                                 :class="isAvailableToday 
-                                    ? 'bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200' 
-                                    : 'bg-gradient-to-r from-red-50 to-orange-50 border border-red-200'"
+                                    ? 'bg-emerald-50 ring-1 ring-emerald-200/60' 
+                                    : 'bg-red-50 ring-1 ring-red-200/60'"
                             >
                                 <div 
-                                    class="p-2 sm:p-2.5 rounded-full shrink-0"
-                                    :class="isAvailableToday ? 'bg-green-100' : 'bg-red-100'"
+                                    class="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center shrink-0"
+                                    :class="isAvailableToday ? 'bg-emerald-100' : 'bg-red-100'"
                                 >
-                                    <Check v-if="isAvailableToday" class="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
-                                    <AlertCircle v-else class="w-4 h-4 sm:w-5 sm:h-5 text-red-600" />
+                                    <Check v-if="isAvailableToday" class="w-4 h-4 text-emerald-600" />
+                                    <AlertCircle v-else class="w-4 h-4 text-red-500" />
                                 </div>
                                 <div class="min-w-0 flex-1">
-                                    <p 
-                                        class="font-semibold text-sm sm:text-base"
-                                        :class="isAvailableToday ? 'text-green-700' : 'text-red-700'"
-                                    >
-                                        {{ isAvailableToday ? '✓ Disponible aujourd\'hui' : '✗ Actuellement Loué' }}
+                                    <p class="font-semibold text-[13px] sm:text-sm" :class="isAvailableToday ? 'text-emerald-700' : 'text-red-700'">
+                                        {{ isAvailableToday ? 'Disponible aujourd\'hui' : 'Actuellement réservé' }}
                                     </p>
-                                    <p v-if="!isAvailableToday && activeReservation" class="text-xs sm:text-sm text-red-600/80 mt-0.5">
+                                    <p v-if="!isAvailableToday && activeReservation" class="text-[11px] sm:text-xs mt-0.5" :class="isAvailableToday ? 'text-emerald-600/70' : 'text-red-500/70'">
                                         Jusqu'au {{ formatDateTime(activeReservation.end_date) }}
+                                        <span v-if="activeReservation._type === 'service'" class="ml-1 text-orange-500 font-semibold">(Service)</span>
                                     </p>
                                 </div>
+                                <div 
+                                    class="w-2 h-2 rounded-full shrink-0 animate-pulse"
+                                    :class="isAvailableToday ? 'bg-emerald-400' : 'bg-red-400'"
+                                ></div>
                             </div>
 
-                            <!-- Main Grid - Stacked on mobile, side by side on desktop -->
-                            <div class="flex flex-col lg:flex-row gap-4 sm:gap-6 lg:gap-8">
+                            <!-- Main Grid -->
+                            <div class="flex flex-col lg:flex-row gap-5 sm:gap-6">
                                 
-                                <!-- CALENDAR SECTION -->
+                                <!-- CALENDAR -->
                                 <div class="flex-1 min-w-0">
-                                    <div class="bg-gray-50/50 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-gray-100">
+                                    <div class="bg-gray-50/80 rounded-2xl p-3.5 sm:p-5 ring-1 ring-gray-100">
                                         
                                         <!-- Month Navigation -->
-                                        <div class="flex items-center justify-between mb-3 sm:mb-4">
+                                        <div class="flex items-center justify-between mb-4">
                                             <button 
                                                 @click="prevMonth" 
-                                                class="p-2 sm:p-2.5 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 active:bg-gray-100 transition-colors touch-manipulation shadow-sm"
+                                                class="p-2 sm:p-2.5 rounded-xl bg-white hover:bg-gray-50 active:scale-95 transition-all touch-manipulation ring-1 ring-gray-200 shadow-sm"
                                             >
-                                                <ChevronLeft class="h-4 w-4 sm:h-5 sm:w-5 text-gray-600" />
+                                                <ChevronLeft class="h-4 w-4 text-gray-600" />
                                             </button>
-                                            <div class="text-base sm:text-lg font-semibold text-gray-800 capitalize">
-                                                {{ format(currentMonth, 'MMMM yyyy', { locale: fr }) }}
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-sm sm:text-base font-bold text-gray-800 capitalize">
+                                                    {{ format(currentMonth, 'MMMM yyyy', { locale: fr }) }}
+                                                </span>
+                                                <button 
+                                                    v-if="!isCurrentMonth"
+                                                    @click="goToToday"
+                                                    class="text-[10px] sm:text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded-full transition-colors"
+                                                >
+                                                    Aujourd'hui
+                                                </button>
                                             </div>
                                             <button 
                                                 @click="nextMonth" 
-                                                class="p-2 sm:p-2.5 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 active:bg-gray-100 transition-colors touch-manipulation shadow-sm"
+                                                class="p-2 sm:p-2.5 rounded-xl bg-white hover:bg-gray-50 active:scale-95 transition-all touch-manipulation ring-1 ring-gray-200 shadow-sm"
                                             >
-                                                <ChevronRight class="h-4 w-4 sm:h-5 sm:w-5 text-gray-600" />
+                                                <ChevronRight class="h-4 w-4 text-gray-600" />
                                             </button>
                                         </div>
 
                                         <!-- Calendar Grid -->
-                                        <div class="select-none">
+                                        <div 
+                                            class="select-none"
+                                            @touchstart.passive="onTouchStart"
+                                            @touchend.passive="onTouchEnd"
+                                        >
                                             <!-- Weekday Headers -->
-                                            <div class="grid grid-cols-7 gap-1 mb-2">
+                                            <div class="grid grid-cols-7 mb-1.5">
                                                 <div 
                                                     v-for="(day, index) in weekdaysDesktop" 
                                                     :key="day" 
-                                                    class="text-center py-2 text-xs sm:text-sm font-medium text-gray-500"
+                                                    class="text-center py-2 text-[11px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wider"
                                                 >
                                                     <span class="sm:hidden">{{ weekdaysMobile[index] }}</span>
                                                     <span class="hidden sm:inline">{{ day }}</span>
@@ -274,74 +339,121 @@ const weekdaysDesktop = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
                                             </div>
                                             
                                             <!-- Days Grid -->
-                                            <div class="grid grid-cols-7 gap-1">
+                                            <div class="grid grid-cols-7 gap-y-1">
                                                 <div 
                                                     v-for="date in calendarDays" 
                                                     :key="date.toISOString()" 
-                                                    class="relative aspect-square"
+                                                    class="relative"
+                                                    :class="{ 'z-10': isToday(date) }"
                                                 >
-                                                    <div
-                                                        class="absolute inset-0.5 sm:inset-1 flex flex-col items-center justify-center rounded-lg sm:rounded-xl transition-all duration-150"
+                                                    <!-- Range connector background -->
+                                                    <div 
+                                                        v-if="isSameMonth(date, currentMonth) && isDateReserved(date)"
+                                                        class="absolute inset-y-0.5 sm:inset-y-1"
                                                         :class="[
-                                                            // Current month vs other months
-                                                            isSameMonth(date, currentMonth) 
-                                                                ? '' 
-                                                                : 'opacity-25',
-                                                            
-                                                            // Today highlight
-                                                            isToday(date) && isSameMonth(date, currentMonth)
-                                                                ? 'ring-2 ring-indigo-400 ring-offset-1' 
-                                                                : '',
-                                                            
-                                                            // Reserved (Red) vs Available (Green)
-                                                            isSameMonth(date, currentMonth) && isDateReserved(date)
-                                                                ? 'bg-red-100 text-red-700' 
-                                                                : isSameMonth(date, currentMonth) 
-                                                                    ? 'bg-green-50 text-green-700 hover:bg-green-100' 
-                                                                    : 'bg-gray-100 text-gray-400'
+                                                            getDateType(date) === 'service' ? 'bg-orange-100/70' : 'bg-red-100/70',
+                                                            isRangeStart(date) && !isRangeEnd(date) ? 'left-1/2 right-0 rounded-l-lg' : '',
+                                                            isRangeEnd(date) && !isRangeStart(date) ? 'left-0 right-1/2 rounded-r-lg' : '',
+                                                            isRangeMiddle(date) ? 'left-0 right-0' : '',
+                                                            isRangeStart(date) && isRangeEnd(date) ? 'hidden' : '',
                                                         ]"
+                                                    ></div>
+                                                    
+                                                    <div
+                                                        class="relative aspect-square flex flex-col items-center justify-center mx-auto w-full max-w-[44px] sm:max-w-[48px]"
+                                                        @mouseenter="hoveredDate = date"
+                                                        @mouseleave="hoveredDate = null"
                                                     >
-                                                        <time 
-                                                            :datetime="format(date, 'yyyy-MM-dd')"
-                                                            class="text-xs sm:text-sm font-medium"
+                                                        <div
+                                                            class="w-9 h-9 sm:w-10 sm:h-10 flex flex-col items-center justify-center rounded-xl transition-all duration-150"
+                                                            :class="[
+                                                                !isSameMonth(date, currentMonth) 
+                                                                    ? 'opacity-20' 
+                                                                    : '',
+                                                                
+                                                                isToday(date) && isSameMonth(date, currentMonth)
+                                                                    ? 'ring-2 ring-indigo-500 ring-offset-2 bg-indigo-50 text-indigo-700 font-bold shadow-sm' 
+                                                                    : '',
+                                                                
+                                                                isSameMonth(date, currentMonth) && isDateReserved(date) && !isToday(date)
+                                                                    ? getDateType(date) === 'service' 
+                                                                        ? 'bg-orange-100 text-orange-700' 
+                                                                        : 'bg-red-100 text-red-700'
+                                                                    : '',
+                                                                    
+                                                                isSameMonth(date, currentMonth) && !isDateReserved(date) && !isToday(date)
+                                                                    ? 'text-gray-700 hover:bg-emerald-50 hover:text-emerald-700' 
+                                                                    : '',
+                                                                    
+                                                                !isSameMonth(date, currentMonth) 
+                                                                    ? 'text-gray-300' 
+                                                                    : '',
+                                                            ]"
                                                         >
-                                                            {{ format(date, 'd') }}
-                                                        </time>
-                                                        
-                                                        <!-- Status dot indicator -->
-                                                        <div 
-                                                            v-if="isSameMonth(date, currentMonth)"
-                                                            class="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full mt-0.5"
-                                                            :class="isDateReserved(date) ? 'bg-red-500' : 'bg-green-500'"
-                                                        ></div>
+                                                            <time 
+                                                                :datetime="format(date, 'yyyy-MM-dd')"
+                                                                class="text-xs sm:text-sm font-semibold leading-none"
+                                                            >
+                                                                {{ format(date, 'd') }}
+                                                            </time>
+                                                            
+                                                            <!-- Status indicator -->
+                                                            <div 
+                                                                v-if="isSameMonth(date, currentMonth) && !isToday(date)"
+                                                                class="flex gap-0.5 mt-1"
+                                                            >
+                                                                <div 
+                                                                    class="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full"
+                                                                    :class="isDateReserved(date) 
+                                                                        ? getDateType(date) === 'service' ? 'bg-orange-500' : 'bg-red-500' 
+                                                                        : 'bg-emerald-400'"
+                                                                ></div>
+                                                                <div 
+                                                                    v-if="getDateType(date) === 'both'"
+                                                                    class="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-orange-500"
+                                                                ></div>
+                                                            </div>
+                                                            <!-- Today indicator dot -->
+                                                            <div 
+                                                                v-if="isToday(date) && isSameMonth(date, currentMonth)"
+                                                                class="w-1 h-1 rounded-full bg-indigo-500 mt-0.5"
+                                                            ></div>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
 
                                         <!-- Legend -->
-                                        <div class="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-200 flex items-center justify-center gap-4 sm:gap-6">
-                                            <div class="flex items-center gap-1.5 sm:gap-2">
-                                                <span class="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-green-500"></span>
-                                                <span class="text-xs sm:text-sm text-gray-600">Disponible</span>
+                                        <div class="mt-4 pt-3.5 border-t border-gray-200/80 flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5">
+                                            <div class="flex items-center gap-1.5">
+                                                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-emerald-100"></span>
+                                                <span class="text-[11px] sm:text-xs text-gray-500 font-medium">Disponible</span>
                                             </div>
-                                            <div class="flex items-center gap-1.5 sm:gap-2">
-                                                <span class="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-red-500"></span>
-                                                <span class="text-xs sm:text-sm text-gray-600">Réservé</span>
+                                            <div class="flex items-center gap-1.5">
+                                                <span class="w-2.5 h-2.5 rounded-full bg-red-500 ring-2 ring-red-100"></span>
+                                                <span class="text-[11px] sm:text-xs text-gray-500 font-medium">Réservé</span>
+                                            </div>
+                                            <div class="flex items-center gap-1.5">
+                                                <span class="w-2.5 h-2.5 rounded-full bg-orange-500 ring-2 ring-orange-100"></span>
+                                                <span class="text-[11px] sm:text-xs text-gray-500 font-medium">Service</span>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <!-- RESERVATIONS SECTION -->
-                                <div class="lg:w-80 shrink-0">
-                                    <div class="bg-gray-50/50 rounded-xl sm:rounded-2xl p-3 sm:p-4 border border-gray-100 h-full">
-                                        <div class="flex items-center justify-between mb-3 sm:mb-4">
-                                            <h4 class="text-sm sm:text-base font-semibold text-gray-800 flex items-center gap-2">
+                                <!-- RESERVATIONS SIDEBAR -->
+                                <div class="lg:w-[280px] xl:w-[300px] shrink-0">
+                                    <div class="bg-gray-50/80 rounded-2xl p-3.5 sm:p-5 ring-1 ring-gray-100 h-full flex flex-col">
+                                        <div class="flex items-center justify-between mb-3.5">
+                                            <h4 class="text-[13px] sm:text-sm font-bold text-gray-700 flex items-center gap-2">
                                                 <Clock class="w-4 h-4 text-indigo-500" />
-                                                Réservations à venir
+                                                À venir
                                             </h4>
-                                            <span class="text-xs font-medium text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full">
+                                            <span 
+                                                class="text-[11px] font-bold px-2 py-0.5 rounded-full"
+                                                :class="futureReservations.length > 0 ? 'text-indigo-600 bg-indigo-100' : 'text-gray-400 bg-gray-100'"
+                                            >
                                                 {{ futureReservations.length }}
                                             </span>
                                         </div>
@@ -349,34 +461,54 @@ const weekdaysDesktop = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
                                         <!-- Empty State -->
                                         <div 
                                             v-if="futureReservations.length === 0" 
-                                            class="flex flex-col items-center justify-center py-8 sm:py-12 text-center"
+                                            class="flex-1 flex flex-col items-center justify-center py-8 sm:py-10 text-center"
                                         >
-                                            <div class="p-3 sm:p-4 bg-gray-100 rounded-full mb-3">
-                                                <CalendarIcon class="w-6 h-6 sm:w-8 sm:h-8 text-gray-400" />
+                                            <div class="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center mb-3">
+                                                <CalendarIcon class="w-6 h-6 text-gray-300" />
                                             </div>
-                                            <p class="text-sm text-gray-500">Aucune réservation</p>
-                                            <p class="text-xs text-gray-400 mt-1">Ce véhicule est libre</p>
+                                            <p class="text-sm font-medium text-gray-400">Aucune réservation</p>
+                                            <p class="text-[11px] text-gray-300 mt-1">Ce véhicule est libre</p>
                                         </div>
 
                                         <!-- Reservation Cards -->
-                                        <div v-else class="space-y-2 sm:space-y-3 max-h-[200px] lg:max-h-[300px] overflow-y-auto overscroll-contain pr-1 custom-scrollbar">
+                                        <div v-else class="space-y-2.5 flex-1 max-h-[180px] lg:max-h-[320px] overflow-y-auto overscroll-contain pr-0.5 custom-scrollbar">
                                             <div 
                                                 v-for="res in futureReservations" 
                                                 :key="res.id"
-                                                class="bg-white rounded-lg sm:rounded-xl p-3 sm:p-4 border border-gray-200 shadow-sm"
+                                                class="bg-white rounded-xl p-3 sm:p-3.5 ring-1 transition-all hover:shadow-sm"
+                                                :class="res._type === 'service' ? 'ring-orange-200/60 hover:ring-orange-300' : 'ring-gray-200/80 hover:ring-indigo-200'"
                                             >
-                                                <div class="flex items-start gap-2 sm:gap-3">
-                                                    <div class="p-1.5 sm:p-2 bg-indigo-50 rounded-lg shrink-0">
-                                                        <CalendarIcon class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-600" />
+                                                <div class="flex items-start gap-2.5">
+                                                    <div 
+                                                        class="p-1.5 rounded-lg shrink-0 mt-0.5"
+                                                        :class="res._type === 'service' ? 'bg-orange-50' : 'bg-indigo-50'"
+                                                    >
+                                                        <Wrench v-if="res._type === 'service'" class="w-3.5 h-3.5 text-orange-500" />
+                                                        <CarFront v-else class="w-3.5 h-3.5 text-indigo-500" />
                                                     </div>
-                                                    <div class="flex-1 min-w-0 space-y-1.5">
-                                                        <div class="flex items-center gap-1.5 text-xs sm:text-sm text-gray-600">
-                                                            <span class="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0"></span>
-                                                            <span class="truncate">{{ formatDateTime(res.start_date) }}</span>
+                                                    <div class="flex-1 min-w-0">
+                                                        <!-- Type badge + duration -->
+                                                        <div class="flex items-center gap-1.5 mb-1.5">
+                                                            <span 
+                                                                class="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                                                                :class="res._type === 'service' ? 'text-orange-600 bg-orange-50' : 'text-indigo-600 bg-indigo-50'"
+                                                            >
+                                                                {{ res._type === 'service' ? (res.service_type || 'Service') : 'Réservation' }}
+                                                            </span>
+                                                            <span class="text-[10px] font-semibold text-gray-400">
+                                                                {{ getDuration(res.start_date, res.end_date) }}
+                                                            </span>
                                                         </div>
-                                                        <div class="flex items-center gap-1.5 text-xs sm:text-sm text-gray-600">
-                                                            <span class="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0"></span>
-                                                            <span class="truncate">{{ formatDateTime(res.end_date) }}</span>
+                                                        <!-- Dates -->
+                                                        <div class="space-y-1">
+                                                            <div class="flex items-center gap-1.5 text-[11px] sm:text-xs text-gray-600">
+                                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></span>
+                                                                <span class="truncate">{{ formatDateTime(res.start_date) }}</span>
+                                                            </div>
+                                                            <div class="flex items-center gap-1.5 text-[11px] sm:text-xs text-gray-600">
+                                                                <span class="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0"></span>
+                                                                <span class="truncate">{{ formatDateTime(res.end_date) }}</span>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -384,16 +516,15 @@ const weekdaysDesktop = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
                                         </div>
                                     </div>
                                 </div>
-
                             </div>
                         </div>
                     </div>
                     
-                    <!-- Footer - Sticky on mobile -->
-                    <div class="sticky bottom-0 bg-white/95 backdrop-blur-sm px-4 sm:px-6 py-3 sm:py-4 border-t flex justify-end gap-3 safe-bottom">
+                    <!-- Footer -->
+                    <div class="sticky bottom-0 bg-white/95 backdrop-blur-sm px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-100 flex justify-end safe-bottom">
                         <button 
                             @click="close"
-                            class="flex-1 sm:flex-none px-6 py-2.5 sm:py-2 bg-gray-900 text-white text-sm font-medium rounded-xl hover:bg-gray-800 active:bg-gray-950 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-colors touch-manipulation"
+                            class="w-full sm:w-auto px-8 py-2.5 bg-gray-900 text-white text-sm font-semibold rounded-xl hover:bg-gray-800 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-all touch-manipulation"
                         >
                             Fermer
                         </button>
@@ -405,40 +536,29 @@ const weekdaysDesktop = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 </template>
 
 <style scoped>
-/* Custom scrollbar for reservation list */
 .custom-scrollbar::-webkit-scrollbar {
-    width: 4px;
+    width: 3px;
 }
-
 .custom-scrollbar::-webkit-scrollbar-track {
     background: transparent;
 }
-
 .custom-scrollbar::-webkit-scrollbar-thumb {
-    background-color: #d1d5db;
+    background-color: #e5e7eb;
     border-radius: 20px;
 }
-
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background-color: #9ca3af;
+    background-color: #d1d5db;
 }
 
-/* Safe area padding for notched phones */
 .safe-bottom {
     padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
-
-/* Smooth touch scrolling */
 .overscroll-contain {
     -webkit-overflow-scrolling: touch;
 }
-
-/* Better touch targets */
 .touch-manipulation {
     touch-action: manipulation;
 }
-
-/* Prevent text selection on calendar */
 .select-none {
     -webkit-user-select: none;
     user-select: none;
