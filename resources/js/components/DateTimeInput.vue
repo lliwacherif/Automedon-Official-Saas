@@ -10,8 +10,8 @@ const emit = defineEmits(['update:modelValue']);
 
 // Hours (00-23)
 const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
-// Minutes (00, 30)
-const minutes = ['00', '30'];
+// Minutes (every 5 min)
+const minutes = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
 
 const localDate = ref('');
 const localHour = ref('09');
@@ -29,7 +29,9 @@ function initFromModel() {
                 localHour.value = timeParts[0];
                 // Snap to nearest allowed minute if needed? Or just take it. 
                 // For now, let's just take it or default to 00 if invalid in our list
-                localMinute.value = minutes.includes(timeParts[1].substring(0, 2)) ? timeParts[1].substring(0, 2) : '00';
+                const rawMin = parseInt(timeParts[1].substring(0, 2), 10);
+                const snapped = String(Math.round(rawMin / 5) * 5).padStart(2, '0');
+                localMinute.value = minutes.includes(snapped) ? snapped : '00';
             }
         } else if (parts.length === 1 && parts[0]) {
              localDate.value = parts[0];
