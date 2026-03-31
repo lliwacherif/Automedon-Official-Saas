@@ -13,6 +13,30 @@ const route = useRoute();
 const router = useRouter();
 const tenantStore = useTenantStore();
 
+async function buildClientInfo(reservation: any) {
+  if (reservation.agency_id) {
+    const { data: agency } = await supabase
+      .from('b2b_clients')
+      .select('*')
+      .eq('id', reservation.agency_id)
+      .single();
+    if (agency) {
+      return {
+        name: agency.company_name,
+        address: agency.address || 'Adresse agence...',
+        mf: agency.mf || 'MF Agence...',
+        tel: agency.phone || ''
+      };
+    }
+  }
+  return {
+    name: reservation.client_name,
+    address: 'Adresse client...',
+    mf: 'Client MF...',
+    tel: reservation.client_phone || ''
+  };
+}
+
 const loading = ref(true);
 const generating = ref(false);
 const isExporting = ref(false);
@@ -342,12 +366,7 @@ async function generateInvoiceData(reservation: any, tenant: any) {
       mf: s.mf || '0000000/A/A/000',
       logoUrl: logoUrl || null
     },
-    client: {
-      name: reservation.client_name,
-      address: 'Adresse client...',
-      mf: 'Client MF...',
-      tel: reservation.client_phone || ''
-    },
+    client: await buildClientInfo(reservation),
     items: [item],
     tax: {
       tvaRate: 0.19,

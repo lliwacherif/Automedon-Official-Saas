@@ -28,6 +28,7 @@ import {
     Loader2,
     Image,
     FileDown,
+    Building2,
 } from 'lucide-vue-next';
 
 const { t } = useI18n();
@@ -120,13 +121,22 @@ import { formatDate, formatDateTime } from '@/utils/date';
                         <p class="text-sm text-gray-500">{{ reservations.length }} réservation{{ reservations.length !== 1 ? 's' : '' }}</p>
                     </div>
                 </div>
-                <RouterLink 
-                    :to="tenantPath('/admin/reservations/new')" 
-                    class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 rounded-xl shadow-md shadow-indigo-200 hover:shadow-lg hover:shadow-indigo-300 transition-all"
-                >
-                    <Plus class="w-4 h-4" />
-                    {{ t('admin.reservations.new_reservation') }}
-                </RouterLink>
+                <div class="flex items-center gap-2">
+                    <RouterLink
+                        :to="tenantPath('/admin/services/b2b-clients')"
+                        class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-violet-700 bg-violet-50 hover:bg-violet-100 rounded-xl ring-1 ring-violet-200 transition-all"
+                    >
+                        <Building2 class="w-4 h-4" />
+                        Agences
+                    </RouterLink>
+                    <RouterLink 
+                        :to="tenantPath('/admin/reservations/new')" 
+                        class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 rounded-xl shadow-md shadow-indigo-200 hover:shadow-lg hover:shadow-indigo-300 transition-all"
+                    >
+                        <Plus class="w-4 h-4" />
+                        {{ t('admin.reservations.new_reservation') }}
+                    </RouterLink>
+                </div>
             </div>
 
             <!-- Filters -->

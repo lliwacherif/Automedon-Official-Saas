@@ -5,7 +5,7 @@ import { useTenantStore } from '@/stores/tenant';
 import { useFaithfulClients } from '@/composables/useFaithfulClients';
 import { 
     Loader2, Lock, UserPlus, Users, Trash2, KeyRound, Shield, Settings, 
-    User, CreditCard, Phone, AlertCircle, CircleCheck,
+    User, CreditCard, Phone, AlertCircle, CircleCheck, Mail, IdCard, Calendar,
 } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 
@@ -26,6 +26,10 @@ const faithfulClientForm = ref({
     full_name: '',
     cin: '',
     phone: '',
+    email: '',
+    permit_number: '',
+    cin_date: '',
+    permit_date: '',
 });
 const faithfulClientLoading = ref(false);
 const faithfulClientError = ref('');
@@ -44,11 +48,15 @@ const handleCreateFaithfulClient = async () => {
         await createFaithfulClient({ 
             full_name: faithfulClientForm.value.full_name,
             cin: faithfulClientForm.value.cin,
-            phone: faithfulClientForm.value.phone
+            phone: faithfulClientForm.value.phone,
+            email: faithfulClientForm.value.email || undefined,
+            permit_number: faithfulClientForm.value.permit_number || undefined,
+            cin_date: faithfulClientForm.value.cin_date || undefined,
+            permit_date: faithfulClientForm.value.permit_date || undefined,
         });
         
         faithfulClientSuccess.value = 'Client fidèle ajouté avec succès';
-        faithfulClientForm.value = { full_name: '', cin: '', phone: '' };
+        faithfulClientForm.value = { full_name: '', cin: '', phone: '', email: '', permit_number: '', cin_date: '', permit_date: '' };
     } catch (e: any) {
         faithfulClientError.value = e.message || 'Erreur lors de l\'ajout du client';
     } finally {
@@ -304,6 +312,36 @@ const handleCreateUser = async () => {
                                     <div class="form-input-wrapper">
                                         <Phone class="form-input-icon" />
                                         <input v-model="faithfulClientForm.phone" type="tel" required class="form-input" placeholder="Ex: +216 12 345 678">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="form-label">Email</label>
+                                    <div class="form-input-wrapper">
+                                        <Mail class="form-input-icon" />
+                                        <input v-model="faithfulClientForm.email" type="email" class="form-input" placeholder="Ex: client@email.com">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="form-label">Numéro de Permis</label>
+                                    <div class="form-input-wrapper">
+                                        <IdCard class="form-input-icon" />
+                                        <input v-model="faithfulClientForm.permit_number" type="text" class="form-input" placeholder="Ex: 12345678">
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="form-label">Délivrance CIN</label>
+                                        <div class="form-input-wrapper">
+                                            <Calendar class="form-input-icon" />
+                                            <input v-model="faithfulClientForm.cin_date" type="text" class="form-input" placeholder="01/01/2020">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="form-label">Délivrance Permis</label>
+                                        <div class="form-input-wrapper">
+                                            <Calendar class="form-input-icon" />
+                                            <input v-model="faithfulClientForm.permit_date" type="text" class="form-input" placeholder="15/06/2018">
+                                        </div>
                                     </div>
                                 </div>
 

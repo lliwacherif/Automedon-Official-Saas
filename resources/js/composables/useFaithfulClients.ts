@@ -9,6 +9,9 @@ export interface FaithfulClient {
     cin: string;
     phone: string;
     email?: string;
+    permit_number?: string;
+    cin_date?: string;
+    permit_date?: string;
     created_at: string;
     updated_at: string;
 }

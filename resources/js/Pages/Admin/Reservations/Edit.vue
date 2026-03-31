@@ -44,9 +44,10 @@ const selectClient = (client: FaithfulClient) => {
     reservation.value.client_name = client.full_name;
     reservation.value.client_cin = client.cin;
     reservation.value.client_phone = client.phone;
-    if (client.email) {
-        reservation.value.client_email = client.email;
-    }
+    if (client.email) reservation.value.client_email = client.email;
+    if (client.permit_number) reservation.value.client_permit_number = client.permit_number;
+    if (client.cin_date) reservation.value.client_cin_date = client.cin_date;
+    if (client.permit_date) reservation.value.client_permit_date = client.permit_date;
     
     showClientSuggestions.value = false;
     clientSuggestions.value = [];
@@ -160,11 +161,15 @@ const reservation = ref<Partial<Reservation>>({
     client_phone: '',
     client_email: '',
     client_permit_number: '',
+    client_cin_date: '',
+    client_permit_date: '',
     second_driver_name: '',
     second_driver_cin: '',
     second_driver_phone: '',
     second_driver_email: '',
     second_driver_permit_number: '',
+    second_driver_cin_date: '',
+    second_driver_permit_date: '',
     start_date: '',
     end_date: '',
     duration_days: 0,
@@ -179,6 +184,7 @@ const reservation = ref<Partial<Reservation>>({
     return_location: '',
     notes: '',
     contract_number: '',
+    agency_id: null as number | null,
 });
 
 const showSecondDriver = ref(false);
@@ -202,22 +208,23 @@ function formatDateForInput(isoDate: string): string {
 
 // Fetch cars and reservation data
 onMounted(async () => {
-    await fetchCars();
+    await Promise.all([fetchCars(), fetchB2BClients()]);
     
     if (isEditMode.value) {
         const data = await getReservation(Number(route.params.id));
         if (data) {
-            // Format dates for datetime-local input
             reservation.value = {
                 ...data,
                 start_date: formatDateForInput(data.start_date),
                 end_date: formatDateForInput(data.end_date),
             };
-            // Show second driver section if any second driver data exists
             if (data.second_driver_name || data.second_driver_cin || data.second_driver_phone) {
                 showSecondDriver.value = true;
             }
-            // Fetch documents
+            if ((data as any).agency_id) {
+                clientMode.value = 'agency';
+                selectedAgencyId.value = (data as any).agency_id;
+            }
             await fetchDocuments(Number(route.params.id));
         }
     } else {
@@ -300,11 +307,15 @@ async function handleSubmit() {
             client_phone: reservation.value.client_phone!,
             client_email: reservation.value.client_email || null,
             client_permit_number: reservation.value.client_permit_number || null,
+            client_cin_date: reservation.value.client_cin_date || null,
+            client_permit_date: reservation.value.client_permit_date || null,
             second_driver_name: showSecondDriver.value ? (reservation.value.second_driver_name || null) : null,
             second_driver_cin: showSecondDriver.value ? (reservation.value.second_driver_cin || null) : null,
             second_driver_phone: showSecondDriver.value ? (reservation.value.second_driver_phone || null) : null,
             second_driver_email: showSecondDriver.value ? (reservation.value.second_driver_email || null) : null,
             second_driver_permit_number: showSecondDriver.value ? (reservation.value.second_driver_permit_number || null) : null,
+            second_driver_cin_date: showSecondDriver.value ? (reservation.value.second_driver_cin_date || null) : null,
+            second_driver_permit_date: showSecondDriver.value ? (reservation.value.second_driver_permit_date || null) : null,
             car_id: reservation.value.car_id!,
             start_date: new Date(reservation.value.start_date!).toISOString(),
             end_date: new Date(reservation.value.end_date!).toISOString(),
@@ -319,6 +330,7 @@ async function handleSubmit() {
             return_location: reservation.value.return_location || null,
             notes: reservation.value.notes || null,
             contract_number: reservation.value.contract_number || null,
+            agency_id: clientMode.value === 'agency' ? selectedAgencyId.value : null,
         };
 
         // Check availability
@@ -432,12 +444,41 @@ function cancelPreview() {
 
 import { formatDateTime } from '@/utils/date';
 import DateTimeInput from '@/components/DateTimeInput.vue';
+import { useB2BClients, type B2BClient } from '@/composables/useB2BClients';
 import { 
     ClipboardList, User, CreditCard, Phone, Mail, IdCard, Car, Calendar, Clock, Hash, 
     DollarSign, Wallet, MapPin, FileText, Plus, Minus, Loader2, CircleCheck, 
     AlertTriangle, X, Eye, Trash2, Upload, Image,
-    Users, ChevronDown, Sparkles, ScanLine, CheckCircle2, RotateCcw,
+    Users, ChevronDown, Sparkles, ScanLine, CheckCircle2, RotateCcw, Building2,
 } from 'lucide-vue-next';
+
+const { clients: b2bClients, fetchClients: fetchB2BClients } = useB2BClients();
+const clientMode = ref<'regular' | 'agency'>('regular');
+const selectedAgencyId = ref<number | null>(null);
+
+function selectAgency(idStr: string) {
+    const agency = b2bClients.value.find(b => String(b.id) === idStr);
+    if (agency) {
+        selectedAgencyId.value = agency.id;
+        reservation.value.client_name = agency.company_name;
+        reservation.value.client_cin = agency.mf || '';
+        reservation.value.client_phone = agency.phone || '';
+        reservation.value.client_email = agency.email || '';
+        reservation.value.client_permit_number = '';
+    } else {
+        selectedAgencyId.value = null;
+    }
+}
+
+function clearAgency() {
+    clientMode.value = 'regular';
+    selectedAgencyId.value = null;
+    reservation.value.client_name = '';
+    reservation.value.client_cin = '';
+    reservation.value.client_phone = '';
+    reservation.value.client_email = '';
+    reservation.value.client_permit_number = '';
+}
 </script>
 
 <template>
@@ -461,17 +502,30 @@ import {
                     </div>
                 </div>
 
-                <button
-                    v-if="!isEditMode"
-                    type="button"
-                    @click="openAiScan"
-                    class="ai-scan-btn group relative inline-flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-white rounded-xl shadow-lg transition-all hover:scale-[1.03] active:scale-[0.98]"
-                >
-                    <span class="ai-scan-btn-bg"></span>
-                    <Sparkles class="w-4 h-4 relative z-10" />
-                    <span class="relative z-10 hidden sm:inline">AI Scan</span>
-                    <ScanLine class="w-4 h-4 relative z-10 hidden sm:inline" />
-                </button>
+                <div class="flex items-center gap-2">
+                    <button
+                        type="button"
+                        @click="clientMode === 'agency' ? clearAgency() : (clientMode = 'agency')"
+                        class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl ring-1 transition-all"
+                        :class="clientMode === 'agency' 
+                            ? 'text-violet-700 bg-violet-50 ring-violet-300 hover:bg-violet-100' 
+                            : 'text-gray-500 bg-white ring-gray-200 hover:bg-gray-50 hover:text-violet-600'"
+                    >
+                        <Building2 class="w-4 h-4" />
+                        <span class="hidden sm:inline">Agence</span>
+                    </button>
+                    <button
+                        v-if="!isEditMode"
+                        type="button"
+                        @click="openAiScan"
+                        class="ai-scan-btn group relative inline-flex items-center gap-2 px-4 py-2.5 text-sm font-bold text-white rounded-xl shadow-lg transition-all hover:scale-[1.03] active:scale-[0.98]"
+                    >
+                        <span class="ai-scan-btn-bg"></span>
+                        <Sparkles class="w-4 h-4 relative z-10" />
+                        <span class="relative z-10 hidden sm:inline">AI Scan</span>
+                        <ScanLine class="w-4 h-4 relative z-10 hidden sm:inline" />
+                    </button>
+                </div>
             </div>
 
             <!-- Loading -->
@@ -488,31 +542,51 @@ import {
                 <!-- Client Information -->
                 <div class="form-section">
                     <h2 class="section-title">
-                        <div class="w-6 h-6 rounded-md bg-indigo-100 flex items-center justify-center">
-                            <User class="w-3.5 h-3.5 text-indigo-600" />
+                        <div class="w-6 h-6 rounded-md flex items-center justify-center" :class="clientMode === 'agency' ? 'bg-violet-100' : 'bg-indigo-100'">
+                            <Building2 v-if="clientMode === 'agency'" class="w-3.5 h-3.5 text-violet-600" />
+                            <User v-else class="w-3.5 h-3.5 text-indigo-600" />
                         </div>
-                        {{ t('admin.reservations.client_info') }}
+                        {{ clientMode === 'agency' ? 'Informations Agence' : t('admin.reservations.client_info') }}
                     </h2>
+
+                    <!-- Agency Selector -->
+                    <div v-if="clientMode === 'agency'" class="p-3 rounded-xl bg-violet-50 ring-1 ring-violet-200 mb-3">
+                        <label class="text-xs font-bold text-violet-600 uppercase tracking-wider mb-1.5 block">Sélectionner une Agence</label>
+                        <div class="form-input-wrapper">
+                            <Building2 class="form-input-icon" />
+                            <select 
+                                @change="selectAgency(($event.target as HTMLSelectElement).value)" 
+                                class="form-input appearance-none cursor-pointer"
+                                :value="selectedAgencyId ? String(selectedAgencyId) : ''"
+                            >
+                                <option value="">-- Choisir une agence --</option>
+                                <option v-for="b in b2bClients" :key="b.id" :value="String(b.id)">{{ b.company_name }}</option>
+                            </select>
+                            <ChevronDown class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                        </div>
+                    </div>
+
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
-                            <label class="form-label">{{ t('admin.reservations.client_name') }} *</label>
+                            <label class="form-label">{{ clientMode === 'agency' ? 'Nom Agence *' : t('admin.reservations.client_name') + ' *' }}</label>
                             <div class="relative">
                                 <div class="form-input-wrapper">
-                                    <User class="form-input-icon" />
+                                    <Building2 v-if="clientMode === 'agency'" class="form-input-icon" />
+                                    <User v-else class="form-input-icon" />
                                     <input 
                                         v-model="reservation.client_name"
                                         type="text"
                                         required
-                                        @input="handleClientNameInput"
-                                        @focus="handleClientNameInput"
+                                        @input="clientMode !== 'agency' ? handleClientNameInput() : undefined"
+                                        @focus="clientMode !== 'agency' ? handleClientNameInput() : undefined"
                                         @blur="closeSuggestionsWithDelay"
                                         class="form-input"
                                         autocomplete="off"
-                                        placeholder="Nom complet"
+                                        :placeholder="clientMode === 'agency' ? 'Nom de l\'agence' : 'Nom complet'"
                                     >
                                 </div>
-                                <!-- Autocomplete Dropdown -->
-                                <div v-if="showClientSuggestions" class="absolute z-10 w-full bg-white mt-1 rounded-xl ring-1 ring-gray-200 shadow-xl max-h-60 overflow-auto">
+                                <!-- Autocomplete Dropdown (only for regular clients) -->
+                                <div v-if="showClientSuggestions && clientMode !== 'agency'" class="absolute z-10 w-full bg-white mt-1 rounded-xl ring-1 ring-gray-200 shadow-xl max-h-60 overflow-auto">
                                     <ul>
                                         <li 
                                             v-for="client in clientSuggestions" 
@@ -532,10 +606,10 @@ import {
                         </div>
 
                         <div>
-                            <label class="form-label">{{ t('admin.reservations.client_cin') }} *</label>
+                            <label class="form-label">{{ clientMode === 'agency' ? 'MF / Référence *' : t('admin.reservations.client_cin') + ' *' }}</label>
                             <div class="form-input-wrapper">
                                 <CreditCard class="form-input-icon" />
-                                <input v-model="reservation.client_cin" type="text" required class="form-input" placeholder="CIN">
+                                <input v-model="reservation.client_cin" type="text" required class="form-input" :placeholder="clientMode === 'agency' ? 'Matricule Fiscale' : 'CIN'">
                             </div>
                         </div>
 
@@ -555,11 +629,27 @@ import {
                             </div>
                         </div>
 
-                        <div>
+                        <div v-if="clientMode !== 'agency'">
                             <label class="form-label">Numéro de Permis</label>
                             <div class="form-input-wrapper">
                                 <IdCard class="form-input-icon" />
                                 <input v-model="reservation.client_permit_number" type="text" class="form-input" placeholder="Ex: 12345678">
+                            </div>
+                        </div>
+
+                        <div v-if="clientMode !== 'agency'">
+                            <label class="form-label">Date de délivrance CIN</label>
+                            <div class="form-input-wrapper">
+                                <Calendar class="form-input-icon" />
+                                <input v-model="reservation.client_cin_date" type="text" class="form-input" placeholder="Ex: 01/01/2020">
+                            </div>
+                        </div>
+
+                        <div v-if="clientMode !== 'agency'">
+                            <label class="form-label">Date de délivrance Permis</label>
+                            <div class="form-input-wrapper">
+                                <Calendar class="form-input-icon" />
+                                <input v-model="reservation.client_permit_date" type="text" class="form-input" placeholder="Ex: 15/06/2018">
                             </div>
                         </div>
                     </div>
@@ -622,6 +712,22 @@ import {
                             <div class="form-input-wrapper">
                                 <IdCard class="form-input-icon" />
                                 <input v-model="reservation.second_driver_permit_number" type="text" class="form-input" placeholder="Ex: 12345678">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="form-label">Date de délivrance CIN</label>
+                            <div class="form-input-wrapper">
+                                <Calendar class="form-input-icon" />
+                                <input v-model="reservation.second_driver_cin_date" type="text" class="form-input" placeholder="Ex: 01/01/2020">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="form-label">Date de délivrance Permis</label>
+                            <div class="form-input-wrapper">
+                                <Calendar class="form-input-icon" />
+                                <input v-model="reservation.second_driver_permit_date" type="text" class="form-input" placeholder="Ex: 15/06/2018">
                             </div>
                         </div>
                     </div>
