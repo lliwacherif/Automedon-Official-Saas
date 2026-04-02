@@ -3,7 +3,7 @@ import { nextTick, onMounted, ref, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ArrowLeft, FileDown, Loader2, Save, Check, Plus, X, ClipboardList, ChevronDown, Car } from 'lucide-vue-next';
 import InvoiceTemplate, { type InvoiceData } from '@/components/Invoices/InvoiceTemplate.vue';
-import { formatDateTime } from '@/utils/date';
+import { formatDate, formatDateTime } from '@/utils/date';
 import { supabase } from '@/lib/supabase';
 import { useTenantStore } from '@/stores/tenant';
 // @ts-ignore
@@ -248,13 +248,24 @@ function buildLineItem(reservation: any, mode: 'TTC' | 'HT') {
     unitPriceHT = Number((totalHT / nbDays).toFixed(3));
   }
 
-  const carLabel = reservation.car
-    ? `${reservation.car.brand || ''} ${reservation.car.model || ''}`.trim()
-    : 'Véhicule';
+  const carBrand = reservation.car?.brand || '';
+  const carModel = reservation.car?.model || '';
+  const carLabel = `${carBrand} ${carModel}`.trim() || 'Véhicule';
+  const plate = reservation.car?.plate_number || reservation.car?.license_plate || '';
+
+  let designation: string;
+  if (reservation.agency_id) {
+    const clientPart = reservation.client_name ? ` de ${reservation.client_name}` : '';
+    const vehiclePart = plate ? ` avec le véhicule ${plate}${carLabel !== 'Véhicule' ? ' ' + carLabel : ''}` : (carLabel !== 'Véhicule' ? ` avec ${carLabel}` : '');
+    const datePart = ` du: ${formatDate(reservation.start_date)}`;
+    designation = `Location${clientPart}${vehiclePart}${datePart}`;
+  } else {
+    designation = `Location véhicule ${carLabel}`;
+  }
 
   return {
     item: {
-      designation: `Location véhicule ${carLabel}`,
+      designation,
       duree: `${formatDateTime(reservation.start_date)} au ${formatDateTime(reservation.end_date)}`,
       unitPriceHT,
       unite: 'Jours',
@@ -314,6 +325,13 @@ async function loadReservation(id: string) {
       primaryReservationId.value = data.id;
       primaryClientCin.value = data.client_cin || '';
       selectedReservationIds.value = new Set([data.id]);
+
+      if (!data.invoice_date) {
+        const now = new Date().toISOString();
+        await supabase.from('reservations').update({ invoice_date: now }).eq('id', data.id);
+        data.invoice_date = now;
+      }
+
       await generateInvoiceData(data, tenantStore.currentTenant);
 
       if (data.client_cin) {
@@ -353,9 +371,13 @@ async function generateInvoiceData(reservation: any, tenant: any) {
 
   const s = companySettings.value;
 
+  const invoiceDate = reservation.invoice_date
+    ? new Date(reservation.invoice_date).toLocaleDateString('fr-TN')
+    : new Date().toLocaleDateString('fr-TN');
+
   previewData.value = {
     invoiceNumber: invNum,
-    invoiceDate: new Date().toLocaleDateString('fr-TN'),
+    invoiceDate,
     company: {
       name: tenant.name,
       address: s.address || 'Adresse de la société...',
