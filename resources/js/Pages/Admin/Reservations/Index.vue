@@ -29,6 +29,7 @@ import {
     Image,
     FileDown,
     Building2,
+    ScrollText,
 } from 'lucide-vue-next';
 
 const { t } = useI18n();
@@ -88,7 +89,6 @@ async function toggleExpand(id: number) {
 
 function handleInvoiceClick(reservation: any) {
     if (checkAppAccess('Facture Pro')) {
-        // Navigate to Invoice Page
         if (tenantStore.currentTenant?.slug) {
             router.push({ 
                 name: 'admin.invoices.build', 
@@ -100,6 +100,18 @@ function handleInvoiceClick(reservation: any) {
         }
     } else {
         showUpsell.value = true;
+    }
+}
+
+function handleContractClick(reservation: any) {
+    if (tenantStore.currentTenant?.slug) {
+        router.push({
+            name: 'admin.contracts.build',
+            params: {
+                tenantSlug: tenantStore.currentTenant.slug,
+                id: reservation.id
+            }
+        });
     }
 }
 
@@ -193,42 +205,45 @@ import { formatDate, formatDateTime } from '@/utils/date';
             <div v-else>
 
                 <!-- Desktop Table -->
-                <div class="hidden md:block bg-white rounded-2xl ring-1 ring-gray-100 shadow-sm overflow-hidden">
-                    <table class="min-w-full">
+                <div class="hidden md:block bg-white rounded-2xl ring-1 ring-gray-100 shadow-sm overflow-x-auto">
+                    <table class="w-full min-w-[900px]">
                         <thead>
                             <tr class="border-b border-gray-100">
-                                <th class="px-5 py-3.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                                <th class="px-3 py-3.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">
                                     {{ t('admin.reservations.reservation_number') }}
                                 </th>
-                                <th class="px-5 py-3.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                                <th class="px-3 py-3.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider max-w-[160px]">
                                     {{ t('admin.reservations.client') }}
                                 </th>
-                                <th class="px-5 py-3.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                                <th class="px-3 py-3.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">
                                     {{ t('admin.reservations.car') }}
                                 </th>
-                                <th class="px-5 py-3.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                                <th class="px-3 py-3.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">
                                     {{ t('admin.reservations.dates') }}
                                 </th>
-                                <th class="px-5 py-3.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                                <th class="px-3 py-3.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">
                                     {{ t('admin.reservations.total') }}
                                 </th>
-                                <th class="px-5 py-3.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                                <th class="px-3 py-3.5 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">
                                     {{ t('common.status') }}
                                 </th>
-                                <th class="px-5 py-3.5 text-center text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                                <th class="px-2 py-3.5 text-center text-[11px] font-bold text-gray-400 uppercase tracking-wider">
                                     Docs
                                 </th>
-                                <th class="px-5 py-3.5 text-center text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                                <th class="px-2 py-3.5 text-center text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                                    Contrat
+                                </th>
+                                <th class="px-2 py-3.5 text-center text-[11px] font-bold text-gray-400 uppercase tracking-wider">
                                     Facture
                                 </th>
-                                <th class="px-5 py-3.5 text-right text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                                <th class="px-2 py-3.5 text-right text-[11px] font-bold text-gray-400 uppercase tracking-wider">
                                     {{ t('common.actions') }}
                                 </th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr v-if="reservations.length === 0">
-                                <td colspan="9" class="px-5 py-16 text-center">
+                                <td colspan="10" class="px-5 py-16 text-center">
                                     <div class="flex flex-col items-center">
                                         <div class="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center mb-3">
                                             <ClipboardList class="w-6 h-6 text-gray-300" />
@@ -242,63 +257,72 @@ import { formatDate, formatDateTime } from '@/utils/date';
                                     class="border-b border-gray-50 hover:bg-indigo-50/30 cursor-pointer transition-colors"
                                     @click="toggleExpand(res.id)"
                                 >
-                                    <td class="px-5 py-3.5">
+                                    <td class="px-3 py-3.5">
                                         <span class="text-sm font-bold text-indigo-600">{{ res.reservation_number }}</span>
                                     </td>
-                                    <td class="px-5 py-3.5">
-                                        <div class="flex items-center gap-2.5">
-                                            <div class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
-                                                <User class="w-4 h-4 text-gray-500" />
+                                    <td class="px-3 py-3.5 max-w-[160px]">
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+                                                <User class="w-3.5 h-3.5 text-gray-500" />
                                             </div>
-                                            <div>
-                                                <div class="text-sm font-semibold text-gray-900">{{ res.client_name }}</div>
+                                            <div class="min-w-0">
+                                                <div class="text-sm font-semibold text-gray-900 truncate">{{ res.client_name }}</div>
                                                 <div class="text-xs text-gray-400">{{ res.client_cin }}</div>
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="px-5 py-3.5">
-                                        <div class="flex items-center gap-2.5">
-                                            <div class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
-                                                <Car class="w-4 h-4 text-gray-500" />
+                                    <td class="px-3 py-3.5">
+                                        <div class="flex items-center gap-2">
+                                            <div class="w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+                                                <Car class="w-3.5 h-3.5 text-gray-500" />
                                             </div>
-                                            <div>
-                                                <div class="text-sm font-semibold text-gray-900">{{ res.car?.brand }} {{ res.car?.model }}</div>
+                                            <div class="min-w-0">
+                                                <div class="text-sm font-semibold text-gray-900 truncate">{{ res.car?.brand }} {{ res.car?.model }}</div>
                                                 <div class="text-xs text-gray-400">{{ res.car?.plate_number }}</div>
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="px-5 py-3.5">
+                                    <td class="px-3 py-3.5">
                                         <div class="text-sm text-gray-700">{{ formatDateTime(res.start_date) }}</div>
                                         <div class="text-sm text-gray-700">{{ formatDateTime(res.end_date) }}</div>
                                         <div class="text-[11px] text-gray-400 font-medium mt-0.5">{{ res.duration_days }} {{ t('admin.reservations.days') }}</div>
                                     </td>
-                                    <td class="px-5 py-3.5">
+                                    <td class="px-3 py-3.5">
                                         <span class="text-sm font-bold text-gray-900">{{ res.total_price.toFixed(2) }} DT</span>
                                     </td>
-                                    <td class="px-5 py-3.5">
+                                    <td class="px-3 py-3.5">
                                         <span :class="getStatusClass(res.status)" class="status-badge">
                                             {{ t(`admin.reservations.status_${res.status}`) }}
                                         </span>
                                     </td>
-                                    <td class="px-5 py-3.5 text-center">
-                                        <button class="w-8 h-8 rounded-lg flex items-center justify-center mx-auto hover:bg-gray-100 transition-colors">
+                                    <td class="px-2 py-3.5 text-center">
+                                        <button class="w-7 h-7 rounded-lg flex items-center justify-center mx-auto hover:bg-gray-100 transition-colors">
                                             <ChevronDown 
                                                 class="w-4 h-4 text-gray-400 transition-transform duration-200" 
                                                 :class="{ 'rotate-180': expandedReservation === res.id }" 
                                             />
                                         </button>
                                     </td>
-                                    <td class="px-5 py-3.5 text-center" @click.stop>
+                                    <td class="px-2 py-3.5 text-center" @click.stop>
+                                        <button 
+                                            @click="handleContractClick(res)"
+                                            class="w-7 h-7 rounded-lg flex items-center justify-center mx-auto hover:bg-amber-50 transition-colors"
+                                            title="Contrat de location"
+                                        >
+                                            <ScrollText class="w-4 h-4 text-amber-600" />
+                                        </button>
+                                    </td>
+                                    <td class="px-2 py-3.5 text-center" @click.stop>
                                         <button 
                                             @click="handleInvoiceClick(res)"
-                                            class="w-8 h-8 rounded-lg flex items-center justify-center mx-auto hover:bg-indigo-50 transition-colors"
+                                            class="w-7 h-7 rounded-lg flex items-center justify-center mx-auto hover:bg-indigo-50 transition-colors"
                                             :title="checkAppAccess('Facture Pro') ? 'Générer Facture' : 'Facture Pro requis'"
                                         >
                                             <FileText v-if="checkAppAccess('Facture Pro')" class="w-4 h-4 text-indigo-500" />
                                             <Lock v-else class="w-4 h-4 text-gray-300" />
                                         </button>
                                     </td>
-                                    <td class="px-5 py-3.5 text-right" @click.stop>
+                                    <td class="px-2 py-3.5 text-right" @click.stop>
                                         <div class="flex items-center justify-end gap-1">
                                             <RouterLink 
                                                 :to="tenantPath(`/admin/reservations/${res.id}`)" 
@@ -320,7 +344,7 @@ import { formatDate, formatDateTime } from '@/utils/date';
                                 
                                 <!-- Expanded Documents -->
                                 <tr v-if="expandedReservation === res.id">
-                                    <td colspan="9" class="px-5 py-4 bg-gray-50/70">
+                                    <td colspan="10" class="px-5 py-4 bg-gray-50/70">
                                         <div class="max-w-4xl">
                                             <h4 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
                                                 <FileText class="w-3.5 h-3.5" />
@@ -435,6 +459,13 @@ import { formatDate, formatDateTime } from '@/utils/date';
                                 {{ res.total_price.toFixed(2) }} DT
                             </div>
                             <div class="flex items-center gap-1">
+                                <button 
+                                    @click="handleContractClick(res)"
+                                    class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white transition-colors"
+                                    title="Contrat"
+                                >
+                                    <ScrollText class="w-4 h-4 text-amber-600" />
+                                </button>
                                 <button 
                                     @click="handleInvoiceClick(res)"
                                     class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white transition-colors"
