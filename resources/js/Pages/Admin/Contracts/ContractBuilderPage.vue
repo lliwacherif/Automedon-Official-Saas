@@ -7,7 +7,8 @@ import type { ContractData } from '@/components/Contracts/ContractTemplate.vue';
 import { supabase } from '@/lib/supabase';
 import { useTenantStore } from '@/stores/tenant';
 // @ts-ignore
-import html2pdf from 'html2pdf.js';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 
 const route = useRoute();
 const router = useRouter();
@@ -276,6 +277,12 @@ function createExportClone(sourceEl: HTMLElement) {
   clone.style.boxShadow = 'none';
   clone.style.transform = 'none';
   clone.style.border = 'none';
+  clone.style.gap = '0px';
+
+  clone.querySelectorAll('.ct-paper').forEach((paper: any) => {
+    paper.style.boxShadow = 'none';
+    paper.style.border = 'none';
+  });
 
   host.appendChild(clone);
   document.body.appendChild(host);
@@ -296,39 +303,58 @@ async function downloadPdf() {
     // @ts-ignore
     if (document.fonts?.ready) await document.fonts.ready;
 
-    const templateEl = templateMountRef.value?.querySelector('#contract-template') as HTMLElement | null;
-    if (!templateEl) throw new Error('Template element not found');
+    const wrapperEl = templateMountRef.value?.querySelector('#contract-template') as HTMLElement | null;
+    if (!wrapperEl) throw new Error('Template element not found');
 
-    const { clone, cleanup } = createExportClone(templateEl);
-    cleanups.push(cleanup);
-
-    await new Promise((r) => setTimeout(r, 150));
+    const pages = wrapperEl.querySelectorAll('.ct-paper');
+    if (pages.length === 0) throw new Error('No pages found');
 
     const filename = `Contrat_${contractData.value.contractNumber || 'draft'}.pdf`;
-    const w = Math.ceil(clone.scrollWidth);
-    const h = Math.ceil(clone.scrollHeight);
+    const scale = 3;
+    let pdf: InstanceType<typeof jsPDF> | null = null;
 
-    await html2pdf().set({
-      margin: 0,
-      filename,
-      image: { type: 'png', quality: 1 },
-      html2canvas: {
-        scale: 3,
+    for (let i = 0; i < pages.length; i++) {
+      const { clone, cleanup } = createExportClone(pages[i] as HTMLElement);
+      cleanups.push(cleanup);
+
+      await new Promise((r) => setTimeout(r, 150));
+
+      const w = Math.ceil(clone.scrollWidth);
+      const h = Math.ceil(clone.scrollHeight);
+
+      const canvas = await html2canvas(clone, {
+        scale,
         useCORS: true,
         allowTaint: false,
         backgroundColor: '#ffffff',
         logging: false,
-        scrollX: 0, scrollY: 0,
-        width: w, height: h,
-        windowWidth: w, windowHeight: h,
-      },
-      jsPDF: {
-        unit: 'px',
-        format: [w, h],
-        orientation: w > h ? 'landscape' : 'portrait',
-        compress: true,
-      },
-    }).from(clone).save();
+        scrollX: 0,
+        scrollY: 0,
+        width: w,
+        height: h,
+        windowWidth: w,
+        windowHeight: h,
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pageW = canvas.width / scale;
+      const pageH = canvas.height / scale;
+
+      if (i === 0) {
+        pdf = new jsPDF({
+          unit: 'px',
+          format: [pageW, pageH],
+          orientation: pageW > pageH ? 'landscape' : 'portrait',
+          compress: true,
+        });
+        pdf.addImage(imgData, 'PNG', 0, 0, pageW, pageH);
+      } else if (pdf) {
+        pdf.addPage([pageW, pageH], pageW > pageH ? 'landscape' : 'portrait');
+        pdf.addImage(imgData, 'PNG', 0, 0, pageW, pageH);
+      }
+    }
+
+    if (pdf) pdf.save(filename);
   } catch (error: any) {
     console.error('PDF generation failed', error);
     alert(`Erreur PDF: ${error?.message || error}`);
