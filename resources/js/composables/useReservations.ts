@@ -103,7 +103,30 @@ export function useReservations() {
 
             if (supabaseError) throw supabaseError;
 
-            reservations.value = (data || []).map(mapReservation);
+            const mapped = (data || []).map(mapReservation);
+
+            const now = new Date();
+            const expiredIds: number[] = [];
+            for (const res of mapped) {
+                if ((res.status === 'confirmed' || res.status === 'active') && res.end_date) {
+                    if (new Date(res.end_date) <= now) {
+                        expiredIds.push(res.id);
+                        res.status = 'completed';
+                    }
+                }
+            }
+
+            if (expiredIds.length > 0) {
+                supabase
+                    .from('reservations')
+                    .update({ status: 'completed' } as any)
+                    .in('id', expiredIds)
+                    .then(({ error: updateErr }) => {
+                        if (updateErr) console.error('Auto-complete update failed:', updateErr);
+                    });
+            }
+
+            reservations.value = mapped;
             total.value = count || 0;
         } catch (e: any) {
             error.value = e.message;
