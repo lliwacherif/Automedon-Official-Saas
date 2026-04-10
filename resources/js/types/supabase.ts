@@ -103,12 +103,16 @@ export interface Database {
                     client_phone: string
                     client_email: string | null
                     client_permit_number: string | null
+                    client_cin_date: string | null
+                    client_permit_date: string | null
                     // Second Driver
                     second_driver_name: string | null
                     second_driver_cin: string | null
                     second_driver_phone: string | null
                     second_driver_email: string | null
                     second_driver_permit_number: string | null
+                    second_driver_cin_date: string | null
+                    second_driver_permit_date: string | null
                     // Reservation Details
                     car_id: number
                     start_date: string
@@ -117,9 +121,14 @@ export interface Database {
                     // Pricing
                     price_per_day: number
                     total_price: number
+                    advance_payment: number
+                    caution: number
+                    caution_currency: string
                     // Status
                     status: string
                     // Optional
+                    contract_number: string | null
+                    agency_id: number | null
                     pickup_location: string | null
                     return_location: string | null
                     notes: string | null
@@ -138,12 +147,16 @@ export interface Database {
                     client_phone: string
                     client_email?: string | null
                     client_permit_number?: string | null
+                    client_cin_date?: string | null
+                    client_permit_date?: string | null
                     // Second Driver
                     second_driver_name?: string | null
                     second_driver_cin?: string | null
                     second_driver_phone?: string | null
                     second_driver_email?: string | null
                     second_driver_permit_number?: string | null
+                    second_driver_cin_date?: string | null
+                    second_driver_permit_date?: string | null
                     // Reservation Details
                     car_id: number
                     start_date: string
@@ -152,9 +165,14 @@ export interface Database {
                     // Pricing
                     price_per_day: number
                     total_price: number
+                    advance_payment?: number
+                    caution?: number
+                    caution_currency?: string
                     // Status
                     status?: string
                     // Optional
+                    contract_number?: string | null
+                    agency_id?: number | null
                     pickup_location?: string | null
                     return_location?: string | null
                     notes?: string | null
@@ -173,12 +191,16 @@ export interface Database {
                     client_phone?: string
                     client_email?: string | null
                     client_permit_number?: string | null
+                    client_cin_date?: string | null
+                    client_permit_date?: string | null
                     // Second Driver
                     second_driver_name?: string | null
                     second_driver_cin?: string | null
                     second_driver_phone?: string | null
                     second_driver_email?: string | null
                     second_driver_permit_number?: string | null
+                    second_driver_cin_date?: string | null
+                    second_driver_permit_date?: string | null
                     // Reservation Details
                     car_id?: number
                     start_date?: string
@@ -187,9 +209,14 @@ export interface Database {
                     // Pricing
                     price_per_day?: number
                     total_price?: number
+                    advance_payment?: number
+                    caution?: number
+                    caution_currency?: string
                     // Status
                     status?: string
                     // Optional
+                    contract_number?: string | null
+                    agency_id?: number | null
                     pickup_location?: string | null
                     return_location?: string | null
                     notes?: string | null
