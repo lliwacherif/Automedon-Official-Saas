@@ -81,7 +81,7 @@ const isActive = (path: string) => {
                     </RouterLink>
 
                     <!-- Desktop Navigation -->
-                    <div class="hidden lg:flex items-center gap-0.5">
+                    <div class="hidden lg:flex items-center gap-1">
                         <!-- Public Links -->
                         <RouterLink 
                             v-if="tenantStore.currentTenant" 
@@ -194,7 +194,7 @@ const isActive = (path: string) => {
                 </div>
 
                 <!-- Right: Actions -->
-                <div class="hidden lg:flex items-center gap-1">
+                <div class="hidden lg:flex items-center gap-1.5">
                     <!-- Quick Action Buttons -->
                     <button 
                         v-if="authStore.isAdmin && tenantStore.currentTenant" 

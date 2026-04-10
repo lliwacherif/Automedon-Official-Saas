@@ -104,7 +104,7 @@ const onReservationSuccess = () => {
                         </div>
                         <div>
                             <h1 class="text-xl font-bold text-gray-900 tracking-tight">{{ $t('fleet.title') }}</h1>
-                            <p class="text-sm text-gray-500">{{ filteredCars.length }} véhicule{{ filteredCars.length !== 1 ? 's' : '' }} disponible{{ filteredCars.length !== 1 ? 's' : '' }}</p>
+                            <p class="text-sm text-gray-600 font-medium">{{ filteredCars.length }} véhicule{{ filteredCars.length !== 1 ? 's' : '' }} disponible{{ filteredCars.length !== 1 ? 's' : '' }}</p>
                         </div>
                     </div>
                 </div>
@@ -142,7 +142,7 @@ const onReservationSuccess = () => {
                         </div>
                         <div>
                             <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Transmission</label>
-                            <div class="flex bg-gray-100 rounded-xl p-0.5 ring-1 ring-gray-200/50">
+                            <div class="flex bg-gray-100/80 rounded-xl p-1 border border-gray-200">
                                 <button 
                                     v-for="opt in ([
                                         { value: 'all', label: 'Tous' },
@@ -153,8 +153,8 @@ const onReservationSuccess = () => {
                                     @click="filters.transmission = opt.value"
                                     class="relative px-4 py-2 text-sm font-semibold rounded-[10px] transition-all duration-200 whitespace-nowrap"
                                     :class="filters.transmission === opt.value 
-                                        ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200/80' 
-                                        : 'text-gray-400 hover:text-gray-600'"
+                                        ? 'bg-white text-gray-900 shadow-[0_1px_3px_rgba(0,0,0,0.1),0_1px_2px_rgba(0,0,0,0.06)] ring-1 ring-gray-200' 
+                                        : 'text-gray-500 hover:text-gray-700'"
                                 >
                                     {{ opt.label }}
                                 </button>
@@ -187,14 +187,12 @@ const onReservationSuccess = () => {
                         class="car-card group"
                     >
                         <!-- Image Container -->
-                        <div class="relative w-full aspect-[4/3] overflow-hidden bg-gray-900">
+                        <div class="relative w-full aspect-[4/3] overflow-hidden bg-gradient-to-b from-slate-50 to-slate-100/80">
                             <img 
                                 :src="car.image_url || 'https://via.placeholder.com/400x300?text=No+Image'" 
                                 :alt="`${car.brand} ${car.model}`" 
-                                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 ease-out"
+                                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
                             >
-                            <!-- Gradient overlay -->
-                            <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent"></div>
 
                             <!-- Status Badge + Transmission -->
                             <div class="absolute top-3 left-3 flex items-center gap-1.5">
@@ -211,33 +209,33 @@ const onReservationSuccess = () => {
                                     <Wrench v-else class="w-3 h-3" />
                                     {{ car.status === 'disponible' ? 'Disponible' : car.status === 'loue' ? 'Loué' : 'Maintenance' }}
                                 </span>
-                                <span class="inline-flex items-center px-2 py-1 text-[10px] font-bold rounded-full backdrop-blur-md shadow-sm bg-white/80 text-gray-800">
-                                    {{ (car as any).transmission === 'auto' ? 'Auto' : 'M' }}
+                                <span class="inline-flex items-center px-2.5 py-1 text-[10px] font-semibold rounded-full backdrop-blur-md shadow-sm bg-white/90 text-gray-500 ring-1 ring-gray-200/60 tracking-wide">
+                                    {{ (car as any).transmission === 'auto' ? 'Auto' : 'Manuel' }}
                                 </span>
-                            </div>
-
-                            <!-- Brand Logo -->
-                            <div class="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm rounded-xl p-1.5 shadow-lg ring-1 ring-white/20">
-                                <img 
-                                    :src="getBrandLogo(car.brand)" 
-                                    :alt="car.brand" 
-                                    class="h-7 w-7 object-contain"
-                                >
-                            </div>
-
-                            <!-- Car name on image -->
-                            <div class="absolute bottom-3 left-3">
-                                <h3 class="text-white font-bold text-lg leading-tight drop-shadow-lg">
-                                    {{ car.brand }} {{ car.model }}
-                                </h3>
-                                <p v-if="authStore.user || authStore.isAdmin" class="text-white/70 text-xs font-medium mt-0.5">
-                                    {{ car.plate_number }}
-                                </p>
                             </div>
                         </div>
                         
                         <!-- Card Body -->
                         <div class="p-4 flex flex-col gap-3">
+                            <!-- Car Name + Brand Logo -->
+                            <div class="flex items-center justify-between gap-2">
+                                <div class="min-w-0">
+                                    <h3 class="font-bold text-gray-900 text-[15px] leading-tight truncate">
+                                        {{ car.brand }} {{ car.model }}
+                                    </h3>
+                                    <p v-if="authStore.user || authStore.isAdmin" class="text-gray-400 text-xs font-medium mt-0.5">
+                                        {{ car.plate_number }}
+                                    </p>
+                                </div>
+                                <div class="bg-gray-50 rounded-xl p-1.5 ring-1 ring-gray-100 shrink-0">
+                                    <img 
+                                        :src="getBrandLogo(car.brand)" 
+                                        :alt="car.brand" 
+                                        class="h-7 w-7 object-contain"
+                                    >
+                                </div>
+                            </div>
+
                             <!-- Quick Specs -->
                             <div class="flex items-center gap-3 text-xs text-gray-500">
                                 <div v-if="car.mileage" class="flex items-center gap-1.5">
@@ -253,9 +251,9 @@ const onReservationSuccess = () => {
                             <div class="grid grid-cols-2 gap-2">
                                 <button 
                                     @click="openAvailabilityModal(car)"
-                                    class="flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-semibold rounded-xl text-gray-700 bg-gray-50 hover:bg-gray-100 ring-1 ring-gray-200 hover:ring-gray-300 transition-all duration-200"
+                                    class="flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-semibold rounded-xl text-indigo-600 bg-indigo-50/50 hover:bg-indigo-100/60 ring-1 ring-indigo-100 hover:ring-indigo-200 transition-all duration-200"
                                 >
-                                    <Calendar class="w-4 h-4 text-indigo-500" />
+                                    <Calendar class="w-4 h-4" />
                                     Dispo
                                 </button>
                                 <button 
@@ -299,8 +297,8 @@ const onReservationSuccess = () => {
     height: 100%;
     border: 1px solid rgb(229 231 235);
     box-shadow: 
-        0 1px 3px rgba(0, 0, 0, 0.06),
-        0 4px 12px rgba(0, 0, 0, 0.04);
+        0 1px 2px rgba(0, 0, 0, 0.04),
+        0 2px 8px rgba(0, 0, 0, 0.06);
     transition: 
         transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
         box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1),
@@ -308,11 +306,10 @@ const onReservationSuccess = () => {
 }
 
 .car-card:hover {
-    transform: translateY(-6px);
+    transform: translateY(-4px);
     border-color: rgb(199 210 254);
     box-shadow: 
-        0 12px 28px rgba(79, 70, 229, 0.10),
-        0 4px 12px rgba(0, 0, 0, 0.06),
-        0 0 0 1px rgba(79, 70, 229, 0.05);
+        0 8px 20px rgba(79, 70, 229, 0.08),
+        0 2px 6px rgba(0, 0, 0, 0.05);
 }
 </style>
