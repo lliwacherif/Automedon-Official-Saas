@@ -39,7 +39,7 @@ const authStore = useAuthStore();
 const currentMonth = ref(new Date());
 const reservations = ref<any[]>([]);
 const loading = ref(false);
-const viewMode = ref<'compact' | 'annual'>('compact');
+const viewMode = ref<'compact' | 'annual'>('annual');
 
 // Touch swipe support
 const touchStartX = ref(0);
