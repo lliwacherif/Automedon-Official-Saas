@@ -23,7 +23,7 @@ import {
     differenceInHours
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { X, ChevronLeft, ChevronRight, Check, AlertCircle, Calendar as CalendarIcon, Clock, Dot, Wrench, CarFront } from 'lucide-vue-next';
+import { X, ChevronLeft, ChevronRight, Check, AlertCircle, Calendar as CalendarIcon, Clock, Wrench, CarFront, CalendarRange } from 'lucide-vue-next';
 import { formatDateTime } from '@/utils/date';
 import { useAuthStore } from '@/stores/auth';
 
@@ -39,6 +39,7 @@ const authStore = useAuthStore();
 const currentMonth = ref(new Date());
 const reservations = ref<any[]>([]);
 const loading = ref(false);
+const viewMode = ref<'compact' | 'annual'>('compact');
 
 // Touch swipe support
 const touchStartX = ref(0);
@@ -200,6 +201,25 @@ const isAvailableToday = computed(() => !activeReservation.value);
 const weekdaysMobile = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 const weekdaysDesktop = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 
+// Annual view helpers
+function getDaysForMonth(date: Date) {
+    const monthStart = startOfMonth(date);
+    const monthEnd = endOfMonth(date);
+    const sd = startOfWeek(monthStart, { weekStartsOn: 1 });
+    const ed = endOfWeek(monthEnd, { weekStartsOn: 1 });
+    return eachDayOfInterval({ start: sd, end: ed });
+}
+
+const largeCalendarDays = computed(() => getDaysForMonth(currentMonth.value));
+
+const smallMonths = computed(() => {
+    const months = [];
+    for (let i = 1; i <= 12; i++) {
+        months.push(addMonths(currentMonth.value, i));
+    }
+    return months;
+});
+
 // Tooltip
 const hoveredDate = ref<Date | null>(null);
 const tooltipInfo = computed(() => {
@@ -225,9 +245,11 @@ const tooltipInfo = computed(() => {
                 <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" aria-hidden="true" @click="close"></div>
 
                 <!-- Modal Content -->
-                <div class="fixed inset-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 
-                            w-full h-full sm:w-[95vw] sm:max-w-[920px] sm:h-auto sm:max-h-[90vh] sm:rounded-2xl
-                            bg-white shadow-2xl overflow-hidden flex flex-col">
+                <div class="fixed inset-0 bg-white shadow-2xl overflow-hidden flex flex-col transition-all duration-300"
+                    :class="viewMode === 'annual' 
+                        ? 'sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-[95vw] sm:max-w-[1200px] sm:h-[90vh] sm:rounded-2xl' 
+                        : 'sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-[95vw] sm:max-w-[920px] sm:h-auto sm:max-h-[90vh] sm:rounded-2xl'"
+                >
                     
                     <!-- Header -->
                     <div class="sticky top-0 z-20 flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-gray-100 bg-white">
@@ -245,16 +267,42 @@ const tooltipInfo = computed(() => {
                                 <p class="text-[11px] sm:text-xs text-gray-400 mt-0.5">Calendrier de disponibilité</p>
                             </div>
                         </div>
-                        <button 
-                            @click="close" 
-                            class="p-2 -mr-1 rounded-xl hover:bg-gray-100 active:bg-gray-200 transition-colors touch-manipulation"
-                        >
-                            <X class="h-5 w-5 text-gray-400" />
-                        </button>
+                        <div class="flex items-center gap-1.5">
+                            <!-- View mode toggle -->
+                            <div class="flex items-center bg-gray-100 rounded-lg p-0.5">
+                                <button 
+                                    @click="viewMode = 'compact'"
+                                    class="p-1.5 sm:p-2 rounded-md transition-all duration-150"
+                                    :class="viewMode === 'compact' 
+                                        ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-gray-200' 
+                                        : 'text-gray-400 hover:text-gray-600'"
+                                    title="Vue mensuelle"
+                                >
+                                    <CalendarIcon class="w-4 h-4" />
+                                </button>
+                                <button 
+                                    @click="viewMode = 'annual'"
+                                    class="p-1.5 sm:p-2 rounded-md transition-all duration-150"
+                                    :class="viewMode === 'annual' 
+                                        ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-gray-200' 
+                                        : 'text-gray-400 hover:text-gray-600'"
+                                    title="Vue annuelle"
+                                >
+                                    <CalendarRange class="w-4 h-4" />
+                                </button>
+                            </div>
+
+                            <button 
+                                @click="close" 
+                                class="p-2 -mr-1 rounded-xl hover:bg-gray-100 active:bg-gray-200 transition-colors touch-manipulation"
+                            >
+                                <X class="h-5 w-5 text-gray-400" />
+                            </button>
+                        </div>
                     </div>
 
-                    <!-- Scrollable Content -->
-                    <div class="flex-1 overflow-y-auto overscroll-contain">
+                    <!-- ============ COMPACT VIEW ============ -->
+                    <div v-if="viewMode === 'compact'" class="flex-1 overflow-y-auto overscroll-contain">
                         <div class="p-4 sm:p-6">
                             <!-- Status Banner -->
                             <div 
@@ -519,9 +567,294 @@ const tooltipInfo = computed(() => {
                             </div>
                         </div>
                     </div>
+
+                    <!-- ============ ANNUAL VIEW ============ -->
+                    <template v-else>
+                        <!-- MOBILE LAYOUT: Single scrollable column -->
+                        <div class="flex-1 overflow-y-auto lg:hidden overscroll-contain">
+                            <!-- Current Month - Mobile -->
+                            <div class="p-4 bg-white border-b border-gray-200">
+                                <!-- Month Navigation -->
+                                <div class="flex items-center justify-between mb-4">
+                                    <button @click="prevMonth" class="p-2 hover:bg-gray-100 rounded-lg transition-colors active:bg-gray-200">
+                                        <ChevronLeft class="w-5 h-5 text-gray-600" />
+                                    </button>
+                                    <div class="flex items-center gap-2">
+                                        <h3 class="text-lg font-bold text-gray-900 capitalize">
+                                            {{ format(currentMonth, 'MMMM yyyy', { locale: fr }) }}
+                                        </h3>
+                                        <button 
+                                            v-if="!isCurrentMonth"
+                                            @click="goToToday"
+                                            class="text-[10px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded-full transition-colors"
+                                        >
+                                            Aujourd'hui
+                                        </button>
+                                    </div>
+                                    <button @click="nextMonth" class="p-2 hover:bg-gray-100 rounded-lg transition-colors active:bg-gray-200">
+                                        <ChevronRight class="w-5 h-5 text-gray-600" />
+                                    </button>
+                                </div>
+
+                                <!-- Calendar Grid - Mobile -->
+                                <div 
+                                    class="select-none"
+                                    @touchstart.passive="onTouchStart"
+                                    @touchend.passive="onTouchEnd"
+                                >
+                                    <div class="grid grid-cols-7 mb-2">
+                                        <div v-for="day in weekdaysMobile" :key="day" 
+                                            class="text-center text-xs font-semibold text-gray-500 py-2">
+                                            {{ day }}
+                                        </div>
+                                    </div>
+                                    <div class="grid grid-cols-7 gap-1">
+                                        <div 
+                                            v-for="date in largeCalendarDays" 
+                                            :key="date.toISOString()" 
+                                            class="aspect-square relative"
+                                        >
+                                            <div
+                                                class="absolute inset-0.5 flex flex-col items-center justify-center rounded-lg text-sm font-medium transition-all"
+                                                :class="[
+                                                    !isSameMonth(date, currentMonth) ? 'text-gray-300' : '',
+                                                    isToday(date) && isSameMonth(date, currentMonth) ? 'ring-2 ring-indigo-500' : '',
+                                                    isSameMonth(date, currentMonth) ? (
+                                                        isDateReserved(date) 
+                                                            ? getDateType(date) === 'service' 
+                                                                ? 'bg-orange-100 text-orange-700' 
+                                                                : 'bg-red-100 text-red-700'
+                                                            : 'bg-green-50 text-green-700'
+                                                    ) : ''
+                                                ]"
+                                            >
+                                                <span>{{ format(date, 'd') }}</span>
+                                                <div 
+                                                    v-if="isSameMonth(date, currentMonth)"
+                                                    class="flex gap-0.5 mt-0.5"
+                                                >
+                                                    <div 
+                                                        class="w-1 h-1 rounded-full"
+                                                        :class="isDateReserved(date) 
+                                                            ? getDateType(date) === 'service' ? 'bg-orange-500' : 'bg-red-500' 
+                                                            : 'bg-green-500'"
+                                                    ></div>
+                                                    <div 
+                                                        v-if="getDateType(date) === 'both'"
+                                                        class="w-1 h-1 rounded-full bg-orange-500"
+                                                    ></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Legend - Mobile -->
+                                <div class="mt-4 pt-3 border-t border-gray-200 flex justify-center gap-4 flex-wrap">
+                                    <div class="flex items-center gap-2">
+                                        <span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>
+                                        <span class="text-xs text-gray-600">Disponible</span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
+                                        <span class="text-xs text-gray-600">Réservé</span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
+                                        <span class="text-xs text-gray-600">Service</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Future Months - Mobile -->
+                            <div class="p-4 bg-gray-50">
+                                <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
+                                    Mois Suivants (Prochains 12 mois)
+                                </h3>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div 
+                                        v-for="monthDate in smallMonths" 
+                                        :key="monthDate.toISOString()" 
+                                        class="bg-white rounded-xl p-3 shadow-sm border border-gray-100"
+                                    >
+                                        <h4 class="text-sm font-bold text-gray-900 capitalize mb-2 text-center">
+                                            {{ format(monthDate, 'MMMM', { locale: fr }) }}
+                                        </h4>
+                                        <div class="grid grid-cols-7 gap-0.5 mb-1">
+                                            <div v-for="day in ['L', 'M', 'M', 'J', 'V', 'S', 'D']" :key="day" 
+                                                class="text-center text-[9px] font-medium text-gray-400">
+                                                {{ day }}
+                                            </div>
+                                        </div>
+                                        <div class="grid grid-cols-7 gap-0.5">
+                                            <div 
+                                                v-for="date in getDaysForMonth(monthDate)" 
+                                                :key="date.toISOString()" 
+                                                class="aspect-square flex items-center justify-center rounded text-[9px] relative"
+                                                :class="[
+                                                    !isSameMonth(date, monthDate) ? 'text-transparent' : 'text-gray-700'
+                                                ]"
+                                            >
+                                                <span class="z-10 relative">{{ isSameMonth(date, monthDate) ? format(date, 'd') : '' }}</span>
+                                                <div v-if="isSameMonth(date, monthDate)" 
+                                                    class="absolute inset-0 rounded transition-colors"
+                                                    :class="isDateReserved(date) 
+                                                        ? getDateType(date) === 'service' ? 'bg-orange-100' : 'bg-red-100' 
+                                                        : 'bg-green-50'"
+                                                ></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- DESKTOP LAYOUT: Side by side -->
+                        <div class="hidden lg:flex flex-1 overflow-hidden">
+                            <!-- LEFT: Large Current Month -->
+                            <div class="flex-1 p-6 overflow-y-auto bg-white border-r border-gray-100">
+                                <div class="h-full flex flex-col">
+                                    <div class="flex items-center justify-between mb-6">
+                                        <button @click="prevMonth" class="p-2 hover:bg-gray-100 rounded-lg transition-colors group">
+                                            <ChevronLeft class="w-6 h-6 text-gray-400 group-hover:text-gray-900" />
+                                        </button>
+                                        <div class="flex items-center gap-3">
+                                            <h3 class="text-2xl font-bold text-gray-900 capitalize">
+                                                {{ format(currentMonth, 'MMMM yyyy', { locale: fr }) }}
+                                            </h3>
+                                            <button 
+                                                v-if="!isCurrentMonth"
+                                                @click="goToToday"
+                                                class="text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1 rounded-full transition-colors"
+                                            >
+                                                Aujourd'hui
+                                            </button>
+                                        </div>
+                                        <button @click="nextMonth" class="p-2 hover:bg-gray-100 rounded-lg transition-colors group">
+                                            <ChevronRight class="w-6 h-6 text-gray-400 group-hover:text-gray-900" />
+                                        </button>
+                                    </div>
+
+                                    <div class="flex-1 flex flex-col">
+                                        <div class="grid grid-cols-7 mb-4">
+                                            <div v-for="day in weekdaysDesktop" :key="day" 
+                                                class="text-center text-sm font-semibold text-gray-400 uppercase tracking-wider py-2">
+                                                {{ day }}
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="grid grid-cols-7 grid-rows-6 gap-2 flex-1">
+                                            <div 
+                                                v-for="date in largeCalendarDays" 
+                                                :key="date.toISOString()" 
+                                                class="relative border rounded-xl p-2 transition-all duration-200 flex flex-col justify-between"
+                                                :class="[
+                                                    !isSameMonth(date, currentMonth) ? 'bg-gray-50/50 text-gray-300 border-transparent' : 'bg-white border-gray-100',
+                                                    isToday(date) ? 'ring-2 ring-indigo-500 ring-offset-2' : '',
+                                                    isSameMonth(date, currentMonth) ? (
+                                                        isDateReserved(date)
+                                                            ? getDateType(date) === 'service' 
+                                                                ? 'bg-orange-50 border-orange-100' 
+                                                                : 'bg-red-50 border-red-100'
+                                                            : 'bg-green-50 border-green-100'
+                                                    ) : ''
+                                                ]"
+                                            >
+                                                <div class="flex justify-between items-start">
+                                                    <span class="text-lg font-medium" 
+                                                        :class="[
+                                                            isToday(date) ? 'text-indigo-600' : 'text-gray-700',
+                                                            isSameMonth(date, currentMonth) && isDateReserved(date) 
+                                                                ? getDateType(date) === 'service' ? 'text-orange-700' : 'text-red-700' 
+                                                                : '',
+                                                            isSameMonth(date, currentMonth) && !isDateReserved(date) ? 'text-green-700' : ''
+                                                        ]">
+                                                        {{ format(date, 'd') }}
+                                                    </span>
+                                                    <div v-if="isSameMonth(date, currentMonth)">
+                                                        <Wrench v-if="getDateType(date) === 'service'" class="w-4 h-4 text-orange-500" />
+                                                        <AlertCircle v-else-if="isDateReserved(date)" class="w-4 h-4 text-red-500" />
+                                                        <Check v-else class="w-4 h-4 text-green-500" />
+                                                    </div>
+                                                </div>
+                                                
+                                                <div v-if="isSameMonth(date, currentMonth)" class="mt-auto text-xs font-medium truncate"
+                                                    :class="isDateReserved(date) 
+                                                        ? getDateType(date) === 'service' ? 'text-orange-600' : 'text-red-600' 
+                                                        : 'text-green-600'">
+                                                    {{ isDateReserved(date) 
+                                                        ? getDateType(date) === 'service' ? 'Service' : 'Loué' 
+                                                        : 'Libre' }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- RIGHT: Small Upcoming Months -->
+                            <div class="w-[60%] p-6 bg-gray-50 overflow-y-auto border-l border-gray-200">
+                                <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-6">Mois Suivants (Prochains 12 mois)</h3>
+                                
+                                <div class="grid grid-cols-4 gap-4">
+                                    <div v-for="monthDate in smallMonths" :key="monthDate.toISOString()" class="bg-white rounded-lg p-3 shadow-sm border border-gray-100 flex flex-col items-center">
+                                        <h4 class="text-sm font-bold text-gray-900 capitalize mb-2 text-center">
+                                            {{ format(monthDate, 'MMMM', { locale: fr }) }}
+                                        </h4>
+                                        
+                                        <div class="grid grid-cols-7 gap-0.5 mb-2">
+                                            <div v-for="day in ['Lu', 'Ma', 'Me', 'Je', 'Ve', 'Sa', 'Di']" :key="day" 
+                                                class="text-center text-[10px] font-medium text-gray-400">
+                                                {{ day }}
+                                            </div>
+                                        </div>
+
+                                        <div class="grid grid-cols-7 gap-0.5 w-full">
+                                            <div 
+                                                v-for="date in getDaysForMonth(monthDate)" 
+                                                :key="date.toISOString()" 
+                                                class="aspect-square flex items-center justify-center rounded-full text-[10px] relative"
+                                                :class="[
+                                                    !isSameMonth(date, monthDate) ? 'text-transparent pointer-events-none' : 'text-gray-700'
+                                                ]"
+                                            >
+                                                <span class="z-10 relative">{{ isSameMonth(date, monthDate) ? format(date, 'd') : '' }}</span>
+                                                <div v-if="isSameMonth(date, monthDate)" 
+                                                    class="absolute inset-0 rounded-full transition-colors"
+                                                    :class="isDateReserved(date) 
+                                                        ? getDateType(date) === 'service' 
+                                                            ? 'bg-orange-100 text-orange-700 font-bold' 
+                                                            : 'bg-red-100 text-red-700 font-bold' 
+                                                        : 'bg-green-50 text-green-700'"
+                                                ></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Legend Footer - Annual View -->
+                        <div class="flex bg-white border-t border-gray-100 px-4 sm:px-6 py-3 justify-between items-center text-sm">
+                            <div class="flex gap-4 sm:gap-6 flex-wrap">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-3 h-3 rounded-full bg-green-500"></span>
+                                    <span class="text-gray-600 font-medium text-xs sm:text-sm">Disponible</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="w-3 h-3 rounded-full bg-red-500"></span>
+                                    <span class="text-gray-600 font-medium text-xs sm:text-sm">Réservé</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="w-3 h-3 rounded-full bg-orange-500"></span>
+                                    <span class="text-gray-600 font-medium text-xs sm:text-sm">Service</span>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
                     
                     <!-- Footer -->
-                    <div class="sticky bottom-0 bg-white/95 backdrop-blur-sm px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-100 flex justify-end safe-bottom">
+                    <div v-if="viewMode === 'compact'" class="sticky bottom-0 bg-white/95 backdrop-blur-sm px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-100 flex justify-end safe-bottom">
                         <button 
                             @click="close"
                             class="w-full sm:w-auto px-8 py-2.5 bg-gray-900 text-white text-sm font-semibold rounded-xl hover:bg-gray-800 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 transition-all touch-manipulation"
