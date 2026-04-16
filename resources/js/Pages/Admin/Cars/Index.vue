@@ -87,28 +87,23 @@ const getBrandLogo = (brand: string) => {
                     class="bg-white rounded-2xl ring-1 ring-gray-100 shadow-sm overflow-hidden"
                 >
                     <!-- Brand Header -->
-                    <div class="px-5 py-3.5 border-b border-gray-100 flex items-center gap-3">
-                        <div class="w-9 h-9 rounded-lg bg-gray-50 ring-1 ring-gray-200 flex items-center justify-center shrink-0 overflow-hidden">
+                    <div class="flex items-center gap-3" :class="brand.length === 0 ? 'px-5 py-2.5 opacity-50' : 'px-5 py-3.5 border-b border-gray-100'">
+                        <div class="w-9 h-9 rounded-lg bg-gray-50 ring-1 ring-gray-200 flex items-center justify-center shrink-0 overflow-hidden" :class="{ 'w-7 h-7': brand.length === 0 }">
                             <img 
                                 :src="getBrandLogo(brandName as string)" 
                                 :alt="brandName as string" 
-                                class="w-6 h-6 object-contain"
+                                class="object-contain"
+                                :class="brand.length === 0 ? 'w-4 h-4' : 'w-6 h-6'"
                                 @error="($event.target as HTMLImageElement).style.display='none'"
                             >
                         </div>
-                        <h2 class="text-base font-bold text-gray-900">{{ brandName }}</h2>
-                        <span class="text-xs font-bold text-gray-400 bg-gray-50 px-2 py-0.5 rounded-md">
+                        <h2 class="font-bold text-gray-900" :class="brand.length === 0 ? 'text-sm' : 'text-base'">{{ brandName }}</h2>
+                        <span v-if="brand.length > 0" class="text-xs font-bold text-gray-400 bg-gray-50 px-2 py-0.5 rounded-md">
                             {{ brand.length }}
                         </span>
                     </div>
-                    
-                    <!-- Empty -->
-                    <div v-if="brand.length === 0" class="flex flex-col items-center py-12">
-                        <Car class="w-6 h-6 text-gray-300 mb-2" />
-                        <p class="text-gray-400 text-sm">{{ $t('admin.fleet.no_cars') }}</p>
-                    </div>
 
-                    <div v-else>
+                    <div v-if="brand.length > 0">
                         <!-- Desktop Table -->
                         <div class="hidden md:block overflow-x-auto">
                             <table class="min-w-full">
