@@ -117,11 +117,10 @@ export function useReservations() {
             }
 
             if (expiredIds.length > 0) {
-                supabase
-                    .from('reservations')
-                    .update({ status: 'completed' } as any)
+                (supabase.from('reservations') as any)
+                    .update({ status: 'completed' })
                     .in('id', expiredIds)
-                    .then(({ error: updateErr }) => {
+                    .then(({ error: updateErr }: { error: any }) => {
                         if (updateErr) console.error('Auto-complete update failed:', updateErr);
                     });
             }
