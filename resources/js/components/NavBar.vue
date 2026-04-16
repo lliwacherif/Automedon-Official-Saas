@@ -154,15 +154,6 @@ const isActive = (path: string) => {
                             </RouterLink>
 
                             <RouterLink 
-                                :to="tenantPath('/admin/settings')" 
-                                class="nav-item"
-                                :class="{ 'nav-item-active': isActive('/admin/settings') }"
-                            >
-                                <Settings class="w-4 h-4" />
-                                <span>{{ $t('admin.settings.title') }}</span>
-                            </RouterLink>
-
-                            <RouterLink 
                                 v-if="authStore.role === 'admin'"
                                 :to="tenantPath('/admin/history')" 
                                 class="nav-item"
@@ -223,6 +214,16 @@ const isActive = (path: string) => {
                         title="Store"
                     >
                         <ShoppingBag class="w-4 h-4" />
+                    </RouterLink>
+
+                    <RouterLink 
+                        v-if="tenantStore.currentTenant && authStore.isAdmin"
+                        :to="tenantPath('/admin/settings')"
+                        class="action-btn"
+                        :class="{ 'action-btn-active': isActive('/admin/settings') }"
+                        title="Paramètres"
+                    >
+                        <Settings class="w-4 h-4" />
                     </RouterLink>
 
                     <div class="w-px h-5 bg-gray-200 mx-1"></div>
