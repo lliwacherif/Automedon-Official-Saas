@@ -508,11 +508,12 @@ function clearAgency() {
                         @click="clientMode === 'agency' ? clearAgency() : (clientMode = 'agency')"
                         class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl ring-1 transition-all"
                         :class="clientMode === 'agency' 
-                            ? 'text-violet-700 bg-violet-50 ring-violet-300 hover:bg-violet-100' 
-                            : 'text-gray-500 bg-white ring-gray-200 hover:bg-gray-50 hover:text-violet-600'"
+                            ? 'text-indigo-700 bg-indigo-50 ring-indigo-300 hover:bg-indigo-100' 
+                            : 'text-violet-700 bg-violet-50 ring-violet-300 hover:bg-violet-100'"
                     >
-                        <Building2 class="w-4 h-4" />
-                        <span class="hidden sm:inline">Agence</span>
+                        <User v-if="clientMode === 'agency'" class="w-4 h-4" />
+                        <Building2 v-else class="w-4 h-4" />
+                        <span class="hidden sm:inline">{{ clientMode === 'agency' ? 'Client' : 'Agences' }}</span>
                     </button>
                     <button
                         v-if="!isEditMode"

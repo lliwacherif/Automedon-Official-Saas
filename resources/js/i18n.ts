@@ -14,7 +14,7 @@ const messages = {
             register: 'Register',
             logout: 'Logout',
             reports: 'Reports',
-            daily_journal: 'Daily Journal',
+            daily_journal: 'Vision360',
             hello: 'Hello',
         },
         home: {
@@ -224,7 +224,7 @@ const messages = {
             cancel_reservation: 'Cancel',
         },
         daily_journal: {
-            title: 'Daily Journal',
+            title: 'Vision360',
             return_tomorrow: 'Return Tomorrow',
             return_after_tomorrow: 'After Tomorrow',
             return_today: 'Return Today',
@@ -244,7 +244,7 @@ const messages = {
             register: 'Inscription',
             logout: 'Déconnexion',
             reports: 'Signalements',
-            daily_journal: 'Tableau Journalier',
+            daily_journal: 'Vision360',
             hello: 'Bonjour',
         },
         home: {
@@ -454,7 +454,7 @@ const messages = {
             cancel_reservation: 'Annuler',
         },
         daily_journal: {
-            title: 'Tableau Journalier',
+            title: 'Vision360',
             return_tomorrow: 'Retour Demain',
             return_after_tomorrow: 'Après Demain',
             return_today: 'Retour Aujourd\'hui',

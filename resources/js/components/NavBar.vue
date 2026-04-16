@@ -17,7 +17,7 @@ import {
     Settings,
     History,
     AlertTriangle,
-    CalendarClock,
+    Orbit,
     Calendar,
     Table,
     ShoppingBag,
@@ -186,7 +186,7 @@ const isActive = (path: string) => {
                                 class="nav-item"
                                 :class="{ 'nav-item-active': isActive('/admin/daily-journal') }"
                             >
-                                <CalendarClock class="w-4 h-4" />
+                                <Orbit class="w-4 h-4" />
                                 <span>{{ $t('daily_journal.title') }}</span>
                             </RouterLink>
                         </template>
@@ -494,7 +494,7 @@ const isActive = (path: string) => {
                                 class="mobile-nav-item"
                                 :class="{ 'mobile-nav-active': isActive('/admin/daily-journal') }"
                             >
-                                <CalendarClock class="w-5 h-5" />
+                                <Orbit class="w-5 h-5" />
                                 <span>{{ $t('daily_journal.title') }}</span>
                             </RouterLink>
                         </template>

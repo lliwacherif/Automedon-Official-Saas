@@ -5,7 +5,7 @@ import { useI18n } from 'vue-i18n';
 import { formatDateTime } from '@/utils/date';
 import { 
     Loader2, 
-    CalendarClock, 
+    Orbit, 
     Car, 
     User, 
     Calendar, 
@@ -89,8 +89,8 @@ function getDailyStatus(car: any) {
 
             <!-- Header -->
             <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-teal-200">
-                    <CalendarClock class="w-5 h-5 text-white" />
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-200">
+                    <Orbit class="w-5 h-5 text-white" />
                 </div>
                 <div>
                     <h1 class="text-xl font-bold text-gray-900 tracking-tight">{{ t('daily_journal.title') }}</h1>
