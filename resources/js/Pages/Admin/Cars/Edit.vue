@@ -19,7 +19,10 @@ import {
     Settings,
     Upload,
     DollarSign,
+    Calendar,
 } from 'lucide-vue-next';
+
+const currentYear = new Date().getFullYear();
 
 const { fetchCarById, createCar, updateCar } = useCars();
 const { uploadFile, uploading: uploadingFile } = useFileUpload();
@@ -46,6 +49,7 @@ const form = ref({
     transmission: '' as '' | 'manual' | 'auto',
     purchase_price: null as number | null,
     leasing_advance: null as number | null,
+    first_registration_year: null as number | null,
 });
 
 const fullPlateNumber = computed(() => {
@@ -75,6 +79,7 @@ onMounted(async () => {
             form.value.transmission = (car as any).transmission || '';
             form.value.purchase_price = car.purchase_price ?? null;
             form.value.leasing_advance = car.leasing_advance ?? null;
+            form.value.first_registration_year = car.first_registration_year ?? null;
             previewUrl.value = car.image_url || '';
         }
     }
@@ -162,6 +167,7 @@ async function handleSubmit() {
             transmission: form.value.transmission || null,
             purchase_price: form.value.purchase_price || null,
             leasing_advance: form.value.leasing_advance || null,
+            first_registration_year: form.value.first_registration_year || null,
         };
 
         if (isEditing.value) {
@@ -272,6 +278,25 @@ async function handleSubmit() {
                                         Automatique
                                     </button>
                                 </div>
+                            </div>
+                            <div>
+                                <label class="form-label">
+                                    {{ $t('admin.fleet.first_registration_year') }}
+                                    <span class="text-xs font-normal text-gray-400 normal-case ml-1">({{ $t('common.optional') }})</span>
+                                </label>
+                                <div class="form-input-wrapper">
+                                    <Calendar class="form-input-icon" />
+                                    <input
+                                        v-model.number="form.first_registration_year"
+                                        type="number"
+                                        min="1950"
+                                        :max="currentYear + 1"
+                                        step="1"
+                                        class="form-input"
+                                        placeholder="Ex: 2020"
+                                    >
+                                </div>
+                                <p class="mt-1 text-xs text-gray-400">{{ $t('admin.fleet.first_registration_year_hint') }}</p>
                             </div>
                         </div>
                     </div>

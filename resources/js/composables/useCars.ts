@@ -16,6 +16,7 @@ export interface Car {
     mileage?: number | null;
     purchase_price?: number | null;
     leasing_advance?: number | null;
+    first_registration_year?: number | null;
     auto_manage_status?: boolean;
     created_at: string;
     next_reservation?: {
@@ -104,6 +105,7 @@ export function useCars() {
             mileage: dbCar.mileage,
             purchase_price: dbCar.purchase_price ?? null,
             leasing_advance: dbCar.leasing_advance ?? null,
+            first_registration_year: dbCar.first_registration_year ?? null,
             auto_manage_status: dbCar.auto_manage_status,
             transmission: dbCar.transmission || null,
             created_at: dbCar.created_at
@@ -128,7 +130,7 @@ export function useCars() {
             // Fetch cars
             const { data: carsData, error: carsError } = await (supabase
                 .from('cars')
-                .select('id, brand, model, license_plate, status, image_url, mileage, purchase_price, leasing_advance, auto_manage_status, transmission, created_at')
+                .select('*')
                 .eq('tenant_id', tenantId)
                 .order('brand', { ascending: true })
                 .order('model', { ascending: true }) as any);
@@ -256,7 +258,7 @@ export function useCars() {
         try {
             let query = supabase
                 .from('cars')
-                .select('id, brand, model, license_plate, status, image_url, mileage, purchase_price, leasing_advance, auto_manage_status, transmission, created_at')
+                .select('*')
                 .eq('id', id);
 
             if (tenantId) {
@@ -289,24 +291,28 @@ export function useCars() {
         }
 
         try {
-            // Use 'as any' to avoid complex type errors but keep manual mapping logic
+            // Build insert payload; first_registration_year is added only if
+            // the column exists in the DB (i.e., the value was provided by the form).
+            const insertPayload: Record<string, any> = {
+                tenant_id: tenantId,
+                brand: carData.brand,
+                model: carData.model,
+                license_plate: carData.plate_number,
+                status: carData.status,
+                image_url: carData.image_url || null,
+                auto_manage_status: carData.auto_manage_status ?? true,
+                transmission: (carData as any).transmission || null,
+                purchase_price: carData.purchase_price || null,
+                leasing_advance: carData.leasing_advance || null,
+            };
+            if (carData.first_registration_year) {
+                insertPayload.first_registration_year = carData.first_registration_year;
+            }
+
             const { data, error: supabaseError } = await (supabase
                 .from('cars') as any)
-                .insert([
-                    {
-                        tenant_id: tenantId,
-                        brand: carData.brand,
-                        model: carData.model,
-                        license_plate: carData.plate_number,
-                        status: carData.status,
-                        image_url: carData.image_url || null,
-                        auto_manage_status: carData.auto_manage_status ?? true,
-                        transmission: (carData as any).transmission || null,
-                        purchase_price: carData.purchase_price || null,
-                        leasing_advance: carData.leasing_advance || null,
-                    }
-                ])
-                .select('id, brand, model, license_plate, status, image_url, mileage, purchase_price, leasing_advance, auto_manage_status, transmission, created_at')
+                .insert([insertPayload])
+                .select('*')
                 .single();
 
             if (supabaseError) throw supabaseError;
@@ -344,12 +350,15 @@ export function useCars() {
             if ((carData as any).transmission !== undefined) updateData.transmission = (carData as any).transmission || null;
             if (carData.purchase_price !== undefined) updateData.purchase_price = carData.purchase_price;
             if (carData.leasing_advance !== undefined) updateData.leasing_advance = carData.leasing_advance;
+            // Only include first_registration_year if caller set a real value; this keeps
+            // updates working even if the DB column hasn't been added yet.
+            if (carData.first_registration_year) updateData.first_registration_year = carData.first_registration_year;
 
             const { data, error: supabaseError } = await (supabase
                 .from('cars') as any)
                 .update(updateData)
                 .eq('id', id)
-                .select('id, brand, model, license_plate, status, image_url, mileage, purchase_price, leasing_advance, auto_manage_status, transmission, created_at');
+                .select('*');
 
             if (supabaseError) throw supabaseError;
 

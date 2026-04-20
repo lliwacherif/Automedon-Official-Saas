@@ -93,15 +93,6 @@ const isActive = (path: string) => {
                             <span>{{ $t('nav.fleet') }}</span>
                         </RouterLink>
 
-                        <RouterLink 
-                            :to="tenantPath('/about')" 
-                            class="nav-item"
-                            :class="{ 'nav-item-active': isActive('/about') }"
-                        >
-                            <Info class="w-4 h-4" />
-                            <span>{{ $t('nav.about') }}</span>
-                        </RouterLink>
-
                         <!-- Divider -->
                         <div v-if="authStore.isAdmin && tenantStore.currentTenant" class="w-px h-5 bg-gray-200 mx-1.5"></div>
 
@@ -229,6 +220,15 @@ const isActive = (path: string) => {
                     <div class="w-px h-5 bg-gray-200 mx-1"></div>
 
                     <LanguageSwitcher class="mr-1" />
+
+                    <RouterLink 
+                        :to="tenantPath('/about')" 
+                        class="action-btn"
+                        :class="{ 'action-btn-active': isActive('/about') }"
+                        :title="$t('nav.about')"
+                    >
+                        <Info class="w-4 h-4" />
+                    </RouterLink>
 
                     <!-- User Section -->
                     <template v-if="authStore.user || authStore.isAdmin">
