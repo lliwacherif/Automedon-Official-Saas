@@ -43,6 +43,7 @@ function createEmptyContractData(): ContractData {
     paiement: { mode: '', numero: '', nature: '', date: '', montant: '' },
     prolongation: { du: '', au: '', changement: '', dateHoraire: '' },
     signature: { lieu: '', date: '' },
+    pricingMode: 'HT',
   };
 }
 
@@ -209,6 +210,7 @@ async function loadReservation(id: string) {
         paiement: { mode: '', numero: '', nature: '', date: '', montant: '' },
         prolongation: { du: '', au: '', changement: '', dateHoraire: '' },
         signature: { lieu: '', date: fmtDateForContract(new Date().toISOString()) },
+        pricingMode: 'HT',
       };
     }
   } catch (e) {
@@ -399,6 +401,30 @@ onMounted(() => {
         </div>
 
         <div class="flex items-center gap-2 flex-wrap justify-end">
+          <!-- TTC / HT switcher -->
+          <div class="flex rounded-lg border border-slate-200 overflow-hidden text-sm font-medium select-none">
+            <button
+              @click="contractData.pricingMode = 'TTC'"
+              type="button"
+              class="px-3 py-2 transition"
+              :class="contractData.pricingMode === 'TTC'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-slate-50 text-slate-600 hover:bg-slate-100'"
+            >
+              TTC
+            </button>
+            <button
+              @click="contractData.pricingMode = 'HT'"
+              type="button"
+              class="px-3 py-2 transition border-l border-slate-200"
+              :class="(contractData.pricingMode || 'HT') === 'HT'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-slate-50 text-slate-600 hover:bg-slate-100'"
+            >
+              HT
+            </button>
+          </div>
+
           <!-- Save -->
           <button
             @click="saveContract"
@@ -567,7 +593,10 @@ onMounted(() => {
             <ChevronDown class="h-4 w-4 transition-transform" :class="{ 'rotate-180': collapsedSections.encaissement }" />
           </button>
           <div v-show="!collapsedSections.encaissement" class="sb-body">
-            <div class="sb-field"><label>Total Partiel (DT)</label><input v-model.number="contractData.encaissement.totalPartiel" type="number" step="0.001" placeholder="0.000" /></div>
+            <div class="sb-field">
+              <label>{{ contractData.pricingMode === 'TTC' ? 'Total Facture TTC (DT)' : 'Total Partiel HT (DT)' }}</label>
+              <input v-model.number="contractData.encaissement.totalPartiel" type="number" step="0.001" placeholder="0.000" />
+            </div>
             <div class="sb-field">
               <label>Carburant</label>
               <select v-model="contractData.encaissement.carburant"><option value="">—</option><option value="R">R (Remise)</option><option value="F">F (Full)</option><option value="E">E (Empty)</option></select>

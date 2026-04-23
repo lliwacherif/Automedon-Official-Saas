@@ -231,7 +231,16 @@ const messages = {
             return_after_tomorrow: 'After Tomorrow',
             return_today: 'Return Today',
             late: 'Overdue',
-        }
+        },
+        notifications: {
+            return: {
+                title: 'Vehicle returned',
+                message: 'The rental for {client} ({car}) has ended.',
+                a_client: 'a client',
+                a_vehicle: 'the vehicle',
+                dismiss: 'Dismiss',
+            },
+        },
     },
     fr: {
         nav: {
@@ -463,8 +472,36 @@ const messages = {
             return_after_tomorrow: 'Après Demain',
             return_today: 'Retour Aujourd\'hui',
             late: 'En Retard',
-        }
+        },
+        notifications: {
+            return: {
+                title: 'Retour de voiture',
+                message: 'La location de {client} ({car}) est terminée.',
+                a_client: 'un client',
+                a_vehicle: 'le véhicule',
+                dismiss: 'Fermer',
+            },
+        },
     }
+};
+
+const datetimeFormats = {
+    en: {
+        short: {
+            day: '2-digit' as const,
+            month: 'short' as const,
+            hour: '2-digit' as const,
+            minute: '2-digit' as const,
+        },
+    },
+    fr: {
+        short: {
+            day: '2-digit' as const,
+            month: 'short' as const,
+            hour: '2-digit' as const,
+            minute: '2-digit' as const,
+        },
+    },
 };
 
 const i18n = createI18n({
@@ -472,6 +509,7 @@ const i18n = createI18n({
     locale: 'fr', // Set default locale to French
     fallbackLocale: 'en',
     messages,
+    datetimeFormats,
 });
 
 export default i18n;

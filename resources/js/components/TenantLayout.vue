@@ -1,10 +1,19 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch, onMounted, computed, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import { supabase } from '@/lib/supabase';
 import { Pause, AlertTriangle, X } from 'lucide-vue-next';
+import { useAuthStore } from '@/stores/auth';
+import { useTenantStore } from '@/stores/tenant';
+import ReturnNotificationToaster from '@/components/ReturnNotificationToaster.vue';
+import {
+    initReturnNotifications,
+    stopReturnNotifications,
+} from '@/composables/useReturnNotifications';
 
 const route = useRoute();
+const authStore = useAuthStore();
+const tenantStore = useTenantStore();
 
 const isPaused = ref(false);
 const tenantName = ref('');
@@ -40,6 +49,22 @@ async function checkTenantStatus() {
 onMounted(checkTenantStatus);
 
 watch(() => route.fullPath, checkTenantStatus);
+
+// Return-notification toaster: only for authenticated admins inside a live tenant.
+const showReturnToaster = computed(
+    () => !checking.value && !isPaused.value && authStore.isAdmin && !!tenantStore.currentTenant?.id
+);
+
+watch(
+    showReturnToaster,
+    (enabled) => {
+        if (enabled) initReturnNotifications();
+        else stopReturnNotifications();
+    },
+    { immediate: true }
+);
+
+onBeforeUnmount(() => stopReturnNotifications());
 </script>
 
 <template>
@@ -90,5 +115,7 @@ watch(() => route.fullPath, checkTenantStatus);
             </div>
         </div>
         <RouterView />
+
+        <ReturnNotificationToaster v-if="showReturnToaster" />
     </div>
 </template>

@@ -77,6 +77,7 @@ export interface ContractData {
     lieu: string;
     date: string;
   };
+  pricingMode?: 'HT' | 'TTC';
 }
 
 const props = defineProps<{
@@ -84,11 +85,27 @@ const props = defineProps<{
 }>();
 
 const billing = computed(() => {
-  const sub = props.data.encaissement.totalPartiel || 0;
-  const tva = sub * 0.19;
+  const mode = props.data.pricingMode || 'HT';
+  const input = props.data.encaissement.totalPartiel || 0;
+  const tvaRate = 0.19;
   const timbre = 1.0;
   const div = props.data.encaissement.divers || 0;
-  const totalFacture = sub + tva + timbre;
+
+  let sub: number;
+  let tva: number;
+  let totalFacture: number;
+
+  if (mode === 'TTC') {
+    totalFacture = input;
+    const exclStamp = Math.max(0, input - timbre);
+    sub = exclStamp / (1 + tvaRate);
+    tva = exclStamp - sub;
+  } else {
+    sub = input;
+    tva = sub * tvaRate;
+    totalFacture = sub + tva + timbre;
+  }
+
   const total = totalFacture + div;
   return { sub, tva, timbre, div, total, totalFacture };
 });
