@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
-import { useCars, type CarStatus } from '@/composables/useCars';
+import { onMounted, ref } from 'vue';
+import { useCars, type Car as CarType, type CarStatus } from '@/composables/useCars';
 import { useTenantLink } from '@/composables/useTenantLink';
 import { RouterLink } from 'vue-router';
 import { 
@@ -13,10 +13,46 @@ import {
     CircleCheck,
     CircleX,
     Wrench,
+    FileText,
 } from 'lucide-vue-next';
+import CarPapersModal from '@/components/CarPapersModal.vue';
 
-const { carsByBrand, loading, fetchCars, deleteCar, updateCar } = useCars();
+const { cars, carsByBrand, loading, fetchCars, deleteCar, updateCar } = useCars();
 const { tenantPath } = useTenantLink();
+
+// Papers modal state
+const papersModalOpen = ref(false);
+const papersModalCar = ref<CarType | null>(null);
+
+function openPapersModal(car: CarType) {
+    papersModalCar.value = car;
+    papersModalOpen.value = true;
+}
+
+function closePapersModal() {
+    papersModalOpen.value = false;
+    papersModalCar.value = null;
+}
+
+function onPapersUpdated(updated: CarType) {
+    // Sync the updated car into the local list so the column icon reflects new state
+    const idx = cars.value.findIndex(c => c.id === updated.id);
+    if (idx !== -1) {
+        cars.value[idx] = { ...cars.value[idx], ...updated };
+    }
+    if (papersModalCar.value && papersModalCar.value.id === updated.id) {
+        papersModalCar.value = { ...papersModalCar.value, ...updated };
+    }
+}
+
+function paperCount(car: CarType): number {
+    return [
+        car.carte_grise_url,
+        car.assurance_url,
+        car.vignette_url,
+        car.visite_technique_url,
+    ].filter(Boolean).length;
+}
 
 onMounted(() => {
     fetchCars();
@@ -118,6 +154,9 @@ const getBrandLogo = (brand: string) => {
                                         <th class="px-5 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">
                                             {{ $t('admin.fleet.status') }}
                                         </th>
+                                        <th class="px-5 py-3 text-center text-[11px] font-bold text-gray-400 uppercase tracking-wider">
+                                            Papier
+                                        </th>
                                         <th class="px-5 py-3 text-right text-[11px] font-bold text-gray-400 uppercase tracking-wider">
                                             Actions
                                         </th>
@@ -161,6 +200,18 @@ const getBrandLogo = (brand: string) => {
                                                     }"
                                                 />
                                             </div>
+                                        </td>
+                                        <td class="px-5 py-3.5 text-center">
+                                            <button
+                                                type="button"
+                                                @click="openPapersModal(car)"
+                                                class="paper-button"
+                                                :class="paperCount(car) === 4 ? 'paper-button--complete' : paperCount(car) > 0 ? 'paper-button--partial' : 'paper-button--empty'"
+                                                :title="`Documents administratifs (${paperCount(car)}/4)`"
+                                            >
+                                                <FileText class="w-4 h-4" />
+                                                <span class="paper-button__count">{{ paperCount(car) }}/4</span>
+                                            </button>
                                         </td>
                                         <td class="px-5 py-3.5 text-right">
                                             <div class="flex items-center justify-end gap-1">
@@ -218,19 +269,31 @@ const getBrandLogo = (brand: string) => {
                                     </div>
                                 </div>
                                 
-                                <div class="flex justify-end gap-1 pt-3 border-t border-gray-100">
-                                    <RouterLink 
-                                        :to="tenantPath(`/admin/cars/${car.id}/edit`)" 
-                                        class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-indigo-50 transition-colors"
+                                <div class="flex items-center justify-between gap-2 pt-3 border-t border-gray-100">
+                                    <button
+                                        type="button"
+                                        @click="openPapersModal(car)"
+                                        class="paper-button paper-button--mobile"
+                                        :class="paperCount(car) === 4 ? 'paper-button--complete' : paperCount(car) > 0 ? 'paper-button--partial' : 'paper-button--empty'"
                                     >
-                                        <Edit class="w-4 h-4 text-indigo-500" />
-                                    </RouterLink>
-                                    <button 
-                                        @click="handleDelete(car.id)" 
-                                        class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-50 transition-colors"
-                                    >
-                                        <Trash2 class="w-4 h-4 text-red-400" />
+                                        <FileText class="w-4 h-4" />
+                                        <span>Papier</span>
+                                        <span class="paper-button__count">{{ paperCount(car) }}/4</span>
                                     </button>
+                                    <div class="flex items-center gap-1">
+                                        <RouterLink 
+                                            :to="tenantPath(`/admin/cars/${car.id}/edit`)" 
+                                            class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-indigo-50 transition-colors"
+                                        >
+                                            <Edit class="w-4 h-4 text-indigo-500" />
+                                        </RouterLink>
+                                        <button 
+                                            @click="handleDelete(car.id)" 
+                                            class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-red-50 transition-colors"
+                                        >
+                                            <Trash2 class="w-4 h-4 text-red-400" />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -238,6 +301,14 @@ const getBrandLogo = (brand: string) => {
                 </div>
             </div>
         </div>
+
+        <!-- Car Papers Modal -->
+        <CarPapersModal
+            :show="papersModalOpen"
+            :car="papersModalCar"
+            @close="closePapersModal"
+            @updated="onPapersUpdated"
+        />
     </div>
 </template>
 
@@ -258,5 +329,62 @@ const getBrandLogo = (brand: string) => {
     background: rgb(254 249 195);
     color: rgb(133 77 14);
     box-shadow: inset 0 0 0 1px rgba(202, 138, 4, 0.15);
+}
+
+/* Papier column button */
+.paper-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.3rem 0.625rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    line-height: 1;
+}
+
+.paper-button:hover {
+    transform: translateY(-1px);
+}
+
+.paper-button__count {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+}
+
+.paper-button--complete {
+    background: rgb(209 250 229);
+    color: rgb(5 122 85);
+    box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.25);
+}
+.paper-button--complete:hover {
+    background: rgb(167 243 208);
+}
+
+.paper-button--partial {
+    background: rgb(254 243 199);
+    color: rgb(146 64 14);
+    box-shadow: inset 0 0 0 1px rgba(217, 119, 6, 0.25);
+}
+.paper-button--partial:hover {
+    background: rgb(253 230 138);
+}
+
+.paper-button--empty {
+    background: rgb(249 250 251);
+    color: rgb(107 114 128);
+    box-shadow: inset 0 0 0 1px rgba(229, 231, 235, 1);
+}
+.paper-button--empty:hover {
+    background: rgb(238 242 255);
+    color: rgb(67 56 202);
+    box-shadow: inset 0 0 0 1px rgba(199, 210, 254, 1);
+}
+
+.paper-button--mobile {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.75rem;
 }
 </style>

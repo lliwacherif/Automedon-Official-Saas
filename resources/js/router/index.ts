@@ -107,6 +107,12 @@ const routes = [
                 meta: { requiresAuth: true, requiresAdmin: true }
             },
             {
+                path: 'admin/cars/:id/papers',
+                component: () => import('../Pages/Admin/Cars/Papers.vue'),
+                name: 'admin.cars.papers',
+                meta: { requiresAuth: true, requiresAdmin: true }
+            },
+            {
                 path: 'admin/reservations',
                 component: () => import('../Pages/Admin/Reservations/Index.vue'),
                 name: 'admin.reservations.index',

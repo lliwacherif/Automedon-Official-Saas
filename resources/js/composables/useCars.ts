@@ -6,6 +6,8 @@ import { format } from 'date-fns';
 export type CarBrand = 'Renault' | 'Dacia' | 'Skoda' | 'Hyundai' | 'Seat' | 'MG' | 'Mahindra' | 'Kia' | 'Honda' | 'Peugeot' | 'Cherry' | 'Geely' | 'Volkswagen' | 'Suzuki' | 'Chevrolet' | 'Fiat';
 export type CarStatus = 'disponible' | 'loue' | 'maintenance';
 
+export type CarPaperType = 'carte_grise' | 'assurance' | 'vignette' | 'visite_technique';
+
 export interface Car {
     id: number;
     brand: CarBrand;
@@ -19,6 +21,11 @@ export interface Car {
     first_registration_year?: number | null;
     auto_manage_status?: boolean;
     created_at: string;
+    // Administrative papers (URLs to files in the car-papers storage bucket).
+    carte_grise_url?: string | null;
+    assurance_url?: string | null;
+    vignette_url?: string | null;
+    visite_technique_url?: string | null;
     next_reservation?: {
         start_date: string;
         end_date: string;
@@ -108,6 +115,10 @@ export function useCars() {
             first_registration_year: dbCar.first_registration_year ?? null,
             auto_manage_status: dbCar.auto_manage_status,
             transmission: dbCar.transmission || null,
+            carte_grise_url: dbCar.carte_grise_url ?? null,
+            assurance_url: dbCar.assurance_url ?? null,
+            vignette_url: dbCar.vignette_url ?? null,
+            visite_technique_url: dbCar.visite_technique_url ?? null,
             created_at: dbCar.created_at
         };
     };
@@ -353,6 +364,11 @@ export function useCars() {
             // Only include first_registration_year if caller set a real value; this keeps
             // updates working even if the DB column hasn't been added yet.
             if (carData.first_registration_year) updateData.first_registration_year = carData.first_registration_year;
+            // Paper URLs — passed as null to clear, or a string URL to set
+            if (carData.carte_grise_url !== undefined)      updateData.carte_grise_url = carData.carte_grise_url || null;
+            if (carData.assurance_url !== undefined)        updateData.assurance_url = carData.assurance_url || null;
+            if (carData.vignette_url !== undefined)         updateData.vignette_url = carData.vignette_url || null;
+            if (carData.visite_technique_url !== undefined) updateData.visite_technique_url = carData.visite_technique_url || null;
 
             const { data, error: supabaseError } = await (supabase
                 .from('cars') as any)
