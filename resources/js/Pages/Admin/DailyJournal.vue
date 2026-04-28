@@ -33,6 +33,7 @@ import {
     CalendarRange,
     CalendarDays,
     Clock,
+    Cog,
 } from 'lucide-vue-next';
 
 const { t } = useI18n();
@@ -44,6 +45,23 @@ const tenantStore = useTenantStore();
 // ───────────────────────────────────────────────
 type ViewMode = 'timeline' | 'list';
 const viewMode = ref<ViewMode>('timeline');
+
+// ───────────────────────────────────────────────
+// Transmission Filter (applies to both views)
+// ───────────────────────────────────────────────
+type TransmissionFilter = 'all' | 'auto' | 'manual';
+const transmissionFilter = ref<TransmissionFilter>('all');
+
+const TRANSMISSION_OPTIONS = [
+    { value: 'all' as const, label: 'Tous' },
+    { value: 'auto' as const, label: 'Auto' },
+    { value: 'manual' as const, label: 'Manuel' },
+];
+
+const filteredCars = computed(() => {
+    if (transmissionFilter.value === 'all') return cars.value;
+    return cars.value.filter(c => (c as any).transmission === transmissionFilter.value);
+});
 
 // ───────────────────────────────────────────────
 // Timeline State
@@ -284,7 +302,15 @@ onMounted(async () => {
                     </div>
                     <div>
                         <h1 class="text-xl font-bold text-gray-900 tracking-tight">{{ t('daily_journal.title') }}</h1>
-                        <p class="text-sm text-gray-500">{{ cars.length }} véhicule{{ cars.length !== 1 ? 's' : '' }} dans la flotte</p>
+                        <p class="text-sm text-gray-500">
+                            <template v-if="transmissionFilter === 'all'">
+                                {{ cars.length }} véhicule{{ cars.length !== 1 ? 's' : '' }} dans la flotte
+                            </template>
+                            <template v-else>
+                                {{ filteredCars.length }} / {{ cars.length }} véhicule{{ cars.length !== 1 ? 's' : '' }}
+                                <span class="font-bold text-gray-700">· {{ transmissionFilter === 'auto' ? 'Automatique' : 'Manuel' }}</span>
+                            </template>
+                        </p>
                     </div>
                 </div>
 
@@ -397,6 +423,25 @@ onMounted(async () => {
                                 <span>Heure</span>
                             </button>
                         </div>
+
+                        <!-- Transmission filter -->
+                        <div class="inline-flex items-center bg-gray-50 p-0.5 rounded-lg ring-1 ring-gray-100">
+                            <Cog class="w-3.5 h-3.5 text-gray-400 ml-1.5 mr-0.5" />
+                            <button
+                                v-for="opt in TRANSMISSION_OPTIONS"
+                                :key="opt.value"
+                                type="button"
+                                @click="transmissionFilter = opt.value"
+                                :class="[
+                                    'px-2.5 py-1 text-[11px] font-bold rounded-md transition-all',
+                                    transmissionFilter === opt.value
+                                        ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-indigo-100'
+                                        : 'text-gray-500 hover:text-gray-700'
+                                ]"
+                            >
+                                {{ opt.label }}
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Legend -->
@@ -414,12 +459,16 @@ onMounted(async () => {
 
                 <!-- Timeline grid -->
                 <div class="bg-white rounded-2xl ring-1 ring-gray-100 shadow-sm overflow-hidden">
-                    <div v-if="cars.length === 0" class="py-16 text-center">
+                    <div v-if="filteredCars.length === 0" class="py-16 text-center">
                         <div class="inline-flex flex-col items-center">
                             <div class="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center mb-3">
                                 <Car class="w-6 h-6 text-gray-300" />
                             </div>
-                            <p class="text-gray-400 font-medium">Aucun véhicule dans la flotte.</p>
+                            <p class="text-gray-400 font-medium">
+                                {{ transmissionFilter === 'all'
+                                    ? 'Aucun véhicule dans la flotte.'
+                                    : `Aucun véhicule ${transmissionFilter === 'auto' ? 'automatique' : 'manuel'}.` }}
+                            </p>
                         </div>
                     </div>
 
@@ -458,7 +507,7 @@ onMounted(async () => {
                         <!-- Body rows: one per car -->
                         <div class="timeline-body">
                             <div
-                                v-for="car in cars"
+                                v-for="car in filteredCars"
                                 :key="car.id"
                                 class="timeline-row"
                             >
@@ -538,18 +587,22 @@ onMounted(async () => {
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr v-if="cars.length === 0">
+                                <tr v-if="filteredCars.length === 0">
                                     <td colspan="7" class="px-5 py-16 text-center">
                                         <div class="flex flex-col items-center">
                                             <div class="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center mb-3">
                                                 <Car class="w-6 h-6 text-gray-300" />
                                             </div>
-                                            <p class="text-gray-400 font-medium">Aucun véhicule dans la flotte.</p>
+                                            <p class="text-gray-400 font-medium">
+                                                {{ transmissionFilter === 'all'
+                                                    ? 'Aucun véhicule dans la flotte.'
+                                                    : `Aucun véhicule ${transmissionFilter === 'auto' ? 'automatique' : 'manuel'}.` }}
+                                            </p>
                                         </div>
                                     </td>
                                 </tr>
                                 <tr
-                                    v-for="car in cars"
+                                    v-for="car in filteredCars"
                                     :key="car.id"
                                     class="border-b border-gray-50 hover:bg-indigo-50/30 transition-colors"
                                 >
@@ -633,13 +686,17 @@ onMounted(async () => {
 
                 <!-- Mobile Cards -->
                 <div class="md:hidden space-y-3">
-                    <div v-if="cars.length === 0" class="flex flex-col items-center py-16 bg-white rounded-2xl ring-1 ring-gray-100">
+                    <div v-if="filteredCars.length === 0" class="flex flex-col items-center py-16 bg-white rounded-2xl ring-1 ring-gray-100">
                         <Car class="w-8 h-8 text-gray-300 mb-3" />
-                        <p class="text-gray-400 font-medium">Aucun véhicule.</p>
+                        <p class="text-gray-400 font-medium">
+                            {{ transmissionFilter === 'all'
+                                ? 'Aucun véhicule.'
+                                : `Aucun véhicule ${transmissionFilter === 'auto' ? 'automatique' : 'manuel'}.` }}
+                        </p>
                     </div>
 
                     <div
-                        v-for="car in cars"
+                        v-for="car in filteredCars"
                         :key="car.id"
                         class="bg-white rounded-2xl ring-1 ring-gray-100 shadow-sm overflow-hidden"
                     >
