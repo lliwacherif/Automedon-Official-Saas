@@ -9,6 +9,7 @@ import type { Database } from '@/types/supabase';
 import { 
     Wrench, Calendar, Gauge, DollarSign, MapPin, Edit, Trash2, Plus, Car, X, ChevronDown, Loader2, FileText, Hash, CircleCheck,
     AlertTriangle, Upload, Image, Eye, Camera, User, CreditCard, IdCard, ClipboardList, ShieldAlert,
+    Search, ArrowLeft, ImageOff,
 } from 'lucide-vue-next';
 
 const { cars, loading: carsLoading, fetchCars, fetchCarById, updateCar } = useCars();
@@ -21,6 +22,18 @@ const tenantStore = useTenantStore();
 
 const selectedCarId = ref<number | null>(null);
 const selectedCar = ref<any>(null);
+
+// Fleet-grid search
+const gridSearch = ref('');
+
+// Per-car maintenance summary, keyed by car_id (count, total cost, last date)
+interface CarMaintenanceSummary {
+    count: number;
+    totalCost: number;
+    lastDate: string | null;
+}
+const carMaintenanceSummary = ref<Record<number, CarMaintenanceSummary>>({});
+const summaryLoading = ref(false);
 
 const isModalOpen = ref(false);
 const isEditMode = ref(false);
@@ -102,15 +115,75 @@ watch(() => formData.value.linked_reservation_id, (resId) => {
     }
 });
 
-async function onCarSelect() {
-    if (!selectedCarId.value) {
-        selectedCar.value = null;
-        maintenanceRecords.value = [];
-        return;
-    }
-    const car = await fetchCarById(selectedCarId.value);
+async function selectCar(carId: number) {
+    selectedCarId.value = carId;
+    const car = await fetchCarById(carId);
     selectedCar.value = car;
-    await fetchMaintenanceRecords(selectedCarId.value);
+    await fetchMaintenanceRecords(carId);
+    // Scroll to top so the user lands on the car hero
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function goBackToFleet() {
+    selectedCarId.value = null;
+    selectedCar.value = null;
+    maintenanceRecords.value = [];
+}
+
+// Bulk-fetch a lightweight summary for every car in the tenant
+// (count + total cost + last maintenance date) used by the fleet grid cards.
+async function fetchMaintenanceSummary() {
+    const tenantId = tenantStore.currentTenant?.id;
+    if (!tenantId) return;
+
+    summaryLoading.value = true;
+    try {
+        const { data, error } = await supabase
+            .from('maintenance_records')
+            .select('car_id, cost, maintenance_date')
+            .eq('tenant_id', tenantId);
+
+        if (error) throw error;
+
+        const summary: Record<number, CarMaintenanceSummary> = {};
+        for (const rec of (data || []) as any[]) {
+            const carId = rec.car_id as number;
+            if (!summary[carId]) {
+                summary[carId] = { count: 0, totalCost: 0, lastDate: null };
+            }
+            summary[carId].count += 1;
+            summary[carId].totalCost += Number(rec.cost) || 0;
+            if (!summary[carId].lastDate || rec.maintenance_date > summary[carId].lastDate) {
+                summary[carId].lastDate = rec.maintenance_date;
+            }
+        }
+        carMaintenanceSummary.value = summary;
+    } catch (e) {
+        console.error('Error fetching maintenance summary:', e);
+    } finally {
+        summaryLoading.value = false;
+    }
+}
+
+// Cars filtered by the grid search (plate / brand / model, case-insensitive)
+const gridCars = computed(() => {
+    const term = gridSearch.value.trim().toLowerCase();
+    if (!term) return cars.value;
+    return cars.value.filter(c =>
+        c.plate_number.toLowerCase().includes(term) ||
+        c.brand.toLowerCase().includes(term) ||
+        c.model.toLowerCase().includes(term)
+    );
+});
+
+function getCarSummary(carId: number): CarMaintenanceSummary {
+    return carMaintenanceSummary.value[carId] || { count: 0, totalCost: 0, lastDate: null };
+}
+
+function getCarStatusMeta(status: string) {
+    if (status === 'maintenance') return { label: 'Maintenance', class: 'car-status car-status--maintenance', Icon: Wrench };
+    if (status === 'loue') return { label: 'Loué', class: 'car-status car-status--loue', Icon: User };
+    return { label: 'Disponible', class: 'car-status car-status--disponible', Icon: CircleCheck };
 }
 
 function openAddModal() {
@@ -221,6 +294,7 @@ async function submitForm() {
             selectedCar.value = car;
         }
         closeModal();
+        fetchMaintenanceSummary();
     } catch (error) {
         console.error('Error submitting maintenance record:', error);
     }
@@ -234,6 +308,7 @@ async function handleDelete(recordId: number) {
             const car = await fetchCarById(selectedCarId.value);
             selectedCar.value = car;
         }
+        fetchMaintenanceSummary();
     } catch (error) {
         console.error('Error deleting maintenance record:', error);
     }
@@ -245,7 +320,10 @@ function formatCurrency(value: number): string {
 
 import { formatDate, formatDateTime } from '@/utils/date';
 
-onMounted(() => { fetchCars(); });
+onMounted(async () => {
+    await fetchCars();
+    await fetchMaintenanceSummary();
+});
 </script>
 
 <template>
@@ -253,31 +331,190 @@ onMounted(() => { fetchCars(); });
         <div class="max-w-[1600px] mx-auto p-5 md:p-6 space-y-5">
 
             <!-- Header -->
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-200">
-                    <Wrench class="w-5 h-5 text-white" />
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <button
+                        v-if="selectedCar"
+                        type="button"
+                        @click="goBackToFleet"
+                        class="w-10 h-10 rounded-xl bg-white ring-1 ring-gray-200 hover:ring-gray-300 hover:bg-gray-50 flex items-center justify-center text-gray-600 transition-colors"
+                        aria-label="Retour à la flotte"
+                    >
+                        <ArrowLeft class="w-4 h-4" />
+                    </button>
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-200">
+                        <Wrench class="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold text-gray-900 tracking-tight">Gestion Maintenance</h1>
+                        <p v-if="!selectedCar" class="text-sm text-gray-500">
+                            {{ cars.length }} véhicule{{ cars.length !== 1 ? 's' : '' }} dans la flotte — sélectionnez-en un pour gérer son entretien
+                        </p>
+                        <p v-else class="text-sm text-gray-500">
+                            Historique d'entretien — <span class="font-semibold text-gray-700">{{ selectedCar.brand }} {{ selectedCar.model }}</span>
+                        </p>
+                    </div>
                 </div>
-                <div>
-                    <h1 class="text-xl font-bold text-gray-900 tracking-tight">Gestion Maintenance</h1>
-                    <p class="text-sm text-gray-500">Suivi d'entretien de votre flotte</p>
+
+                <!-- Search bar (only on fleet grid) -->
+                <div v-if="!selectedCar" class="relative w-full sm:w-72">
+                    <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                        v-model="gridSearch"
+                        type="text"
+                        placeholder="Rechercher (plaque, marque, modèle)..."
+                        class="w-full pl-10 pr-4 py-2.5 text-sm bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all"
+                    >
                 </div>
             </div>
 
-            <!-- Car Selector -->
-            <div class="bg-white rounded-2xl ring-1 ring-gray-100 shadow-sm p-4">
-                <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">Sélectionner une voiture</label>
-                <div class="relative">
-                    <Car class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <select v-model="selectedCarId" @change="onCarSelect" class="w-full pl-10 pr-10 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 appearance-none cursor-pointer transition-all">
-                        <option :value="null">-- Choisir une voiture --</option>
-                        <option v-for="car in filteredCars" :key="car.id" :value="car.id">{{ car.label }}</option>
-                    </select>
-                    <ChevronDown class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <!-- ────────────────────────────────────────── -->
+            <!-- FLEET GRID (default, when no car selected) -->
+            <!-- ────────────────────────────────────────── -->
+            <div v-if="!selectedCar">
+                <!-- Loading -->
+                <div v-if="carsLoading" class="flex flex-col items-center justify-center py-20">
+                    <div class="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center mb-4">
+                        <Loader2 class="w-7 h-7 text-amber-500 animate-spin" />
+                    </div>
+                    <p class="text-gray-500 font-medium">Chargement de la flotte...</p>
+                </div>
+
+                <!-- Empty -->
+                <div v-else-if="cars.length === 0" class="bg-white rounded-2xl ring-1 ring-gray-100 shadow-sm p-12 text-center">
+                    <div class="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-4">
+                        <Car class="w-8 h-8 text-gray-300" />
+                    </div>
+                    <h3 class="text-base font-bold text-gray-900">Aucun véhicule dans la flotte</h3>
+                    <p class="mt-1.5 text-sm text-gray-400">Ajoutez des voitures pour commencer le suivi d'entretien.</p>
+                </div>
+
+                <!-- No matches -->
+                <div v-else-if="gridCars.length === 0" class="bg-white rounded-2xl ring-1 ring-gray-100 shadow-sm p-12 text-center">
+                    <div class="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center mx-auto mb-3">
+                        <Search class="w-6 h-6 text-gray-300" />
+                    </div>
+                    <p class="text-gray-400 font-medium">Aucun véhicule ne correspond à votre recherche.</p>
+                </div>
+
+                <!-- Grid -->
+                <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-5">
+                    <button
+                        v-for="car in gridCars"
+                        :key="car.id"
+                        type="button"
+                        @click="selectCar(car.id)"
+                        class="car-tile group"
+                    >
+                        <!-- Image -->
+                        <div class="relative w-full aspect-[16/10] overflow-hidden bg-gradient-to-b from-slate-50 to-slate-100/80">
+                            <img
+                                v-if="car.image_url"
+                                :src="car.image_url"
+                                :alt="`${car.brand} ${car.model}`"
+                                class="w-full h-full object-cover group-hover:scale-[1.04] transition-transform duration-500 ease-out"
+                                @error="($event.target as HTMLImageElement).style.display='none'"
+                            >
+                            <div v-else class="w-full h-full flex items-center justify-center text-gray-300">
+                                <ImageOff class="w-9 h-9" />
+                            </div>
+
+                            <!-- Status pill (top-left) -->
+                            <span :class="getCarStatusMeta(car.status).class">
+                                <component :is="getCarStatusMeta(car.status).Icon" class="w-3 h-3" />
+                                {{ getCarStatusMeta(car.status).label }}
+                            </span>
+
+                            <!-- Plate number badge (top-right) -->
+                            <span class="car-plate-badge">{{ car.plate_number }}</span>
+                        </div>
+
+                        <!-- Body -->
+                        <div class="p-4 flex flex-col gap-3">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="min-w-0">
+                                    <h3 class="text-[15px] font-extrabold text-gray-900 leading-tight truncate tracking-tight">
+                                        {{ car.brand }} {{ car.model }}
+                                    </h3>
+                                    <div class="flex items-center gap-1.5 text-xs text-gray-500 mt-1">
+                                        <Gauge class="w-3.5 h-3.5 text-gray-400" />
+                                        <span class="font-semibold tabular-nums">{{ (car.mileage || 0).toLocaleString() }} km</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Maintenance summary -->
+                            <div class="grid grid-cols-3 gap-2 pt-3 border-t border-gray-100">
+                                <div class="text-center">
+                                    <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Op.</div>
+                                    <div class="text-sm font-extrabold text-gray-900 tabular-nums mt-0.5">{{ getCarSummary(car.id).count }}</div>
+                                </div>
+                                <div class="text-center border-x border-gray-100">
+                                    <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Coût</div>
+                                    <div class="text-sm font-extrabold text-indigo-600 tabular-nums mt-0.5 truncate" :title="formatCurrency(getCarSummary(car.id).totalCost)">
+                                        {{ getCarSummary(car.id).totalCost > 0 ? formatCurrency(getCarSummary(car.id).totalCost) : '—' }}
+                                    </div>
+                                </div>
+                                <div class="text-center">
+                                    <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Dernier</div>
+                                    <div class="text-[11px] font-bold text-gray-700 mt-0.5">
+                                        {{ getCarSummary(car.id).lastDate ? formatDate(getCarSummary(car.id).lastDate!) : '—' }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </button>
                 </div>
             </div>
 
-            <!-- Main Content -->
-            <div v-if="selectedCar" class="space-y-5">
+            <!-- ────────────────────────────────────────── -->
+            <!-- DETAIL VIEW (when a car is selected)        -->
+            <!-- ────────────────────────────────────────── -->
+            <div v-else class="space-y-5">
+                <!-- Car hero -->
+                <div class="relative overflow-hidden bg-white rounded-2xl ring-1 ring-gray-100 shadow-sm">
+                    <div class="grid grid-cols-1 md:grid-cols-[280px_1fr]">
+                        <div class="relative aspect-[16/10] md:aspect-auto md:h-full bg-gradient-to-b from-slate-50 to-slate-100/80">
+                            <img
+                                v-if="selectedCar.image_url"
+                                :src="selectedCar.image_url"
+                                :alt="`${selectedCar.brand} ${selectedCar.model}`"
+                                class="w-full h-full object-cover"
+                                @error="($event.target as HTMLImageElement).style.display='none'"
+                            >
+                            <div v-else class="w-full h-full flex items-center justify-center text-gray-300">
+                                <ImageOff class="w-10 h-10" />
+                            </div>
+                            <span :class="getCarStatusMeta(selectedCar.status).class">
+                                <component :is="getCarStatusMeta(selectedCar.status).Icon" class="w-3 h-3" />
+                                {{ getCarStatusMeta(selectedCar.status).label }}
+                            </span>
+                        </div>
+                        <div class="p-5 md:p-6 flex flex-col justify-between gap-4">
+                            <div>
+                                <div class="flex items-center gap-2 flex-wrap mb-1.5">
+                                    <span class="inline-flex px-2.5 py-1 text-xs font-extrabold text-gray-700 bg-gray-50 rounded-lg ring-1 ring-gray-200 font-mono tracking-tight">
+                                        {{ selectedCar.plate_number }}
+                                    </span>
+                                </div>
+                                <h2 class="text-2xl font-extrabold text-gray-900 tracking-tight">{{ selectedCar.brand }} {{ selectedCar.model }}</h2>
+                                <div class="flex items-center gap-3 text-sm text-gray-500 mt-2">
+                                    <span class="inline-flex items-center gap-1.5">
+                                        <Gauge class="w-3.5 h-3.5 text-gray-400" />
+                                        <span class="font-semibold text-gray-700 tabular-nums">{{ (selectedCar.mileage || 0).toLocaleString() }} km</span>
+                                    </span>
+                                </div>
+                            </div>
+                            <button
+                                @click="openAddModal"
+                                class="self-start inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 rounded-xl shadow-md shadow-indigo-200 hover:shadow-lg hover:shadow-indigo-300 transition-all"
+                            >
+                                <Plus class="w-4 h-4" /> Ajouter Entretien
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Stats Cards -->
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div class="stat-card group">
@@ -308,11 +545,6 @@ onMounted(() => { fetchCars(); });
                         <div class="mt-3 pt-3 border-t border-gray-100 text-sm text-gray-400 text-xs">Total des dépenses d'entretien</div>
                     </div>
                 </div>
-
-                <!-- Add Button -->
-                <button @click="openAddModal" class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 rounded-xl shadow-md shadow-indigo-200 hover:shadow-lg hover:shadow-indigo-300 transition-all">
-                    <Plus class="w-4 h-4" /> Ajouter Entretien
-                </button>
 
                 <!-- Desktop Table -->
                 <div class="hidden md:block bg-white rounded-2xl ring-1 ring-gray-100 shadow-sm overflow-hidden">
@@ -407,13 +639,6 @@ onMounted(() => { fetchCars(); });
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <!-- Empty State -->
-            <div v-else class="bg-white rounded-2xl ring-1 ring-gray-100 shadow-sm p-12 text-center">
-                <div class="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mx-auto mb-4"><Car class="w-8 h-8 text-gray-300" /></div>
-                <h3 class="text-base font-bold text-gray-900">Aucune voiture sélectionnée</h3>
-                <p class="mt-1.5 text-sm text-gray-400 max-w-sm mx-auto">Sélectionnez une voiture dans la liste ci-dessus pour consulter et gérer son historique de maintenance.</p>
             </div>
         </div>
 
@@ -643,6 +868,82 @@ onMounted(() => { fetchCars(); });
 </template>
 
 <style scoped>
+/* ────────────────────────────────────────────
+ * Fleet grid: clickable car tiles
+ * ──────────────────────────────────────────── */
+.car-tile {
+    text-align: left;
+    background: white;
+    border-radius: 1rem;
+    border: 1px solid rgb(243 244 246);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.02);
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+                border-color 0.25s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.car-tile:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.07), 0 4px 10px rgba(0, 0, 0, 0.04);
+    border-color: rgb(229 231 235);
+}
+
+.car-tile:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25), 0 8px 20px rgba(0, 0, 0, 0.06);
+    border-color: rgb(165 180 252);
+}
+
+/* Plate badge over the image */
+.car-plate-badge {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    padding: 0.25rem 0.625rem;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border-radius: 0.5rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.8125rem;
+    font-weight: 800;
+    color: rgb(17 24 39);
+    letter-spacing: -0.01em;
+    box-shadow:
+        inset 0 0 0 1px rgba(229, 231, 235, 0.8),
+        0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+/* Status pill over the image */
+.car-status {
+    position: absolute;
+    top: 0.75rem;
+    left: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3125rem;
+    padding: 0.25rem 0.625rem;
+    font-size: 0.6875rem;
+    font-weight: 800;
+    border-radius: 999px;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    color: white;
+    letter-spacing: 0.02em;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.car-status--disponible { background: rgba(16, 185, 129, 0.92); }
+.car-status--loue       { background: rgba(245, 158, 11, 0.92); }
+.car-status--maintenance{ background: rgba(239, 68, 68, 0.92); }
+
+/* ────────────────────────────────────────────
+ * Existing stat cards (detail view)
+ * ──────────────────────────────────────────── */
 .stat-card { background: white; padding: 1.25rem; border-radius: 1rem; border: 1px solid rgb(243 244 246); box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.02); transition: all 0.3s cubic-bezier(0.4,0,0.2,1); }
 .stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04); border-color: rgb(229 231 235); }
 
