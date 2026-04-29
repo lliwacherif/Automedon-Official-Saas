@@ -2,7 +2,7 @@
 import { ref, watch } from 'vue';
 import { Loader2, FileDown, X, RefreshCw } from 'lucide-vue-next';
 import InvoiceTemplate, { type InvoiceData } from './InvoiceTemplate.vue';
-import { formatDateTime } from '@/utils/date';
+import { formatDate, formatDateTime } from '@/utils/date';
 import { supabase } from '@/lib/supabase';
 //@ts-ignore
 import html2pdf from 'html2pdf.js';
@@ -53,6 +53,19 @@ async function generateInvoiceData() {
 
     const settings = await loadInvoiceSettings(props.tenant.id);
 
+    // Unified designation (same wording as the B2B / page builder):
+    // "Location de <client> avec le véhicule <plate> <brand model> du: <date>"
+    const carBrand = props.reservation.car?.brand || '';
+    const carModel = props.reservation.car?.model || '';
+    const carLabel = `${carBrand} ${carModel}`.trim() || 'Véhicule';
+    const plate = props.reservation.car?.plate_number || props.reservation.car?.license_plate || '';
+    const clientPart = props.reservation.client_name ? ` de ${props.reservation.client_name}` : '';
+    const vehiclePart = plate
+        ? ` avec le véhicule ${plate}${carLabel !== 'Véhicule' ? ' ' + carLabel : ''}`
+        : (carLabel !== 'Véhicule' ? ` avec ${carLabel}` : '');
+    const datePart = ` du: ${formatDate(props.reservation.start_date)}`;
+    const designation = `Location${clientPart}${vehiclePart}${datePart}`;
+
     previewData.value = {
         invoiceNumber: invNum,
         invoiceDate: new Date().toLocaleDateString('fr-TN'),
@@ -74,7 +87,7 @@ async function generateInvoiceData() {
         },
         items: [
             {
-                designation: `Location véhicule ${props.reservation.car?.brand || ''} ${props.reservation.car?.model || ''}`,
+                designation,
                 duree: `${formatDateTime(props.reservation.start_date)} au ${formatDateTime(props.reservation.end_date)}`,
                 unitPriceHT,
                 unite: 'Jours',
