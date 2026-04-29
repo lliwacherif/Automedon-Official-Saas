@@ -12,9 +12,13 @@ export interface FaithfulClient {
     permit_number?: string;
     cin_date?: string;
     permit_date?: string;
+    /** URLs of up to 2 personal documents (CIN, permit, etc.). */
+    documents?: string[];
     created_at: string;
     updated_at: string;
 }
+
+export const FAITHFUL_CLIENT_MAX_DOCUMENTS = 2;
 
 export function useFaithfulClients() {
     const clients = ref<FaithfulClient[]>([]);
@@ -138,6 +142,36 @@ export function useFaithfulClients() {
         }
     }
 
+    /**
+     * Replace the documents array for a faithful client. The DB constraint
+     * caps the array at 2 entries; we mirror that here so the UI fails fast.
+     */
+    async function setClientDocuments(id: number, documents: string[]): Promise<FaithfulClient | null> {
+        if (documents.length > FAITHFUL_CLIENT_MAX_DOCUMENTS) {
+            throw new Error(`Maximum ${FAITHFUL_CLIENT_MAX_DOCUMENTS} documents par client.`);
+        }
+
+        try {
+            const { data, error: supabaseError } = await (supabase
+                .from('faithful_clients') as any)
+                .update({ documents })
+                .eq('id', id)
+                .select()
+                .single();
+
+            if (supabaseError) throw supabaseError;
+
+            const updated = data as FaithfulClient;
+            const idx = clients.value.findIndex(c => c.id === id);
+            if (idx !== -1) clients.value[idx] = { ...clients.value[idx], ...updated };
+            return updated;
+        } catch (e: any) {
+            console.error('Error updating client documents:', e);
+            error.value = e.message;
+            throw e;
+        }
+    }
+
     return {
         clients,
         loading,
@@ -145,6 +179,7 @@ export function useFaithfulClients() {
         fetchFaithfulClients,
         searchFaithfulClients,
         createFaithfulClient,
-        deleteFaithfulClient
+        deleteFaithfulClient,
+        setClientDocuments,
     };
 }

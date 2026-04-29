@@ -2,12 +2,14 @@
 import { ref, onMounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useTenantStore } from '@/stores/tenant';
-import { useFaithfulClients } from '@/composables/useFaithfulClients';
-import { 
-    Loader2, Lock, UserPlus, Users, Trash2, KeyRound, Shield, Settings, 
+import { useFaithfulClients, type FaithfulClient } from '@/composables/useFaithfulClients';
+import {
+    Loader2, Lock, UserPlus, Users, Trash2, KeyRound, Shield, Settings,
     User, CreditCard, Phone, AlertCircle, CircleCheck, Mail, IdCard, Calendar,
+    Paperclip,
 } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
+import FaithfulClientDocumentsModal from '@/components/FaithfulClientDocumentsModal.vue';
 
 const authStore = useAuthStore();
 const tenantStore = useTenantStore();
@@ -73,6 +75,32 @@ const handleDeleteFaithfulClient = async (id: number) => {
         alert('Erreur lors de la suppression: ' + e.message);
     }
 };
+
+// Documents modal
+const docsModalOpen = ref(false);
+const docsModalClient = ref<FaithfulClient | null>(null);
+
+function openDocsModal(client: FaithfulClient) {
+    docsModalClient.value = client;
+    docsModalOpen.value = true;
+}
+
+function closeDocsModal() {
+    docsModalOpen.value = false;
+    docsModalClient.value = null;
+}
+
+function onDocsUpdated(updated: FaithfulClient) {
+    // Keep modal in sync with the saved data so further edits in the same
+    // session see the latest array
+    if (docsModalClient.value && docsModalClient.value.id === updated.id) {
+        docsModalClient.value = { ...docsModalClient.value, ...updated };
+    }
+}
+
+function clientDocCount(client: FaithfulClient): number {
+    return (client.documents || []).filter(Boolean).length;
+}
 
 // Change Password State
 const currentPassword = ref('');
@@ -388,26 +416,38 @@ const handleCreateUser = async () => {
                                 </div>
                                 
                                 <ul v-else class="divide-y divide-gray-50 overflow-y-auto custom-scrollbar">
-                                    <li v-for="client in faithfulClients" :key="client.id" class="px-4 py-3 hover:bg-indigo-50/30 flex justify-between items-center group transition-colors">
-                                        <div class="flex items-center gap-3">
-                                            <div class="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-sm ring-1 ring-indigo-100">
+                                    <li v-for="client in faithfulClients" :key="client.id" class="px-4 py-3 hover:bg-indigo-50/30 flex justify-between items-center gap-2 group transition-colors">
+                                        <div class="flex items-center gap-3 min-w-0">
+                                            <div class="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-sm ring-1 ring-indigo-100 shrink-0">
                                                 {{ client.full_name.charAt(0) }}
                                             </div>
-                                            <div>
-                                                <p class="text-sm font-semibold text-gray-900">{{ client.full_name }}</p>
+                                            <div class="min-w-0">
+                                                <p class="text-sm font-semibold text-gray-900 truncate">{{ client.full_name }}</p>
                                                 <div class="flex items-center text-xs text-gray-400 gap-2 mt-0.5">
                                                     <span class="bg-gray-50 px-1.5 py-0.5 rounded-md ring-1 ring-gray-100 text-gray-500 font-mono text-[11px]">{{ client.cin }}</span>
-                                                    <span>{{ client.phone }}</span>
+                                                    <span class="truncate">{{ client.phone }}</span>
                                                 </div>
                                             </div>
                                         </div>
-                                        <button 
-                                            @click="handleDeleteFaithfulClient(client.id)"
-                                            class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
-                                            title="Supprimer"
-                                        >
-                                            <Trash2 class="w-4 h-4" />
-                                        </button>
+                                        <div class="flex items-center gap-1 shrink-0">
+                                            <button
+                                                type="button"
+                                                @click="openDocsModal(client)"
+                                                class="docs-pill"
+                                                :class="clientDocCount(client) > 0 ? 'docs-pill--has' : 'docs-pill--empty'"
+                                                :title="`Documents (${clientDocCount(client)}/2)`"
+                                            >
+                                                <Paperclip class="w-3.5 h-3.5" />
+                                                <span class="docs-pill__count">{{ clientDocCount(client) }}/2</span>
+                                            </button>
+                                            <button
+                                                @click="handleDeleteFaithfulClient(client.id)"
+                                                class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
+                                                title="Supprimer"
+                                            >
+                                                <Trash2 class="w-4 h-4" />
+                                            </button>
+                                        </div>
                                     </li>
                                 </ul>
                             </div>
@@ -416,6 +456,14 @@ const handleCreateUser = async () => {
                 </div>
             </div>
         </div>
+
+        <!-- Faithful client documents modal -->
+        <FaithfulClientDocumentsModal
+            :show="docsModalOpen"
+            :client="docsModalClient"
+            @close="closeDocsModal"
+            @updated="onDocsUpdated"
+        />
     </div>
 </template>
 
@@ -478,5 +526,45 @@ const handleCreateUser = async () => {
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background-color: rgba(156, 163, 175, 0.45);
+}
+
+/* Per-client documents pill (Clients récents list) */
+.docs-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3125rem;
+    padding: 0.3125rem 0.5rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+    line-height: 1;
+}
+
+.docs-pill__count {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+}
+
+.docs-pill--has {
+    background: rgb(238 242 255);
+    color: rgb(67 56 202);
+    box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.25);
+}
+.docs-pill--has:hover {
+    background: rgb(224 231 255);
+    box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.4);
+}
+
+.docs-pill--empty {
+    background: rgb(249 250 251);
+    color: rgb(107 114 128);
+    box-shadow: inset 0 0 0 1px rgba(229, 231, 235, 1);
+}
+.docs-pill--empty:hover {
+    background: rgb(238 242 255);
+    color: rgb(67 56 202);
+    box-shadow: inset 0 0 0 1px rgba(199, 210, 254, 1);
 }
 </style>
