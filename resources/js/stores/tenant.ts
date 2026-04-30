@@ -157,6 +157,26 @@ export const useTenantStore = defineStore('tenant', () => {
         }
     }
 
+    async function updateTenantLogo(id: string, logoUrl: string) {
+        try {
+            const { error: updateError } = await supabase
+                .from('tenants')
+                .update({ logo_url: logoUrl })
+                .eq('id', id);
+
+            if (updateError) throw updateError;
+
+            if (currentTenant.value?.id === id) {
+                currentTenant.value = { ...currentTenant.value, logo_url: logoUrl };
+            }
+
+            return logoUrl;
+        } catch (e: any) {
+            console.error('Error updating tenant logo:', e);
+            throw e;
+        }
+    }
+
     async function updateSubscription(id: string, membershipType: 'monthly' | 'yearly' | null, membershipMonths: number | null, membershipPaid: boolean) {
         try {
             const { error: updateError } = await supabase
@@ -233,6 +253,7 @@ export const useTenantStore = defineStore('tenant', () => {
         createTenant,
         toggleTenantStatus,
         togglePaymentAlert,
+        updateTenantLogo,
         updateSubscription,
         deleteTenant,
         createTenantUser

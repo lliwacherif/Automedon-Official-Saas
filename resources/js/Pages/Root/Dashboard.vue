@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from 'vue';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/auth';
 import { useTenantStore } from '@/stores/tenant';
-import { Trash2, Pause, Play, Plus, ExternalLink, Store, Settings, LogOut, Users, CircleCheck, CirclePause, Building2, Loader2, Upload, X, Globe, Bell, BellOff, CreditCard, Calendar, Check, Minus, ChevronUp, ChevronDown, Clock, AlertTriangle } from 'lucide-vue-next';
+import { Trash2, Pause, Play, Plus, ExternalLink, Store, Settings, LogOut, Users, CircleCheck, CirclePause, Building2, Loader2, Upload, X, Globe, Bell, BellOff, CreditCard, Calendar, Check, Minus, ChevronUp, ChevronDown, Clock, AlertTriangle, Camera, ImageIcon } from 'lucide-vue-next';
 import { useFileUpload } from '@/composables/useFileUpload';
 import { compressImage } from '@/utils/image';
 
@@ -201,6 +201,83 @@ const saveSubscription = async () => {
     }
 };
 
+// ── Logo edit modal ──
+const showLogoModal = ref(false);
+const logoTenant = ref<Tenant | null>(null);
+const newLogoFile = ref<File | null>(null);
+const newLogoPreview = ref<string | null>(null);
+const logoSaving = ref(false);
+const logoFileInput = ref<HTMLInputElement | null>(null);
+
+const openLogoModal = (tenant: Tenant) => {
+    logoTenant.value = tenant;
+    newLogoFile.value = null;
+    if (newLogoPreview.value && newLogoPreview.value.startsWith('blob:')) {
+        URL.revokeObjectURL(newLogoPreview.value);
+    }
+    newLogoPreview.value = null;
+    showLogoModal.value = true;
+};
+
+const closeLogoModal = () => {
+    showLogoModal.value = false;
+    logoTenant.value = null;
+    newLogoFile.value = null;
+    if (newLogoPreview.value && newLogoPreview.value.startsWith('blob:')) {
+        URL.revokeObjectURL(newLogoPreview.value);
+    }
+    newLogoPreview.value = null;
+};
+
+const handleNewLogoSelect = (event: Event) => {
+    const target = event.target as HTMLInputElement;
+    if (target.files && target.files[0]) {
+        const file = target.files[0];
+        newLogoFile.value = file;
+        if (newLogoPreview.value && newLogoPreview.value.startsWith('blob:')) {
+            URL.revokeObjectURL(newLogoPreview.value);
+        }
+        newLogoPreview.value = URL.createObjectURL(file);
+    }
+};
+
+const triggerLogoFileInput = () => {
+    logoFileInput.value?.click();
+};
+
+const saveLogo = async () => {
+    if (!logoTenant.value || !newLogoFile.value) return;
+
+    logoSaving.value = true;
+    try {
+        let fileToUpload: File = newLogoFile.value;
+        if (fileToUpload.type.startsWith('image/') && !fileToUpload.type.includes('svg')) {
+            try {
+                fileToUpload = await compressImage(fileToUpload, 512, 512, 0.7);
+            } catch (compressErr) {
+                console.warn('Logo compression failed, using original:', compressErr);
+            }
+        }
+
+        const url = await uploadFile(fileToUpload, 'car-images', 'logos');
+        if (!url) {
+            alert('Logo upload failed. Please try again.');
+            return;
+        }
+
+        await tenantStore.updateTenantLogo(logoTenant.value.id, url);
+
+        const idx = tenants.value.findIndex((t) => t.id === logoTenant.value!.id);
+        if (idx !== -1) tenants.value[idx].logo_url = url;
+
+        closeLogoModal();
+    } catch (e: any) {
+        alert('Error updating logo: ' + e.message);
+    } finally {
+        logoSaving.value = false;
+    }
+};
+
 const logout = () => {
     authStore.signOut();
 };
@@ -328,10 +405,19 @@ onMounted(() => {
                     <div class="p-5">
                         <!-- Top: Logo + Info -->
                         <div class="flex items-start gap-4 mb-5">
-                            <div class="w-14 h-14 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden" :class="tenant.status !== 'active' ? 'bg-white/[0.03]' : 'bg-white/[0.06]'">
+                            <button
+                                type="button"
+                                @click="openLogoModal(tenant)"
+                                class="relative group/logo w-14 h-14 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden transition-all"
+                                :class="tenant.status !== 'active' ? 'bg-white/[0.03]' : 'bg-white/[0.06]'"
+                                title="Change logo"
+                            >
                                 <img v-if="tenant.logo_url" :src="tenant.logo_url" class="w-full h-full object-contain p-1.5" :class="{ 'grayscale opacity-50': tenant.status !== 'active' }" />
                                 <Building2 v-else class="w-6 h-6 text-white/20" />
-                            </div>
+                                <span class="pointer-events-none absolute inset-0 bg-black/55 opacity-0 group-hover/logo:opacity-100 transition-opacity flex items-center justify-center">
+                                    <Camera class="w-4 h-4 text-white" />
+                                </span>
+                            </button>
                             <div class="flex-1 min-w-0">
                                 <h3 class="text-base font-semibold text-white truncate">{{ tenant.name }}</h3>
                                 <div class="flex items-center gap-1.5 mt-1">
@@ -683,6 +769,89 @@ onMounted(() => {
                         >
                             <Loader2 v-if="subscriptionSaving" class="w-4 h-4 animate-spin" />
                             {{ subscriptionSaving ? 'Saving...' : 'Save Changes' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Transition>
+
+        <!-- Change Logo Modal -->
+        <Transition name="modal">
+            <div v-if="showLogoModal && logoTenant" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="closeLogoModal"></div>
+                <div class="relative w-full max-w-md bg-[#1a1b23] border border-white/[0.08] rounded-2xl shadow-2xl">
+                    <!-- Modal Header -->
+                    <div class="flex items-center justify-between px-6 py-5 border-b border-white/[0.06]">
+                        <div class="flex items-center gap-3">
+                            <div class="w-9 h-9 rounded-xl bg-indigo-500/10 flex items-center justify-center">
+                                <ImageIcon class="w-4 h-4 text-indigo-400" />
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-semibold text-white">Change Logo</h3>
+                                <p class="text-xs text-white/30 mt-0.5">{{ logoTenant.name }}</p>
+                            </div>
+                        </div>
+                        <button @click="closeLogoModal" class="text-white/30 hover:text-white p-1 rounded-lg hover:bg-white/[0.06] transition">
+                            <X class="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    <!-- Modal Body -->
+                    <div class="p-6 space-y-5">
+                        <!-- Compare: Current vs New -->
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-[10px] font-bold text-white/40 uppercase tracking-wider mb-2 text-center">Current</p>
+                                <div class="aspect-square rounded-xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center overflow-hidden">
+                                    <img v-if="logoTenant.logo_url" :src="logoTenant.logo_url" class="w-full h-full object-contain p-3" />
+                                    <Building2 v-else class="w-8 h-8 text-white/20" />
+                                </div>
+                            </div>
+                            <div>
+                                <p class="text-[10px] font-bold uppercase tracking-wider mb-2 text-center" :class="newLogoPreview ? 'text-indigo-400' : 'text-white/40'">New</p>
+                                <button
+                                    type="button"
+                                    @click="triggerLogoFileInput"
+                                    class="aspect-square w-full rounded-xl border-2 border-dashed flex items-center justify-center overflow-hidden transition-all"
+                                    :class="newLogoPreview
+                                        ? 'border-indigo-500/50 bg-indigo-500/5'
+                                        : 'border-white/[0.1] bg-white/[0.02] hover:border-white/[0.2] hover:bg-white/[0.04]'"
+                                >
+                                    <img v-if="newLogoPreview" :src="newLogoPreview" class="w-full h-full object-contain p-3" />
+                                    <div v-else class="flex flex-col items-center gap-1.5">
+                                        <Upload class="w-5 h-5 text-white/30" />
+                                        <span class="text-[11px] font-medium text-white/40">Choose file</span>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+
+                        <input
+                            ref="logoFileInput"
+                            type="file"
+                            accept="image/*"
+                            class="hidden"
+                            @change="handleNewLogoSelect"
+                        />
+
+                        <p class="text-[11px] text-white/30 text-center">
+                            PNG, JPG or SVG. Recommended: square aspect ratio, transparent background.
+                        </p>
+                    </div>
+
+                    <!-- Modal Footer -->
+                    <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/[0.06]">
+                        <button type="button" @click="closeLogoModal" class="text-sm text-white/40 hover:text-white px-4 py-2.5 rounded-xl hover:bg-white/[0.06] transition">
+                            Cancel
+                        </button>
+                        <button
+                            @click="saveLogo"
+                            :disabled="!newLogoFile || logoSaving || uploadingLogo"
+                            class="flex items-center gap-2 bg-indigo-500 text-white hover:bg-indigo-400 text-sm font-semibold px-5 py-2.5 rounded-xl transition-all shadow-lg shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <Loader2 v-if="logoSaving || uploadingLogo" class="w-4 h-4 animate-spin" />
+                            <Check v-else class="w-4 h-4" />
+                            {{ logoSaving || uploadingLogo ? 'Saving...' : 'Save Logo' }}
                         </button>
                     </div>
                 </div>
