@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ArrowLeft, FileDown, Loader2, Save, Check, ChevronDown } from 'lucide-vue-next';
 import ContractTemplate from '@/components/Contracts/ContractTemplate.vue';
+import ContractTemplateV2 from '@/components/Contracts/ContractTemplateV2.vue';
 import type { ContractData } from '@/components/Contracts/ContractTemplate.vue';
 import { supabase } from '@/lib/supabase';
 import { useTenantStore } from '@/stores/tenant';
@@ -33,7 +34,7 @@ function createEmptyContractData(): ContractData {
     contractNumber: '',
     contractDate: '',
     rc: '',
-    company: { name: '', logoUrl: null, gsm: '', email: '', mf: '' },
+    company: { name: '', logoUrl: null, gsm: '', email: '', mf: '', rib: '', address: '' },
     locataire: { nom: '', prenom: '', dob: '', ci: '', ciDate: '', nationalite: '', adresse: '', telephone: '', permis: '', permisDate: '' },
     conducteur: { nom: '', prenom: '', dob: '', ci: '', ciDate: '', nationalite: '', adresse: '', telephone: '', permis: '', permisDate: '' },
     vehicule: { marque: '', immatriculation: '', assPTrans: '', supFranch: '', fuelLevel: '', roueSecours: '', papierOriginaux: '' },
@@ -44,7 +45,23 @@ function createEmptyContractData(): ContractData {
     prolongation: { du: '', au: '', changement: '', dateHoraire: '' },
     signature: { lieu: '', date: '' },
     pricingMode: 'HT',
+    v2: {
+      locataire: { mf: '', lieuDelivrance: '', dateEntreeTunisie: '', permisLieu: '', motifSejour: '' },
+      conducteur: { mf: '', lieuDelivrance: '', dateEntreeTunisie: '', permisLieu: '', motifSejour: '' },
+      periode: { stationSortie: '', stationRetour: '', franchise: '', prol1: '', prol2: '' },
+      changement: { modele: '', immat: '', date: '' },
+      reglement: { cheque: '', cCredit: '', espece: 0, avance: 0 },
+    },
   };
+}
+
+function ensureV2(data: ContractData) {
+  data.v2 = data.v2 || {};
+  data.v2.locataire = { mf: '', lieuDelivrance: '', dateEntreeTunisie: '', permisLieu: '', motifSejour: '', ...(data.v2.locataire || {}) };
+  data.v2.conducteur = { mf: '', lieuDelivrance: '', dateEntreeTunisie: '', permisLieu: '', motifSejour: '', ...(data.v2.conducteur || {}) };
+  data.v2.periode = { stationSortie: '', stationRetour: '', franchise: '', prol1: '', prol2: '', ...(data.v2.periode || {}) };
+  data.v2.changement = { modele: '', immat: '', date: '', ...(data.v2.changement || {}) };
+  data.v2.reglement = { cheque: '', cCredit: '', espece: 0, avance: 0, ...(data.v2.reglement || {}) };
 }
 
 const contractData = ref<ContractData>(createEmptyContractData());
@@ -62,7 +79,13 @@ watch(
 );
 
 // Company settings
-const companySettings = ref({ address: '', mf: '', email: '', gsm: '' });
+const companySettings = ref({ address: '', mf: '', email: '', gsm: '', rib: '' });
+
+// Active contract template — driven by tenant.contract_template
+const contractTemplate = computed<'default' | 'v2'>(() => {
+  const t = (tenantStore.currentTenant as any)?.contract_template;
+  return t === 'v2' ? 'v2' : 'default';
+});
 
 async function loadInvoiceSettings() {
   const tenantId = tenantStore.currentTenant?.id;
@@ -78,7 +101,47 @@ async function loadInvoiceSettings() {
       mf: data.company_mf || '',
       email: data.company_email || '',
       gsm: data.company_gsm || '',
+      rib: (data as any).company_rib || '',
     };
+  }
+}
+
+async function saveInvoiceSettings() {
+  const tenantId = tenantStore.currentTenant?.id;
+  if (!tenantId) return;
+  try {
+    const payload = {
+      tenant_id: tenantId,
+      company_address: companySettings.value.address,
+      company_mf: companySettings.value.mf,
+      company_email: companySettings.value.email,
+      company_gsm: companySettings.value.gsm,
+      company_rib: companySettings.value.rib,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data: existing } = await supabase
+      .from('tenant_invoice_settings')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .maybeSingle();
+
+    if (existing) {
+      await (supabase.from('tenant_invoice_settings') as any)
+        .update(payload)
+        .eq('tenant_id', tenantId);
+    } else {
+      await (supabase.from('tenant_invoice_settings') as any).insert([payload]);
+    }
+
+    // Reflect changes immediately into the live contract preview.
+    contractData.value.company.rib = companySettings.value.rib;
+    contractData.value.company.address = companySettings.value.address;
+    contractData.value.company.mf = companySettings.value.mf;
+    contractData.value.company.email = companySettings.value.email;
+    contractData.value.company.gsm = companySettings.value.gsm;
+  } catch (e) {
+    console.error('Error saving invoice settings (contract):', e);
   }
 }
 
@@ -156,8 +219,11 @@ async function loadReservation(id: string) {
           gsm: s.gsm || sd.company?.gsm || '',
           email: s.email || sd.company?.email || '',
           mf: s.mf || sd.company?.mf || '',
+          rib: s.rib || sd.company?.rib || '',
+          address: s.address || sd.company?.address || '',
         },
       };
+      ensureV2(contractData.value);
     } else {
       contractData.value = {
         contractNumber: reservation.contract_number || reservation.reservation_number || '',
@@ -169,6 +235,8 @@ async function loadReservation(id: string) {
           gsm: s.gsm || '',
           email: s.email || '',
           mf: s.mf || '',
+          rib: s.rib || '',
+          address: s.address || '',
         },
         locataire: {
           nom: reservation.client_name || '',
@@ -211,6 +279,18 @@ async function loadReservation(id: string) {
         prolongation: { du: '', au: '', changement: '', dateHoraire: '' },
         signature: { lieu: '', date: fmtDateForContract(new Date().toISOString()) },
         pricingMode: 'HT',
+        v2: {
+          locataire: { mf: '', lieuDelivrance: '', dateEntreeTunisie: '', permisLieu: '', motifSejour: '' },
+          conducteur: { mf: '', lieuDelivrance: '', dateEntreeTunisie: '', permisLieu: '', motifSejour: '' },
+          periode: { stationSortie: '', stationRetour: '', franchise: '', prol1: '', prol2: '' },
+          changement: { modele: '', immat: '', date: '' },
+          reglement: {
+            cheque: '',
+            cCredit: '',
+            espece: 0,
+            avance: Number(reservation.advance_payment) || 0,
+          },
+        },
       };
     }
   } catch (e) {
@@ -396,7 +476,15 @@ onMounted(() => {
           </button>
           <div>
             <p class="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">Contrat de location</p>
-            <h1 class="text-lg font-semibold text-slate-900">Contract Builder</h1>
+            <h1 class="text-lg font-semibold text-slate-900 flex items-center gap-2">
+              Contract Builder
+              <span
+                v-if="contractTemplate === 'v2'"
+                class="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-indigo-700"
+              >
+                Template V2
+              </span>
+            </h1>
           </div>
         </div>
 
@@ -472,6 +560,20 @@ onMounted(() => {
               <div class="sb-field"><label>Date</label><input v-model="contractData.contractDate" placeholder="JJ/MM/AAAA" /></div>
               <div class="sb-field"><label>RC N°</label><input v-model="contractData.rc" placeholder="B049892016" /></div>
             </div>
+            <template v-if="contractTemplate === 'v2'">
+              <div class="sb-divider">
+                <span>Société (V2)</span>
+              </div>
+              <div class="sb-field">
+                <label>Adresse société</label>
+                <input v-model="companySettings.address" placeholder="Complexe Ribat N°10 5000 Monastir" @change="saveInvoiceSettings" />
+              </div>
+              <div class="sb-field">
+                <label>RIB (Banque)</label>
+                <input v-model="companySettings.rib" placeholder="04508045006507290539" @change="saveInvoiceSettings" />
+              </div>
+              <p class="sb-hint">Persisté pour ce tenant — visible dans l'en-tête du contrat V2.</p>
+            </template>
           </div>
         </div>
 
@@ -492,6 +594,22 @@ onMounted(() => {
             <div class="sb-field"><label>Téléphone</label><input v-model="contractData.locataire.telephone" /></div>
             <div class="sb-field"><label>N° Permis</label><input v-model="contractData.locataire.permis" /></div>
             <div class="sb-field"><label>Permis Délivré le</label><input v-model="contractData.locataire.permisDate" placeholder="JJ/MM/AAAA" /></div>
+            <template v-if="contractTemplate === 'v2' && contractData.v2?.locataire">
+              <div class="sb-divider"><span>V2 — champs additionnels</span></div>
+              <div class="sb-field"><label>M.F (Matricule fiscal)</label><input v-model="contractData.v2.locataire.mf" /></div>
+              <div class="sb-field"><label>Lieu et délivrance (CIN)</label><input v-model="contractData.v2.locataire.lieuDelivrance" /></div>
+              <div class="sb-field"><label>Date d'entrée en Tunisie</label><input v-model="contractData.v2.locataire.dateEntreeTunisie" placeholder="JJ/MM/AAAA" /></div>
+              <div class="sb-field"><label>Lieu et délivrance (Permis)</label><input v-model="contractData.v2.locataire.permisLieu" /></div>
+              <div class="sb-field">
+                <label>Motif de séjour</label>
+                <select v-model="contractData.v2.locataire.motifSejour">
+                  <option value="">—</option>
+                  <option value="Touriste">Touriste</option>
+                  <option value="Affaire">Affaire</option>
+                  <option value="Autres">Autres</option>
+                </select>
+              </div>
+            </template>
           </div>
         </div>
 
@@ -512,6 +630,22 @@ onMounted(() => {
             <div class="sb-field"><label>Téléphone</label><input v-model="contractData.conducteur.telephone" /></div>
             <div class="sb-field"><label>N° Permis</label><input v-model="contractData.conducteur.permis" /></div>
             <div class="sb-field"><label>Permis Délivré le</label><input v-model="contractData.conducteur.permisDate" placeholder="JJ/MM/AAAA" /></div>
+            <template v-if="contractTemplate === 'v2' && contractData.v2?.conducteur">
+              <div class="sb-divider"><span>V2 — champs additionnels</span></div>
+              <div class="sb-field"><label>M.F (Matricule fiscal)</label><input v-model="contractData.v2.conducteur.mf" /></div>
+              <div class="sb-field"><label>Lieu et délivrance (CIN)</label><input v-model="contractData.v2.conducteur.lieuDelivrance" /></div>
+              <div class="sb-field"><label>Date d'entrée en Tunisie</label><input v-model="contractData.v2.conducteur.dateEntreeTunisie" placeholder="JJ/MM/AAAA" /></div>
+              <div class="sb-field"><label>Lieu et délivrance (Permis)</label><input v-model="contractData.v2.conducteur.permisLieu" /></div>
+              <div class="sb-field">
+                <label>Motif de séjour</label>
+                <select v-model="contractData.v2.conducteur.motifSejour">
+                  <option value="">—</option>
+                  <option value="Touriste">Touriste</option>
+                  <option value="Affaire">Affaire</option>
+                  <option value="Autres">Autres</option>
+                </select>
+              </div>
+            </template>
           </div>
         </div>
 
@@ -569,6 +703,44 @@ onMounted(() => {
             <div class="sb-field"><label>KM de départ</label><input v-model="contractData.periode.kmDepart" placeholder="89 813" /></div>
             <div class="sb-field"><label>KM de retour</label><input v-model="contractData.periode.kmRetour" /></div>
             <div class="sb-field"><label>KM parcouru (auto-calc)</label><input v-model="contractData.periode.kmParcouru" placeholder="auto" /></div>
+            <template v-if="contractTemplate === 'v2' && contractData.v2?.periode">
+              <div class="sb-divider"><span>V2 — Stations & Franchise</span></div>
+              <div class="sb-field"><label>Station de sortie</label><input v-model="contractData.v2.periode.stationSortie" placeholder="Monastir" /></div>
+              <div class="sb-field"><label>Station de retour</label><input v-model="contractData.v2.periode.stationRetour" placeholder="Monastir" /></div>
+              <div class="sb-field"><label>Franchise (الضمان)</label><input v-model="contractData.v2.periode.franchise" placeholder="—" /></div>
+              <div class="sb-row-2">
+                <div class="sb-field"><label>Prol 1</label><input v-model="contractData.v2.periode.prol1" /></div>
+                <div class="sb-field"><label>Prol 2</label><input v-model="contractData.v2.periode.prol2" /></div>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Changement de voiture (V2) -->
+        <div v-if="contractTemplate === 'v2' && contractData.v2?.changement" class="sb-card">
+          <button class="sb-title" @click="toggleSection('changement')">
+            <span>Changement de voiture (V2)</span>
+            <ChevronDown class="h-4 w-4 transition-transform" :class="{ 'rotate-180': collapsedSections.changement }" />
+          </button>
+          <div v-show="!collapsedSections.changement" class="sb-body">
+            <div class="sb-field"><label>Modèle</label><input v-model="contractData.v2.changement.modele" placeholder="e.g. Volkswagen Golf" /></div>
+            <div class="sb-field"><label>Immatriculation</label><input v-model="contractData.v2.changement.immat" placeholder="244 TU 1132" /></div>
+            <div class="sb-field"><label>Date</label><input v-model="contractData.v2.changement.date" placeholder="JJ/MM/AAAA" /></div>
+          </div>
+        </div>
+
+        <!-- Règlement (V2) -->
+        <div v-if="contractTemplate === 'v2' && contractData.v2?.reglement" class="sb-card">
+          <button class="sb-title" @click="toggleSection('reglement')">
+            <span>Règlement (V2)</span>
+            <ChevronDown class="h-4 w-4 transition-transform" :class="{ 'rotate-180': collapsedSections.reglement }" />
+          </button>
+          <div v-show="!collapsedSections.reglement" class="sb-body">
+            <div class="sb-field"><label>Chèque N°</label><input v-model="contractData.v2.reglement.cheque" /></div>
+            <div class="sb-field"><label>C.Crédit N°</label><input v-model="contractData.v2.reglement.cCredit" /></div>
+            <div class="sb-field"><label>Espèce (DT)</label><input v-model.number="contractData.v2.reglement.espece" type="number" step="0.001" placeholder="0.000" /></div>
+            <div class="sb-field"><label>Avance (DT)</label><input v-model.number="contractData.v2.reglement.avance" type="number" step="0.001" placeholder="0.000" /></div>
+            <p class="sb-hint">Total H.T, T.V.A et Total T.T.C sont calculés automatiquement à partir de l'Encaissement.</p>
           </div>
         </div>
 
@@ -666,7 +838,8 @@ onMounted(() => {
         </div>
         <div v-else ref="templateMountRef" class="contract-preview-board">
           <div :class="['contract-preview-frame', isExporting ? 'is-exporting' : '']">
-            <ContractTemplate :data="contractData" />
+            <ContractTemplateV2 v-if="contractTemplate === 'v2'" :data="contractData" />
+            <ContractTemplate v-else :data="contractData" />
           </div>
         </div>
       </section>
@@ -766,5 +939,31 @@ onMounted(() => {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+}
+
+.sb-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 2px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6366f1;
+}
+.sb-divider::before,
+.sb-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.3), transparent);
+}
+
+.sb-hint {
+  font-size: 10.5px;
+  color: #94a3b8;
+  margin: 4px 0 0;
+  line-height: 1.4;
 }
 </style>

@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from 'vue';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/auth';
 import { useTenantStore } from '@/stores/tenant';
-import { Trash2, Pause, Play, Plus, ExternalLink, Store, Settings, LogOut, Users, CircleCheck, CirclePause, Building2, Loader2, Upload, X, Globe, Bell, BellOff, CreditCard, Calendar, Check, Minus, ChevronUp, ChevronDown, Clock, AlertTriangle, Camera, ImageIcon } from 'lucide-vue-next';
+import { Trash2, Pause, Play, Plus, ExternalLink, Store, Settings, LogOut, Users, CircleCheck, CirclePause, Building2, Loader2, Upload, X, Globe, Bell, BellOff, CreditCard, Calendar, Check, Minus, ChevronUp, ChevronDown, Clock, AlertTriangle, Camera, ImageIcon, FileText, Sparkles } from 'lucide-vue-next';
 import { useFileUpload } from '@/composables/useFileUpload';
 import { compressImage } from '@/utils/image';
 
@@ -22,6 +22,7 @@ interface Tenant {
     membership_type: 'monthly' | 'yearly' | null;
     membership_months: number | null;
     membership_paid: boolean;
+    contract_template?: 'default' | 'v2';
 }
 
 const tenants = ref<Tenant[]>([]);
@@ -278,6 +279,38 @@ const saveLogo = async () => {
     }
 };
 
+// ── Contract template modal ──
+const showTemplateModal = ref(false);
+const templateTenant = ref<Tenant | null>(null);
+const templateChoice = ref<'default' | 'v2'>('default');
+const templateSaving = ref(false);
+
+const openTemplateModal = (tenant: Tenant) => {
+    templateTenant.value = tenant;
+    templateChoice.value = (tenant.contract_template as any) || 'default';
+    showTemplateModal.value = true;
+};
+
+const closeTemplateModal = () => {
+    showTemplateModal.value = false;
+    templateTenant.value = null;
+};
+
+const saveTemplate = async () => {
+    if (!templateTenant.value) return;
+    templateSaving.value = true;
+    try {
+        await tenantStore.updateContractTemplate(templateTenant.value.id, templateChoice.value);
+        const idx = tenants.value.findIndex((t) => t.id === templateTenant.value!.id);
+        if (idx !== -1) tenants.value[idx].contract_template = templateChoice.value;
+        closeTemplateModal();
+    } catch (e: any) {
+        alert('Error updating contract template: ' + e.message);
+    } finally {
+        templateSaving.value = false;
+    }
+};
+
 const logout = () => {
     authStore.signOut();
 };
@@ -481,6 +514,16 @@ onMounted(() => {
                                 title="Subscription"
                             >
                                 <CreditCard class="w-4 h-4" />
+                            </button>
+                            <button
+                                @click="openTemplateModal(tenant)"
+                                class="flex items-center justify-center w-9 h-9 rounded-lg transition-all"
+                                :class="tenant.contract_template === 'v2'
+                                    ? 'text-cyan-400 bg-cyan-500/10 hover:bg-cyan-500/20'
+                                    : 'text-white/20 hover:text-cyan-400 hover:bg-cyan-500/10'"
+                                :title="tenant.contract_template === 'v2' ? 'Contract template: V2' : 'Contract template: Default'"
+                            >
+                                <FileText class="w-4 h-4" />
                             </button>
                             <button 
                                 @click="handleDelete(tenant.id)" 
@@ -852,6 +895,97 @@ onMounted(() => {
                             <Loader2 v-if="logoSaving || uploadingLogo" class="w-4 h-4 animate-spin" />
                             <Check v-else class="w-4 h-4" />
                             {{ logoSaving || uploadingLogo ? 'Saving...' : 'Save Logo' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Transition>
+
+        <!-- Contract Template Modal -->
+        <Transition name="modal">
+            <div v-if="showTemplateModal && templateTenant" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="closeTemplateModal"></div>
+                <div class="relative w-full max-w-lg bg-[#1a1b23] border border-white/[0.08] rounded-2xl shadow-2xl">
+                    <!-- Modal Header -->
+                    <div class="flex items-center justify-between px-6 py-5 border-b border-white/[0.06]">
+                        <div class="flex items-center gap-3">
+                            <div class="w-9 h-9 rounded-xl bg-cyan-500/10 flex items-center justify-center">
+                                <FileText class="w-4 h-4 text-cyan-400" />
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-semibold text-white">Contract Template</h3>
+                                <p class="text-xs text-white/30 mt-0.5">{{ templateTenant.name }}</p>
+                            </div>
+                        </div>
+                        <button @click="closeTemplateModal" class="text-white/30 hover:text-white p-1 rounded-lg hover:bg-white/[0.06] transition">
+                            <X class="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    <!-- Modal Body -->
+                    <div class="p-6 space-y-3">
+                        <p class="text-xs text-white/40 mb-2">Choisir le modèle de contrat affiché dans le builder de ce tenant.</p>
+
+                        <button
+                            type="button"
+                            @click="templateChoice = 'default'"
+                            class="w-full text-left flex items-start gap-4 p-4 rounded-xl border-2 transition-all"
+                            :class="templateChoice === 'default'
+                                ? 'border-cyan-500/50 bg-cyan-500/5'
+                                : 'border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] hover:bg-white/[0.04]'"
+                        >
+                            <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" :class="templateChoice === 'default' ? 'bg-cyan-500/15 text-cyan-300' : 'bg-white/[0.04] text-white/40'">
+                                <FileText class="w-5 h-5" />
+                            </div>
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2">
+                                    <p class="text-sm font-semibold" :class="templateChoice === 'default' ? 'text-cyan-300' : 'text-white/80'">Default</p>
+                                    <span class="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/[0.06] text-white/40">Original</span>
+                                </div>
+                                <p class="text-xs text-white/40 mt-0.5">Modèle bilingue Premier/Second conducteur en deux colonnes, avec section Encaissement détaillée.</p>
+                            </div>
+                            <Check v-if="templateChoice === 'default'" class="w-4 h-4 text-cyan-400 mt-1 shrink-0" />
+                        </button>
+
+                        <button
+                            type="button"
+                            @click="templateChoice = 'v2'"
+                            class="w-full text-left flex items-start gap-4 p-4 rounded-xl border-2 transition-all"
+                            :class="templateChoice === 'v2'
+                                ? 'border-cyan-500/50 bg-cyan-500/5'
+                                : 'border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] hover:bg-white/[0.04]'"
+                        >
+                            <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" :class="templateChoice === 'v2' ? 'bg-cyan-500/15 text-cyan-300' : 'bg-white/[0.04] text-white/40'">
+                                <Sparkles class="w-5 h-5" />
+                            </div>
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2">
+                                    <p class="text-sm font-semibold" :class="templateChoice === 'v2' ? 'text-cyan-300' : 'text-white/80'">V2 — Tesla style</p>
+                                    <span class="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300">New</span>
+                                </div>
+                                <p class="text-xs text-white/40 mt-0.5">Mise en page dense, en-tête avec contacts, sections Premier/2ème conducteur en grille 3 colonnes, payement & règlement structuré.</p>
+                            </div>
+                            <Check v-if="templateChoice === 'v2'" class="w-4 h-4 text-cyan-400 mt-1 shrink-0" />
+                        </button>
+
+                        <p class="text-[11px] text-white/25 pt-2">
+                            La page 2 (Conditions Générales) reste identique pour les deux modèles.
+                        </p>
+                    </div>
+
+                    <!-- Modal Footer -->
+                    <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/[0.06]">
+                        <button type="button" @click="closeTemplateModal" class="text-sm text-white/40 hover:text-white px-4 py-2.5 rounded-xl hover:bg-white/[0.06] transition">
+                            Cancel
+                        </button>
+                        <button
+                            @click="saveTemplate"
+                            :disabled="templateSaving"
+                            class="flex items-center gap-2 bg-cyan-500 text-white hover:bg-cyan-400 text-sm font-semibold px-5 py-2.5 rounded-xl transition-all shadow-lg shadow-cyan-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <Loader2 v-if="templateSaving" class="w-4 h-4 animate-spin" />
+                            <Check v-else class="w-4 h-4" />
+                            {{ templateSaving ? 'Saving...' : 'Apply' }}
                         </button>
                     </div>
                 </div>

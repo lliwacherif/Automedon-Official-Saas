@@ -12,6 +12,7 @@ export interface Tenant {
     membership_type: 'monthly' | 'yearly' | null;
     membership_months: number | null;
     membership_paid: boolean;
+    contract_template?: 'default' | 'v2';
     created_at: string;
 }
 
@@ -157,6 +158,26 @@ export const useTenantStore = defineStore('tenant', () => {
         }
     }
 
+    async function updateContractTemplate(id: string, template: 'default' | 'v2') {
+        try {
+            const { error: updateError } = await (supabase
+                .from('tenants') as any)
+                .update({ contract_template: template })
+                .eq('id', id);
+
+            if (updateError) throw updateError;
+
+            if (currentTenant.value?.id === id) {
+                currentTenant.value = { ...currentTenant.value, contract_template: template };
+            }
+
+            return template;
+        } catch (e: any) {
+            console.error('Error updating contract template:', e);
+            throw e;
+        }
+    }
+
     async function updateTenantLogo(id: string, logoUrl: string) {
         try {
             const { error: updateError } = await supabase
@@ -254,6 +275,7 @@ export const useTenantStore = defineStore('tenant', () => {
         toggleTenantStatus,
         togglePaymentAlert,
         updateTenantLogo,
+        updateContractTemplate,
         updateSubscription,
         deleteTenant,
         createTenantUser
