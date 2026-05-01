@@ -112,12 +112,13 @@ function recalculateItems() {
   }
 }
 
-// ── Company settings (persisted in DB) ──
+// ── Company settings (persisted in DB, shared with the contract builder) ──
 const companySettings = ref({
   address: '',
   mf: '',
   email: '',
   gsm: '',
+  rib: '',
 });
 const savingSettings = ref(false);
 const settingsSaved = ref(false);
@@ -138,6 +139,7 @@ async function loadInvoiceSettings() {
       mf: data.company_mf || '',
       email: data.company_email || '',
       gsm: data.company_gsm || '',
+      rib: (data as any).company_rib || '',
     };
   }
 }
@@ -156,6 +158,7 @@ async function saveInvoiceSettings() {
       company_mf: companySettings.value.mf,
       company_email: companySettings.value.email,
       company_gsm: companySettings.value.gsm,
+      company_rib: companySettings.value.rib,
       updated_at: new Date().toISOString(),
     };
 
@@ -166,8 +169,7 @@ async function saveInvoiceSettings() {
       .maybeSingle();
 
     if (existing) {
-      await supabase
-        .from('tenant_invoice_settings')
+      await (supabase.from('tenant_invoice_settings') as any)
         .update(payload)
         .eq('tenant_id', tenantId);
     } else {
@@ -708,6 +710,11 @@ onMounted(() => {
               <label class="block text-xs font-medium text-slate-600 mb-1">GSM</label>
               <input v-model="companySettings.gsm" type="text" placeholder="22 000 000 / 55 000 000" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
               <p class="mt-1 text-[10px] text-slate-400">Séparez les numéros par /</p>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">RIB (Banque)</label>
+              <input v-model="companySettings.rib" type="text" placeholder="04508045006507290539" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500" />
+              <p class="mt-1 text-[10px] text-slate-400">Visible aussi dans le contract builder (template V2).</p>
             </div>
           </div>
 
