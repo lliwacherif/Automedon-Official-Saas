@@ -351,19 +351,31 @@ function createExportClone(sourceEl: HTMLElement) {
   host.style.width = '794px';
   host.style.background = '#fff';
   host.style.zIndex = '-1';
+  host.style.fontFamily = 'Arial, "Helvetica Neue", Helvetica, sans-serif';
 
   const clone = sourceEl.cloneNode(true) as HTMLElement;
   clone.id = 'contract-template-export';
   clone.style.width = '794px';
+  clone.style.minWidth = '794px';
+  clone.style.maxWidth = '794px';
   clone.style.margin = '0';
   clone.style.boxShadow = 'none';
   clone.style.transform = 'none';
   clone.style.border = 'none';
   clone.style.gap = '0px';
+  clone.style.background = '#ffffff';
 
   clone.querySelectorAll('.ct-paper').forEach((paper: any) => {
     paper.style.boxShadow = 'none';
     paper.style.border = 'none';
+  });
+
+  // Inline-fix tables that depend on <colgroup> widths so html2canvas honors them
+  // (some versions misread colgroup percentages on offscreen clones).
+  clone.querySelectorAll('table').forEach((tbl: any) => {
+    tbl.style.tableLayout = 'fixed';
+    tbl.style.width = '100%';
+    tbl.style.borderCollapse = 'collapse';
   });
 
   host.appendChild(clone);
@@ -382,8 +394,30 @@ async function downloadPdf() {
 
   try {
     await nextTick();
-    // @ts-ignore
-    if (document.fonts?.ready) await document.fonts.ready;
+
+    // Force-load every weight of the Arabic web fonts used by the V2 contract
+    // template so html2canvas captures fully-shaped Arabic glyphs. Without this
+    // the renderer races with the Google Fonts network fetch and falls back to
+    // an unstyled font (which mangles RTL shaping in the canvas rasterizer).
+    try {
+      const fontLoader = (document as any).fonts;
+      if (fontLoader?.load) {
+        await Promise.race([
+          Promise.all([
+            fontLoader.load('400 11px "Amiri"'),
+            fontLoader.load('700 11px "Amiri"'),
+            fontLoader.load('400 9px "Noto Naskh Arabic"'),
+            fontLoader.load('500 9px "Noto Naskh Arabic"'),
+            fontLoader.load('700 9px "Noto Naskh Arabic"'),
+            fontLoader.load('400 9px "Noto Sans Arabic"'),
+            fontLoader.load('700 9px "Noto Sans Arabic"'),
+          ]).catch(() => undefined),
+          new Promise((r) => setTimeout(r, 2500)),
+        ]);
+      }
+      // @ts-ignore
+      if (document.fonts?.ready) await document.fonts.ready;
+    } catch { /* ignore — fall back to system font */ }
 
     const wrapperEl = templateMountRef.value?.querySelector('#contract-template') as HTMLElement | null;
     if (!wrapperEl) throw new Error('Template element not found');
@@ -404,19 +438,58 @@ async function downloadPdf() {
       const w = Math.ceil(clone.scrollWidth);
       const h = Math.ceil(clone.scrollHeight);
 
-      const canvas = await html2canvas(clone, {
-        scale,
-        useCORS: true,
-        allowTaint: false,
-        backgroundColor: '#ffffff',
-        logging: false,
-        scrollX: 0,
-        scrollY: 0,
-        width: w,
-        height: h,
-        windowWidth: w,
-        windowHeight: h,
-      });
+      // foreignObjectRendering uses the browser's NATIVE rendering engine
+      // (via SVG <foreignObject>), which correctly shapes Arabic glyphs and
+      // honors web fonts/RTL layout. The default canvas-rasteriser path in
+      // html2canvas mangles Arabic. We try foreignObjectRendering first, and
+      // fall back to the default path only if the SVG approach fails (e.g.
+      // tainted images / CORS).
+      let canvas: HTMLCanvasElement;
+      try {
+        canvas = await html2canvas(clone, {
+          scale,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+          foreignObjectRendering: true,
+          scrollX: 0,
+          scrollY: 0,
+          width: w,
+          height: h,
+          windowWidth: w,
+          windowHeight: h,
+        });
+        // foreignObject sometimes succeeds but produces a blank canvas (e.g.,
+        // when an image taints the SVG). Detect this and force a retry.
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          const sample = ctx.getImageData(canvas.width / 2, Math.min(40, canvas.height - 1), 1, 1).data;
+          // Pure-white pixel near the top-center means the foreignObject likely
+          // failed silently — fall back.
+          if (sample[0] === 255 && sample[1] === 255 && sample[2] === 255) {
+            const probeY = Math.min(canvas.height - 1, Math.floor(canvas.height / 3));
+            const probe = ctx.getImageData(canvas.width / 2, probeY, 1, 1).data;
+            if (probe[0] === 255 && probe[1] === 255 && probe[2] === 255) {
+              throw new Error('foreignObject produced blank canvas');
+            }
+          }
+        }
+      } catch {
+        canvas = await html2canvas(clone, {
+          scale,
+          useCORS: true,
+          allowTaint: false,
+          backgroundColor: '#ffffff',
+          logging: false,
+          scrollX: 0,
+          scrollY: 0,
+          width: w,
+          height: h,
+          windowWidth: w,
+          windowHeight: h,
+        });
+      }
 
       const imgData = canvas.toDataURL('image/png');
       const pageW = canvas.width / scale;

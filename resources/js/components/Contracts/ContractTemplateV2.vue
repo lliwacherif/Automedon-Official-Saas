@@ -444,44 +444,62 @@ function fmt3(v: number | undefined | null): string {
           </colgroup>
           <tr>
             <td class="ct2-cell">
-              <span class="ct2-lbl">Chèque N° :</span>
-              <span class="ct2-val">{{ v2R.cheque }}</span>
+              <div class="ct2-row">
+                <span class="ct2-lbl">Chèque N° :</span>
+                <span class="ct2-val">{{ v2R.cheque }}</span>
+              </div>
             </td>
             <td class="ct2-cell">
-              <span class="ct2-lbl">Avance :</span>
-              <span class="ct2-val ct2-money">{{ fmt3(v2R.avance) }}</span>
+              <div class="ct2-row">
+                <span class="ct2-lbl">Avance :</span>
+                <span class="ct2-val ct2-money">{{ fmt3(v2R.avance) }}</span>
+              </div>
             </td>
             <td class="ct2-cell">
-              <span class="ct2-lbl">Total H.T :</span>
-              <span class="ct2-val ct2-money">{{ fmt3(billing.sub) }}</span>
-            </td>
-          </tr>
-          <tr>
-            <td class="ct2-cell">
-              <span class="ct2-lbl">C.Crédit N° :</span>
-              <span class="ct2-val">{{ v2R.cCredit }}</span>
-            </td>
-            <td class="ct2-cell">
-              <span class="ct2-lbl">Reste à payer :</span>
-              <span class="ct2-val ct2-money">{{ fmt3(restAPayer) }}</span>
-            </td>
-            <td class="ct2-cell">
-              <span class="ct2-lbl">T.V.A :</span>
-              <span class="ct2-val ct2-money">{{ fmt3(billing.tva) }}</span>
+              <div class="ct2-row">
+                <span class="ct2-lbl">Total H.T :</span>
+                <span class="ct2-val ct2-money">{{ fmt3(billing.sub) }}</span>
+              </div>
             </td>
           </tr>
           <tr>
             <td class="ct2-cell">
-              <span class="ct2-lbl">Espèce :</span>
-              <span class="ct2-val ct2-money">{{ fmt3(v2R.espece) }}</span>
+              <div class="ct2-row">
+                <span class="ct2-lbl">C.Crédit N° :</span>
+                <span class="ct2-val">{{ v2R.cCredit }}</span>
+              </div>
             </td>
             <td class="ct2-cell">
-              <span class="ct2-lbl">Total :</span>
-              <span class="ct2-val ct2-money">{{ fmt3(billing.totalFacture) }}</span>
+              <div class="ct2-row">
+                <span class="ct2-lbl">Reste à payer :</span>
+                <span class="ct2-val ct2-money">{{ fmt3(restAPayer) }}</span>
+              </div>
             </td>
             <td class="ct2-cell">
-              <span class="ct2-lbl">Total T.T.C :</span>
-              <span class="ct2-val ct2-money">{{ fmt3(billing.totalFacture) }}</span>
+              <div class="ct2-row">
+                <span class="ct2-lbl">T.V.A :</span>
+                <span class="ct2-val ct2-money">{{ fmt3(billing.tva) }}</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td class="ct2-cell">
+              <div class="ct2-row">
+                <span class="ct2-lbl">Espèce :</span>
+                <span class="ct2-val ct2-money">{{ fmt3(v2R.espece) }}</span>
+              </div>
+            </td>
+            <td class="ct2-cell">
+              <div class="ct2-row">
+                <span class="ct2-lbl">Total :</span>
+                <span class="ct2-val ct2-money">{{ fmt3(billing.totalFacture) }}</span>
+              </div>
+            </td>
+            <td class="ct2-cell">
+              <div class="ct2-row">
+                <span class="ct2-lbl">Total T.T.C :</span>
+                <span class="ct2-val ct2-money">{{ fmt3(billing.totalFacture) }}</span>
+              </div>
             </td>
           </tr>
         </table>
@@ -618,12 +636,13 @@ function fmt3(v: number | undefined | null): string {
   gap: 2px;
 }
 .ct2-title-ar {
-  font-family: 'Amiri', 'Times New Roman', serif;
+  font-family: 'Amiri', 'Noto Naskh Arabic', 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', sans-serif;
   font-size: 22px;
   font-weight: 700;
   color: #e85a1a;
-  line-height: 1.05;
-  letter-spacing: 1px;
+  line-height: 1.2;
+  direction: rtl;
+  unicode-bidi: isolate;
 }
 .ct2-title-fr {
   font-size: 11px;
@@ -654,7 +673,8 @@ function fmt3(v: number | undefined | null): string {
   color: #444;
 }
 .ct2-contact-text {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
   word-break: break-all;
 }
 .ct2-contact-row-mf {
@@ -701,8 +721,11 @@ function fmt3(v: number | undefined | null): string {
   font-size: 18px;
   font-weight: 700;
   color: #d7351a;
-  font-family: 'Amiri', 'Times New Roman', serif;
+  font-family: 'Amiri', 'Noto Naskh Arabic', 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', sans-serif;
   margin-left: auto;
+  direction: rtl;
+  unicode-bidi: isolate;
+  line-height: 1.25;
 }
 
 /* ── Generic grid table ── */
@@ -713,39 +736,57 @@ function fmt3(v: number | undefined | null): string {
 }
 .ct2-grid td.ct2-cell {
   border: 1px solid #000;
-  padding: 4px 5px 3px;
+  padding: 4px 5px 6px;
   vertical-align: top;
   position: relative;
   font-size: 9px;
 }
 
+/* Use display: table for label+value rows — far more reliable than flex when
+   the element is cloned for html2canvas PDF export. */
 .ct2-row {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-  flex-wrap: nowrap;
+  display: table;
+  width: 100%;
+  table-layout: auto;
+  border-spacing: 0;
 }
 .ct2-row + .ct2-row { margin-top: 2px; }
 
 .ct2-lbl {
+  display: table-cell;
   font-weight: 700;
   font-size: 8.5px;
   color: #000;
   letter-spacing: 0.1px;
   white-space: nowrap;
-  flex-shrink: 0;
+  vertical-align: baseline;
+  width: 1%;
+  padding-right: 4px;
 }
 .ct2-val {
-  display: block;
-  flex: 1;
-  min-height: 13px;
-  border-bottom: 1px dashed #aaa;
-  padding: 0 2px;
+  display: table-cell;
+  vertical-align: baseline;
+  border-bottom: 1px solid #bbb;
+  padding: 0 2px 1px;
   font-family: "Courier New", monospace;
   color: #1040b0;
   font-size: 9.5px;
   word-break: break-word;
-  line-height: 1.25;
+  line-height: 1.3;
+  min-height: 13px;
+}
+/* Block context (when a cell uses stacked label/value/arabic layout
+   instead of an inline ct2-row). The .ct2-lbl block fallback comes
+   from the bare <div class="ct2-lbl"> inside cells. */
+.ct2-cell > .ct2-lbl {
+  display: block;
+  width: auto;
+  padding-right: 0;
+  margin-bottom: 1px;
+}
+.ct2-cell > .ct2-val {
+  display: block;
+  width: 100%;
 }
 .ct2-multiline {
   display: block;
@@ -753,13 +794,19 @@ function fmt3(v: number | undefined | null): string {
   white-space: pre-wrap;
 }
 .ct2-sub-ar {
-  font-family: 'Amiri', 'Times New Roman', serif;
+  font-family: 'Noto Naskh Arabic', 'Amiri', 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', sans-serif;
   font-size: 8.5px;
   color: #444;
   text-align: right;
   direction: rtl;
-  margin-top: 3px;
-  line-height: 1.2;
+  unicode-bidi: isolate;
+  margin-top: 4px;
+  margin-bottom: 1px;
+  line-height: 1.55;
+  padding: 1px 2px 0;
+  /* Don't clip Arabic — let descenders be visible.
+     Cell padding gives the room they need. */
+  overflow: visible;
 }
 
 /* TU box (vertical) */
@@ -794,17 +841,21 @@ function fmt3(v: number | undefined | null): string {
   background: #f5f5f5;
 }
 .ct2-section-fr {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
   text-align: center;
   letter-spacing: 0.5px;
 }
 .ct2-section-ar {
-  font-family: 'Amiri', 'Times New Roman', serif;
+  font-family: 'Amiri', 'Noto Naskh Arabic', 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', sans-serif;
   font-size: 11px;
   font-weight: 700;
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
   text-align: center;
   direction: rtl;
+  unicode-bidi: isolate;
+  line-height: 1.45;
 }
 
 /* Motif checkboxes — 2-col grid: Touriste/Autres on row 1, Affaire on row 2 */
@@ -872,22 +923,20 @@ function fmt3(v: number | undefined | null): string {
   font-size: 11px;
 }
 
-.ct2-pay-grid .ct2-cell {
-  display: flex;
-  align-items: baseline;
-  gap: 5px;
+.ct2-pay-grid td.ct2-cell {
   padding: 5px 8px;
   min-height: 22px;
 }
 .ct2-pay-grid .ct2-val {
   border-bottom: none;
 }
+.ct2-pay-grid .ct2-row > .ct2-val.ct2-money {
+  text-align: right;
+}
 
 .ct2-money {
-  margin-left: auto;
   font-weight: 700;
   letter-spacing: 0.3px;
-  text-align: right;
 }
 
 /* Bottom: cars + insurance */
@@ -908,7 +957,8 @@ function fmt3(v: number | undefined | null): string {
   display: flex;
   flex-direction: column;
   align-items: center;
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .ct2-car-pair {
   display: flex;

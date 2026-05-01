@@ -194,6 +194,8 @@
   font-weight: 700;
   margin-bottom: 4mm;
   direction: rtl;
+  font-family: 'Amiri', 'Noto Naskh Arabic', 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', sans-serif;
+  line-height: 1.4;
 }
 
 .ct-p2-grid {
@@ -205,9 +207,10 @@
 .ct-p2-ar {
   direction: rtl;
   text-align: right;
-  font-family: 'Amiri', 'Times New Roman', serif;
+  font-family: 'Amiri', 'Noto Naskh Arabic', 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', sans-serif;
   font-size: 9.5px;
-  line-height: 1.6;
+  line-height: 1.7;
+  unicode-bidi: isolate;
 }
 
 .ct-p2-fr {
