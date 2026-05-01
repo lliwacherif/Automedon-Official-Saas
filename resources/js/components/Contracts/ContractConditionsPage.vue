@@ -194,8 +194,8 @@
   font-weight: 700;
   margin-bottom: 4mm;
   direction: rtl;
-  font-family: 'Amiri', 'Noto Naskh Arabic', 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', sans-serif;
-  line-height: 1.4;
+  font-family: 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', 'Amiri', 'Noto Naskh Arabic', sans-serif;
+  line-height: 1.45;
 }
 
 .ct-p2-grid {
@@ -207,9 +207,9 @@
 .ct-p2-ar {
   direction: rtl;
   text-align: right;
-  font-family: 'Amiri', 'Noto Naskh Arabic', 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', sans-serif;
+  font-family: 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', 'Amiri', 'Noto Naskh Arabic', sans-serif;
   font-size: 9.5px;
-  line-height: 1.7;
+  line-height: 1.75;
   unicode-bidi: isolate;
 }
 

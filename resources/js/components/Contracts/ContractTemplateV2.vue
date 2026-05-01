@@ -636,11 +636,11 @@ function fmt3(v: number | undefined | null): string {
   gap: 2px;
 }
 .ct2-title-ar {
-  font-family: 'Amiri', 'Noto Naskh Arabic', 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', sans-serif;
+  font-family: 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', 'Amiri', 'Noto Naskh Arabic', sans-serif;
   font-size: 22px;
   font-weight: 700;
   color: #e85a1a;
-  line-height: 1.2;
+  line-height: 1.25;
   direction: rtl;
   unicode-bidi: isolate;
 }
@@ -721,11 +721,11 @@ function fmt3(v: number | undefined | null): string {
   font-size: 18px;
   font-weight: 700;
   color: #d7351a;
-  font-family: 'Amiri', 'Noto Naskh Arabic', 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', sans-serif;
+  font-family: 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', 'Amiri', 'Noto Naskh Arabic', sans-serif;
   margin-left: auto;
   direction: rtl;
   unicode-bidi: isolate;
-  line-height: 1.25;
+  line-height: 1.3;
 }
 
 /* ── Generic grid table ── */
@@ -794,7 +794,7 @@ function fmt3(v: number | undefined | null): string {
   white-space: pre-wrap;
 }
 .ct2-sub-ar {
-  font-family: 'Noto Naskh Arabic', 'Amiri', 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', sans-serif;
+  font-family: 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', 'Noto Naskh Arabic', 'Amiri', sans-serif;
   font-size: 8.5px;
   color: #444;
   text-align: right;
@@ -802,7 +802,7 @@ function fmt3(v: number | undefined | null): string {
   unicode-bidi: isolate;
   margin-top: 4px;
   margin-bottom: 1px;
-  line-height: 1.55;
+  line-height: 1.6;
   padding: 1px 2px 0;
   /* Don't clip Arabic — let descenders be visible.
      Cell padding gives the room they need. */
@@ -847,7 +847,7 @@ function fmt3(v: number | undefined | null): string {
   letter-spacing: 0.5px;
 }
 .ct2-section-ar {
-  font-family: 'Amiri', 'Noto Naskh Arabic', 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', sans-serif;
+  font-family: 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', 'Amiri', 'Noto Naskh Arabic', sans-serif;
   font-size: 11px;
   font-weight: 700;
   flex: 1 1 auto;
@@ -855,7 +855,7 @@ function fmt3(v: number | undefined | null): string {
   text-align: center;
   direction: rtl;
   unicode-bidi: isolate;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
 /* Motif checkboxes — 2-col grid: Touriste/Autres on row 1, Affaire on row 2 */
