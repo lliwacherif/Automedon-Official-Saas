@@ -353,6 +353,10 @@ function tvaPercent() {
   letter-spacing: 0.5px;
   color: #374151;
   background-color: #f3f4f6;
+  page-break-inside: avoid;
+  break-inside: avoid;
+  page-break-after: avoid;
+  break-after: avoid;
 }
 
 .inv-items-row {
@@ -362,6 +366,8 @@ function tvaPercent() {
   border-bottom: 1px solid #e5e7eb;
   font-size: 11px;
   color: #1f2937;
+  page-break-inside: avoid;
+  break-inside: avoid;
 }
 
 /* Column widths */
@@ -378,6 +384,8 @@ function tvaPercent() {
   display: flex;
   justify-content: flex-end;
   margin-bottom: 10mm;
+  page-break-inside: avoid;
+  break-inside: avoid;
 }
 
 .inv-totals-box {
@@ -420,6 +428,8 @@ function tvaPercent() {
 /* ===================== Signature ===================== */
 .inv-signature-section {
   margin-bottom: 10mm;
+  page-break-inside: avoid;
+  break-inside: avoid;
 }
 
 .inv-signature-box {
@@ -448,6 +458,8 @@ function tvaPercent() {
   font-size: 9px;
   color: #9ca3af;
   line-height: 1.6;
+  page-break-inside: avoid;
+  break-inside: avoid;
 }
 
 /* ===================== Shared ===================== */

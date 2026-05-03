@@ -284,14 +284,14 @@ async function downloadPdf() {
     await new Promise(r => setTimeout(r, 120));
 
     const filename = `Facture_Services_${previewData.value.invoiceNumber}.pdf`;
-    const cw = Math.ceil(clone.scrollWidth);
-    const ch = Math.ceil(clone.scrollHeight);
 
     await html2pdf().set({
-      margin: 0, filename,
-      image: { type: 'png', quality: 1 },
-      html2canvas: { scale: 3, useCORS: true, allowTaint: false, backgroundColor: '#ffffff', logging: false, scrollX: 0, scrollY: 0, width: cw, height: ch, windowWidth: cw, windowHeight: ch },
-      jsPDF: { unit: 'px', format: [cw, ch], orientation: cw > ch ? 'landscape' : 'portrait', compress: true },
+      margin: 0,
+      filename,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true, allowTaint: false, backgroundColor: '#ffffff', logging: false },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
+      pagebreak: { mode: ['css', 'legacy'], avoid: ['.inv-items-row', '.inv-items-header', '.inv-totals-section', '.inv-signature-section', '.inv-footer'] },
     }).from(clone).save();
 
     try { document.body.removeChild(host); } catch {}

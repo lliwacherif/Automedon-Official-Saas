@@ -456,33 +456,28 @@ async function downloadPdf() {
     await new Promise((resolve) => setTimeout(resolve, 120));
 
     const filename = `Facture_${previewData.value.invoiceNumber}.pdf`;
-    const canvasWidth = Math.ceil(clone.scrollWidth);
-    const canvasHeight = Math.ceil(clone.scrollHeight);
-    const orientation = canvasWidth > canvasHeight ? 'landscape' : 'portrait';
 
     const options: any = {
       margin: 0,
       filename,
-      image: { type: 'png', quality: 1 },
+      image: { type: 'jpeg', quality: 0.98 },
       html2canvas: {
-        scale: 3,
+        scale: 2,
         useCORS: true,
         allowTaint: false,
         backgroundColor: '#ffffff',
         logging: false,
-        scrollX: 0,
-        scrollY: 0,
-        width: canvasWidth,
-        height: canvasHeight,
-        windowWidth: canvasWidth,
-        windowHeight: canvasHeight
       },
       jsPDF: {
-        unit: 'px',
-        format: [canvasWidth, canvasHeight],
-        orientation,
-        compress: true
-      }
+        unit: 'mm',
+        format: 'a4',
+        orientation: 'portrait',
+        compress: true,
+      },
+      pagebreak: {
+        mode: ['css', 'legacy'],
+        avoid: ['.inv-items-row', '.inv-items-header', '.inv-totals-section', '.inv-signature-section', '.inv-footer'],
+      },
     };
 
     await html2pdf().set(options).from(clone).save();
