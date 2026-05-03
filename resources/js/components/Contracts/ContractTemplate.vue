@@ -199,7 +199,7 @@ function fmt3(v: number): string {
             <div class="ct-frow"><span class="ct-flbl" style="font-size:8px;">Date et Lieu de Naissance :</span><span class="ct-fline" :class="{ 'ct-empty': !data.locataire.dob }">{{ data.locataire.dob }}</span><span class="ct-flbl-ar" style="font-size:7.5px;">تاريخ الولادة ومكانها :</span></div>
             <div class="ct-frow" style="justify-content:flex-end;"><span class="ct-fline ct-ar" style="min-width:120px;">{{ data.locataire.dob }}</span></div>
             <div class="ct-frow"><span class="ct-flbl">N° CI ou Passeport :</span><span class="ct-fline" :class="{ 'ct-empty': !data.locataire.ci }">{{ data.locataire.ci }}</span><span class="ct-flbl-ar">عدد وثيقة الهوية :</span></div>
-            <div class="ct-frow"><span class="ct-flbl">Délivré le :</span><span class="ct-fline" :class="{ 'ct-empty': !data.locataire.ciDate }">{{ data.locataire.ciDate }}</span><span class="ct-flbl-ar">مسلمة بتاريخ :</span></div>
+            <div class="ct-frow"><span class="ct-flbl">Lieu et délivrance :</span><span class="ct-fline" :class="{ 'ct-empty': !data.locataire.ciDate }">{{ data.locataire.ciDate }}</span><span class="ct-flbl-ar">: تاريخ و مكان الإصدار</span></div>
             <div class="ct-frow"><span class="ct-flbl">Nationalité :</span><span class="ct-fline" :class="{ 'ct-empty': !data.locataire.nationalite }">{{ data.locataire.nationalite }}</span><span class="ct-flbl-ar">: الجنسية</span><span class="ct-fline ct-ar" :class="{ 'ct-empty': !data.locataire.nationalite }">{{ data.locataire.nationalite }}</span></div>
             <div class="ct-frow"><span class="ct-flbl">Adresse :</span><span class="ct-fline" :class="{ 'ct-empty': !data.locataire.adresse }">{{ data.locataire.adresse }}</span><span class="ct-flbl-ar">: العنوان</span></div>
             <div class="ct-frow"><span class="ct-flbl">Téléphone :</span><span class="ct-fline" :class="{ 'ct-empty': !data.locataire.telephone }">{{ data.locataire.telephone }}</span><span class="ct-flbl-ar">: الهاتف</span></div>
@@ -214,7 +214,7 @@ function fmt3(v: number): string {
             <div class="ct-frow"><span class="ct-flbl" style="font-size:8px;">Date et Lieu de Naissance :</span><span class="ct-fline" :class="{ 'ct-empty': !data.conducteur.dob }">{{ data.conducteur.dob }}</span><span class="ct-flbl-ar" style="font-size:7.5px;">تاريخ الولادة ومكانها :</span></div>
             <div class="ct-frow" style="justify-content:flex-end;"><span class="ct-fline ct-ar" style="min-width:120px;">{{ data.conducteur.dob }}</span></div>
             <div class="ct-frow"><span class="ct-flbl">N° CI ou Passeport :</span><span class="ct-fline" :class="{ 'ct-empty': !data.conducteur.ci }">{{ data.conducteur.ci }}</span><span class="ct-flbl-ar">عدد وثيقة الهوية :</span></div>
-            <div class="ct-frow"><span class="ct-flbl">Délivré le :</span><span class="ct-fline" :class="{ 'ct-empty': !data.conducteur.ciDate }">{{ data.conducteur.ciDate }}</span><span class="ct-flbl-ar">مسلمة بتاريخ :</span></div>
+            <div class="ct-frow"><span class="ct-flbl">Lieu et délivrance :</span><span class="ct-fline" :class="{ 'ct-empty': !data.conducteur.ciDate }">{{ data.conducteur.ciDate }}</span><span class="ct-flbl-ar">: تاريخ و مكان الإصدار</span></div>
             <div class="ct-frow"><span class="ct-flbl">Nationalité :</span><span class="ct-fline" :class="{ 'ct-empty': !data.conducteur.nationalite }">{{ data.conducteur.nationalite }}</span><span class="ct-flbl-ar">: الجنسية</span></div>
             <div class="ct-frow"><span class="ct-flbl">Adresse :</span><span class="ct-fline" :class="{ 'ct-empty': !data.conducteur.adresse }">{{ data.conducteur.adresse }}</span><span class="ct-flbl-ar">: العنوان</span></div>
             <div class="ct-frow"><span class="ct-flbl">Téléphone :</span><span class="ct-fline" :class="{ 'ct-empty': !data.conducteur.telephone }">{{ data.conducteur.telephone }}</span><span class="ct-flbl-ar">: الهاتف</span></div>
@@ -472,7 +472,7 @@ function fmt3(v: number): string {
 .ct-frow { display: flex; align-items: baseline; gap: 4px; margin-bottom: 3px; }
 .ct-flbl { font-weight: 700; font-size: 9px; white-space: nowrap; }
 .ct-flbl-ar { font-size: 8.5px; color: #444; white-space: nowrap; }
-.ct-fline { flex: 1; border-bottom: 1px dashed #bbb; min-height: 13px; font-size: 10px; color: #1040b0; font-family: monospace; padding: 0 2px; }
+.ct-fline { flex: 1; border-bottom: 1px dashed #bbb; min-height: 16px; font-size: 12.5px; font-weight: 700; color: #1040b0; font-family: monospace; padding: 1px 2px 2px; letter-spacing: 0.2px; }
 .ct-fline.ct-ar { direction: rtl; text-align: right; }
 .ct-fline.ct-empty { border-bottom: 1px dashed #ccc; }
 
@@ -488,7 +488,7 @@ function fmt3(v: number): string {
 .ct-km-row { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 6px; border-bottom: 1px solid #eee; gap: 4px; }
 .ct-km-row:last-child { border-bottom: none; }
 .ct-km-lbl { font-size: 8.5px; font-weight: 700; }
-.ct-km-val { border-bottom: 1px dashed #bbb; min-width: 80px; text-align: right; font-size: 10px; color: #1040b0; font-family: monospace; }
+.ct-km-val { border-bottom: 1px dashed #bbb; min-width: 80px; text-align: right; font-size: 12.5px; font-weight: 700; color: #1040b0; font-family: monospace; letter-spacing: 0.2px; }
 
 /* Caution block */
 .ct-caution-block { border-bottom: 1px solid #000; padding: 4px 6px; }
@@ -503,13 +503,13 @@ function fmt3(v: number): string {
 .ct-enc-row { display: flex; justify-content: space-between; align-items: baseline; padding: 2.5px 6px; border-bottom: 1px solid #eee; gap: 4px; }
 .ct-enc-bold { font-weight: 700; background: #f8f8ff; }
 .ct-enc-lbl { font-size: 8.5px; font-weight: 700; flex: 1; }
-.ct-enc-val { border-bottom: 1px dashed #bbb; min-width: 90px; text-align: right; font-size: 10px; color: #1040b0; font-family: monospace; }
+.ct-enc-val { border-bottom: 1px dashed #bbb; min-width: 90px; text-align: right; font-size: 12.5px; font-weight: 700; color: #1040b0; font-family: monospace; letter-spacing: 0.2px; }
 .ct-enc-bold .ct-enc-val { font-weight: 700; }
 
 /* Payment */
 .ct-pay-block { border-top: 1px solid #000; padding: 4px 6px; font-size: 8.5px; }
 .ct-pay-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 3px; }
-.ct-pay-line { border-bottom: 1px dashed #bbb; min-width: 80px; font-size: 9px; color: #1040b0; font-family: monospace; }
+.ct-pay-line { border-bottom: 1px dashed #bbb; min-width: 80px; font-size: 11.5px; font-weight: 700; color: #1040b0; font-family: monospace; letter-spacing: 0.2px; }
 
 /* Vehicle section */
 .ct-veh-section { border-top: 1.5px solid #000; }
@@ -517,7 +517,7 @@ function fmt3(v: number): string {
 .ct-veh-table { width: 100%; border-collapse: collapse; }
 .ct-veh-table th, .ct-veh-table td { border: 1px solid #000; padding: 3px 5px; font-size: 8.5px; text-align: center; }
 .ct-veh-table th { background: #f0f0f0; font-weight: 700; }
-.ct-veh-val { color: #1040b0; font-family: monospace; font-size: 10px; }
+.ct-veh-val { color: #1040b0; font-family: monospace; font-size: 12.5px; font-weight: 700; letter-spacing: 0.2px; }
 .ct-yn { display: flex; gap: 4px; align-items: center; justify-content: center; }
 
 /* Fuel */
@@ -525,7 +525,7 @@ function fmt3(v: number): string {
 
 /* Prolongation */
 .ct-prolong-row { display: flex; align-items: center; gap: 6px; padding: 4px 7px; border-top: 1px solid #000; font-size: 8.5px; }
-.ct-prolong-line { border-bottom: 1px dashed #bbb; flex: 1; font-size: 9px; color: #1040b0; font-family: monospace; }
+.ct-prolong-line { border-bottom: 1px dashed #bbb; flex: 1; font-size: 11.5px; font-weight: 700; color: #1040b0; font-family: monospace; letter-spacing: 0.2px; }
 .ct-change-row { display: flex; align-items: center; gap: 6px; padding: 3px 7px; border-top: 1px solid #000; font-size: 8.5px; }
 
 /* Footer grid */

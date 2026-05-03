@@ -736,7 +736,7 @@ function fmt3(v: number | undefined | null): string {
 }
 .ct2-grid td.ct2-cell {
   border: 1px solid #000;
-  padding: 4px 5px 6px;
+  padding: 4px 5px 7px;
   vertical-align: top;
   position: relative;
   font-size: 9px;
@@ -767,13 +767,15 @@ function fmt3(v: number | undefined | null): string {
   display: table-cell;
   vertical-align: baseline;
   border-bottom: 1px solid #bbb;
-  padding: 0 2px 1px;
+  padding: 1px 2px 2px;
   font-family: "Courier New", monospace;
   color: #1040b0;
-  font-size: 9.5px;
+  font-size: 12px;
+  font-weight: 700;
   word-break: break-word;
-  line-height: 1.3;
-  min-height: 13px;
+  line-height: 1.25;
+  min-height: 16px;
+  letter-spacing: 0.2px;
 }
 /* Block context (when a cell uses stacked label/value/arabic layout
    instead of an inline ct2-row). The .ct2-lbl block fallback comes
@@ -790,8 +792,9 @@ function fmt3(v: number | undefined | null): string {
 }
 .ct2-multiline {
   display: block;
-  min-height: 14px;
+  min-height: 16px;
   white-space: pre-wrap;
+  line-height: 1.3;
 }
 .ct2-sub-ar {
   font-family: 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', 'Noto Naskh Arabic', 'Amiri', sans-serif;
