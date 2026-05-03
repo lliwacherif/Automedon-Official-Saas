@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onMounted, ref, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ArrowLeft, FileDown, Loader2, Save, Check, Plus, X, ClipboardList, ChevronDown, Car } from 'lucide-vue-next';
+import { ArrowLeft, FileDown, Loader2, Save, Check, Plus, X, ClipboardList, ChevronDown, Car, Printer } from 'lucide-vue-next';
 import InvoiceTemplate, { type InvoiceData } from '@/components/Invoices/InvoiceTemplate.vue';
 import { formatDate, formatDateTime } from '@/utils/date';
 import { supabase } from '@/lib/supabase';
@@ -486,6 +486,10 @@ async function downloadPdf() {
     };
 
     await html2pdf().set(options).from(clone).save();
+
+    // Mark every reservation included in this invoice as "printed" so the
+    // picker shows a Printer badge next to it on the next visit.
+    await markReservationsAsPrinted(Array.from(selectedReservationIds.value));
   } catch (error: any) {
     console.error('PDF generation failed', error);
     alert(`Failed to generate PDF: ${error?.message || error}`);
@@ -493,6 +497,27 @@ async function downloadPdf() {
     cleanups.forEach((fn) => fn());
     isExporting.value = false;
     generating.value = false;
+  }
+}
+
+async function markReservationsAsPrinted(ids: number[]) {
+  if (!ids.length) return;
+  const tenantId = tenantStore.currentTenant?.id;
+  if (!tenantId) return;
+
+  const printedAt = new Date().toISOString();
+  try {
+    await (supabase.from('reservations') as any)
+      .update({ invoice_printed_at: printedAt })
+      .eq('tenant_id', tenantId)
+      .in('id', ids);
+
+    // Reflect immediately in the picker without a re-fetch.
+    for (const r of clientReservations.value) {
+      if (ids.includes(r.id)) (r as any).invoice_printed_at = printedAt;
+    }
+  } catch (e) {
+    console.error('Failed to mark reservations as printed:', e);
   }
 }
 
@@ -557,9 +582,17 @@ onMounted(() => {
                           <Car class="w-3 h-3 text-indigo-600" />
                         </div>
                         <div class="min-w-0">
-                          <p class="text-xs font-semibold text-slate-800 truncate">
+                          <p class="text-xs font-semibold text-slate-800 truncate flex items-center gap-1.5">
                             {{ clientReservations.find(r => r.id === meta.reservationId)?.car?.brand || '' }}
                             {{ clientReservations.find(r => r.id === meta.reservationId)?.car?.model || '' }}
+                            <span
+                              v-if="(clientReservations.find(r => r.id === meta.reservationId) as any)?.invoice_printed_at"
+                              class="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-700"
+                              :title="`Imprimée le ${formatDate((clientReservations.find(r => r.id === meta.reservationId) as any).invoice_printed_at)}`"
+                            >
+                              <Printer class="w-2.5 h-2.5" />
+                              Imp.
+                            </span>
                           </p>
                           <p class="text-[10px] text-slate-400">{{ meta.days }}j &middot; {{ meta.price.toFixed(2) }} DT</p>
                         </div>
@@ -590,15 +623,32 @@ onMounted(() => {
                       v-for="res in availableReservations"
                       :key="res.id"
                       @click="addReservationToInvoice(res)"
-                      class="w-full flex items-center justify-between rounded-lg px-3 py-2.5 text-left ring-1 ring-slate-100 hover:ring-indigo-200 hover:bg-indigo-50/50 transition group"
+                      class="w-full flex items-center justify-between rounded-lg px-3 py-2.5 text-left ring-1 transition group"
+                      :class="(res as any).invoice_printed_at
+                        ? 'ring-emerald-200 bg-emerald-50/40 hover:ring-emerald-300 hover:bg-emerald-50/70'
+                        : 'ring-slate-100 hover:ring-indigo-200 hover:bg-indigo-50/50'"
                     >
                       <div class="flex items-center gap-2.5 min-w-0">
-                        <div class="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center shrink-0 group-hover:bg-indigo-100 transition">
-                          <Car class="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 transition" />
+                        <div
+                          class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition"
+                          :class="(res as any).invoice_printed_at
+                            ? 'bg-emerald-100 group-hover:bg-emerald-200'
+                            : 'bg-slate-100 group-hover:bg-indigo-100'"
+                        >
+                          <Printer v-if="(res as any).invoice_printed_at" class="w-3.5 h-3.5 text-emerald-600" />
+                          <Car v-else class="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 transition" />
                         </div>
                         <div class="min-w-0">
-                          <p class="text-xs font-semibold text-slate-800 truncate">
+                          <p class="text-xs font-semibold text-slate-800 truncate flex items-center gap-1.5">
                             #{{ res.reservation_number || res.id }} &middot; {{ res.car?.brand || '' }} {{ res.car?.model || '' }}
+                            <span
+                              v-if="(res as any).invoice_printed_at"
+                              class="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-700"
+                              :title="`Imprimée le ${formatDate((res as any).invoice_printed_at)}`"
+                            >
+                              <Printer class="w-2.5 h-2.5" />
+                              Imp.
+                            </span>
                           </p>
                           <p class="text-[10px] text-slate-400 truncate">
                             {{ formatDate(res.start_date) }} - {{ formatDate(res.end_date) }}

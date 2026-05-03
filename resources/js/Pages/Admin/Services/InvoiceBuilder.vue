@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { nextTick, onMounted, ref, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { ArrowLeft, FileDown, Loader2, Save, Check, Plus, X, ClipboardList, Car, Calendar, ChevronDown, Building2, User, Search, Users, Trash2, Eye, FileText } from 'lucide-vue-next';
+import { ArrowLeft, FileDown, Loader2, Save, Check, Plus, X, ClipboardList, Car, Calendar, ChevronDown, Building2, User, Search, Users, Trash2, Eye, FileText, Printer } from 'lucide-vue-next';
 import { useB2BClients } from '@/composables/useB2BClients';
 import InvoiceTemplate, { type InvoiceData } from '@/components/Invoices/InvoiceTemplate.vue';
 import { formatDateTime } from '@/utils/date';
@@ -295,12 +295,36 @@ async function downloadPdf() {
     }).from(clone).save();
 
     try { document.body.removeChild(host); } catch {}
+
+    // Mark every service in this invoice as printed so the picker shows
+    // a Printer badge next time.
+    await markServicesAsPrinted(Array.from(selectedServiceIds.value));
   } catch (error: any) {
     console.error('PDF generation failed', error);
     alert(`Failed to generate PDF: ${error?.message || error}`);
   } finally {
     isExporting.value = false;
     generating.value = false;
+  }
+}
+
+async function markServicesAsPrinted(ids: number[]) {
+  if (!ids.length) return;
+  const tenantId = tenantStore.currentTenant?.id;
+  if (!tenantId) return;
+
+  const printedAt = new Date().toISOString();
+  try {
+    await (supabase.from('services') as any)
+      .update({ invoice_printed_at: printedAt })
+      .eq('tenant_id', tenantId)
+      .in('id', ids);
+
+    for (const s of allServices.value) {
+      if (ids.includes(s.id)) (s as any).invoice_printed_at = printedAt;
+    }
+  } catch (e) {
+    console.error('Failed to mark services as printed:', e);
   }
 }
 
@@ -432,7 +456,17 @@ onMounted(() => { fetchAllServices(); fetchB2BClients(); fetchSavedInvoices(); }
                   <div class="space-y-1.5 max-h-[140px] overflow-y-auto">
                     <div v-for="svc in selectedServices" :key="svc.id" class="flex items-center justify-between bg-white rounded-lg px-3 py-2 ring-1 ring-indigo-100">
                       <div class="min-w-0">
-                        <p class="text-xs font-semibold text-slate-800 truncate">{{ svc.service_type === 'transfert' ? 'Transfert' : 'Excursion' }} — {{ svc.car?.brand }} {{ svc.car?.model }}</p>
+                        <p class="text-xs font-semibold text-slate-800 truncate flex items-center gap-1.5">
+                          {{ svc.service_type === 'transfert' ? 'Transfert' : 'Excursion' }} — {{ svc.car?.brand }} {{ svc.car?.model }}
+                          <span
+                            v-if="svc.invoice_printed_at"
+                            class="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-700"
+                            :title="`Imprimée le ${formatDate(svc.invoice_printed_at)}`"
+                          >
+                            <Printer class="w-2.5 h-2.5" />
+                            Imp.
+                          </span>
+                        </p>
                         <p class="text-[10px] text-slate-400">{{ svc.client_name || 'N/A' }} &middot; {{ Number(svc.price).toFixed(2) }} DT</p>
                       </div>
                       <button @click="removeService(svc.id)" class="shrink-0 p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition"><X class="w-3.5 h-3.5" /></button>
@@ -446,11 +480,27 @@ onMounted(() => { fetchAllServices(); fetchB2BClients(); fetchSavedInvoices(); }
                   <div v-if="loading" class="flex items-center justify-center py-8"><Loader2 class="w-5 h-5 text-slate-300 animate-spin" /></div>
                   <div v-else-if="availableServices.length === 0" class="py-8 text-center text-xs text-slate-400">Aucun service disponible</div>
                   <div v-else class="space-y-1.5">
-                    <button v-for="svc in availableServices" :key="svc.id" @click="addService(svc)" class="w-full flex items-center justify-between rounded-lg px-3 py-2.5 text-left ring-1 ring-slate-100 hover:ring-indigo-200 hover:bg-indigo-50/50 transition group">
+                    <button
+                      v-for="svc in availableServices"
+                      :key="svc.id"
+                      @click="addService(svc)"
+                      class="w-full flex items-center justify-between rounded-lg px-3 py-2.5 text-left ring-1 transition group"
+                      :class="svc.invoice_printed_at
+                        ? 'ring-emerald-200 bg-emerald-50/40 hover:ring-emerald-300 hover:bg-emerald-50/70'
+                        : 'ring-slate-100 hover:ring-indigo-200 hover:bg-indigo-50/50'"
+                    >
                       <div class="min-w-0 flex-1">
-                        <p class="text-xs font-semibold text-slate-800 truncate">
+                        <p class="text-xs font-semibold text-slate-800 truncate flex items-center gap-1.5">
                           {{ svc.service_type === 'transfert' ? 'Transfert' : 'Excursion' }} — {{ svc.car?.brand }} {{ svc.car?.model }}
                           <span v-if="svc.contract_number" class="text-slate-400">#{{ svc.contract_number }}</span>
+                          <span
+                            v-if="svc.invoice_printed_at"
+                            class="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-emerald-700"
+                            :title="`Imprimée le ${formatDate(svc.invoice_printed_at)}`"
+                          >
+                            <Printer class="w-2.5 h-2.5" />
+                            Imp.
+                          </span>
                         </p>
                         <p class="text-[10px] text-slate-400 truncate">{{ svc.client_name || 'N/A' }} &middot; {{ formatDate(svc.start_date) }} &middot; {{ svc.chauffeur_name }}</p>
                       </div>
