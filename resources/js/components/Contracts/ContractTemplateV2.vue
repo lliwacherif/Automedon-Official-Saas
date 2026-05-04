@@ -45,12 +45,11 @@ const locataireFullName = computed(() => {
   return [nom, prenom].filter(Boolean).join(' ');
 });
 
-// V2 only: separate "renter" (LOCATAIRE) from the first driver. Falls back to
-// the first driver's name when not filled, so old contracts keep working.
+// V2 only: separate "renter" (LOCATAIRE) from the first driver.
+// Stays empty unless the user fills it in - never auto-pulls from the reservation.
 const renterFullName = computed(() => {
   const r = props.data.v2?.renter;
-  const fromRenter = [r?.nom || '', r?.prenom || ''].filter(Boolean).join(' ').trim();
-  return fromRenter || locataireFullName.value;
+  return [r?.nom || '', r?.prenom || ''].filter(Boolean).join(' ').trim();
 });
 
 const conducteurFullName = computed(() => {
