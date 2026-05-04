@@ -255,9 +255,13 @@ function buildLineItem(reservation: any, mode: 'TTC' | 'HT') {
   const carLabel = `${carBrand} ${carModel}`.trim() || 'Véhicule';
   const plate = reservation.car?.plate_number || reservation.car?.license_plate || '';
 
-  // Unified designation (same wording for B2B and individual invoices):
-  // "Location de <client> avec le véhicule <plate> <brand model> du: <date>"
-  const clientPart = reservation.client_name ? ` de ${reservation.client_name}` : '';
+  // Unified designation: "Location de <name> avec le véhicule <plate> <brand model> du: <date>"
+  // For agency reservations, prefer the second driver's name (if filled) over the agency name.
+  // For individuals, use the client name as before.
+  const displayName = reservation.agency_id && reservation.second_driver_name
+    ? reservation.second_driver_name
+    : reservation.client_name;
+  const clientPart = displayName ? ` de ${displayName}` : '';
   const vehiclePart = plate
     ? ` avec le véhicule ${plate}${carLabel !== 'Véhicule' ? ' ' + carLabel : ''}`
     : (carLabel !== 'Véhicule' ? ` avec ${carLabel}` : '');
