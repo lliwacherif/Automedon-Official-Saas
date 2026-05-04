@@ -245,14 +245,25 @@ async function loadReservation(id: string) {
           prenom: '',
           dob: '',
           ci: reservation.client_cin || '',
-          ciDate: '',
+          ciDate: reservation.client_cin_date || '',
           nationalite: '',
           adresse: '',
           telephone: reservation.client_phone || '',
-          permis: '',
-          permisDate: '',
+          permis: reservation.client_permit_number || '',
+          permisDate: reservation.client_permit_date || '',
         },
-        conducteur: { nom: '', prenom: '', dob: '', ci: '', ciDate: '', nationalite: '', adresse: '', telephone: '', permis: '', permisDate: '' },
+        conducteur: {
+          nom: reservation.second_driver_name || '',
+          prenom: '',
+          dob: '',
+          ci: reservation.second_driver_cin || '',
+          ciDate: reservation.second_driver_cin_date || '',
+          nationalite: '',
+          adresse: '',
+          telephone: reservation.second_driver_phone || '',
+          permis: reservation.second_driver_permit_number || '',
+          permisDate: reservation.second_driver_permit_date || '',
+        },
         vehicule: {
           marque: `${reservation.car?.brand || ''} ${reservation.car?.model || ''}`.trim(),
           immatriculation: reservation.car?.plate_number || reservation.car?.license_plate || '',
@@ -621,18 +632,16 @@ onMounted(() => {
             <div class="sb-field"><label>Prénom (اللقب)</label><input v-model="contractData.locataire.prenom" /></div>
             <div class="sb-field"><label>Date et Lieu de Naissance</label><input v-model="contractData.locataire.dob" placeholder="JJ/MM/AAAA — Lieu" /></div>
             <div class="sb-field"><label>N° CI ou Passeport</label><input v-model="contractData.locataire.ci" /></div>
-            <div class="sb-field"><label>Lieu et délivrance (CIN/Passport)</label><input v-model="contractData.locataire.ciDate" placeholder="Lieu — JJ/MM/AAAA" /></div>
+            <div class="sb-field"><label>Date de délivrance (CIN/Passport)</label><input v-model="contractData.locataire.ciDate" placeholder="JJ/MM/AAAA" /></div>
             <div class="sb-field"><label>Nationalité</label><input v-model="contractData.locataire.nationalite" /></div>
             <div class="sb-field"><label>Adresse</label><input v-model="contractData.locataire.adresse" /></div>
             <div class="sb-field"><label>Téléphone</label><input v-model="contractData.locataire.telephone" /></div>
             <div class="sb-field"><label>N° Permis</label><input v-model="contractData.locataire.permis" /></div>
-            <div class="sb-field"><label>Permis Délivré le</label><input v-model="contractData.locataire.permisDate" placeholder="JJ/MM/AAAA" /></div>
+            <div class="sb-field"><label>Date de délivrance (Permis)</label><input v-model="contractData.locataire.permisDate" placeholder="JJ/MM/AAAA" /></div>
             <template v-if="contractTemplate === 'v2' && contractData.v2?.locataire">
               <div class="sb-divider"><span>V2 — champs additionnels</span></div>
               <div class="sb-field"><label>M.F (Matricule fiscal)</label><input v-model="contractData.v2.locataire.mf" /></div>
-              <div class="sb-field"><label>Lieu et délivrance (CIN/Passport)</label><input v-model="contractData.v2.locataire.lieuDelivrance" /></div>
               <div class="sb-field"><label>Date d'entrée en Tunisie</label><input v-model="contractData.v2.locataire.dateEntreeTunisie" placeholder="JJ/MM/AAAA" /></div>
-              <div class="sb-field"><label>Lieu et délivrance (Permis)</label><input v-model="contractData.v2.locataire.permisLieu" /></div>
               <div class="sb-field">
                 <label>Motif de séjour</label>
                 <select v-model="contractData.v2.locataire.motifSejour">
@@ -657,18 +666,16 @@ onMounted(() => {
             <div class="sb-field"><label>Prénom</label><input v-model="contractData.conducteur.prenom" /></div>
             <div class="sb-field"><label>Date et Lieu de Naissance</label><input v-model="contractData.conducteur.dob" placeholder="JJ/MM/AAAA — Lieu" /></div>
             <div class="sb-field"><label>N° CI ou Passeport</label><input v-model="contractData.conducteur.ci" /></div>
-            <div class="sb-field"><label>Lieu et délivrance (CIN/Passport)</label><input v-model="contractData.conducteur.ciDate" placeholder="Lieu — JJ/MM/AAAA" /></div>
+            <div class="sb-field"><label>Date de délivrance (CIN/Passport)</label><input v-model="contractData.conducteur.ciDate" placeholder="JJ/MM/AAAA" /></div>
             <div class="sb-field"><label>Nationalité</label><input v-model="contractData.conducteur.nationalite" /></div>
             <div class="sb-field"><label>Adresse</label><input v-model="contractData.conducteur.adresse" /></div>
             <div class="sb-field"><label>Téléphone</label><input v-model="contractData.conducteur.telephone" /></div>
             <div class="sb-field"><label>N° Permis</label><input v-model="contractData.conducteur.permis" /></div>
-            <div class="sb-field"><label>Permis Délivré le</label><input v-model="contractData.conducteur.permisDate" placeholder="JJ/MM/AAAA" /></div>
+            <div class="sb-field"><label>Date de délivrance (Permis)</label><input v-model="contractData.conducteur.permisDate" placeholder="JJ/MM/AAAA" /></div>
             <template v-if="contractTemplate === 'v2' && contractData.v2?.conducteur">
               <div class="sb-divider"><span>V2 — champs additionnels</span></div>
               <div class="sb-field"><label>M.F (Matricule fiscal)</label><input v-model="contractData.v2.conducteur.mf" /></div>
-              <div class="sb-field"><label>Lieu et délivrance (CIN/Passport)</label><input v-model="contractData.v2.conducteur.lieuDelivrance" /></div>
               <div class="sb-field"><label>Date d'entrée en Tunisie</label><input v-model="contractData.v2.conducteur.dateEntreeTunisie" placeholder="JJ/MM/AAAA" /></div>
-              <div class="sb-field"><label>Lieu et délivrance (Permis)</label><input v-model="contractData.v2.conducteur.permisLieu" /></div>
               <div class="sb-field">
                 <label>Motif de séjour</label>
                 <select v-model="contractData.v2.conducteur.motifSejour">

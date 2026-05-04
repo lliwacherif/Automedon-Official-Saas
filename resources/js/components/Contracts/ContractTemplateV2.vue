@@ -141,27 +141,23 @@ function fmt3(v: number | undefined | null): string {
         <!-- Vehicle / Locataire grid -->
         <table class="ct2-grid ct2-vehicle-grid">
           <colgroup>
-            <col style="width:28%;">
-            <col style="width:26%;">
+            <col style="width:38%;">
+            <col style="width:32%;">
+            <col style="width:23%;">
             <col style="width:7%;">
-            <col style="width:39%;">
           </colgroup>
           <tr>
             <td class="ct2-cell">
               <div class="ct2-row"><span class="ct2-lbl">Modèle :</span><span class="ct2-val">{{ data.vehicule.marque }}</span></div>
               <div class="ct2-sub-ar">النوع</div>
             </td>
-            <td class="ct2-cell">
+            <td class="ct2-cell" colspan="2">
               <div class="ct2-row"><span class="ct2-lbl">Immatriculation :</span><span class="ct2-val">{{ data.vehicule.immatriculation }}</span></div>
               <div class="ct2-sub-ar">الرقم المنجمي</div>
             </td>
             <td class="ct2-cell ct2-tu">
               <div class="ct2-tu-fr">TU</div>
               <div class="ct2-sub-ar">تونس</div>
-            </td>
-            <td class="ct2-cell">
-              <div class="ct2-row"><span class="ct2-lbl">Adresse :</span><span class="ct2-val">{{ data.locataire.adresse }}</span></div>
-              <div class="ct2-sub-ar">العنوان</div>
             </td>
           </tr>
           <tr>
@@ -171,7 +167,6 @@ function fmt3(v: number | undefined | null): string {
             </td>
             <td class="ct2-cell" colspan="2">
               <div class="ct2-row"><span class="ct2-lbl">M.F :</span><span class="ct2-val">{{ v2L.mf }}</span></div>
-              <div class="ct2-row"><span class="ct2-lbl">CIN :</span><span class="ct2-val">{{ data.locataire.ci }}</span></div>
             </td>
           </tr>
         </table>
@@ -201,9 +196,9 @@ function fmt3(v: number | undefined | null): string {
               <div class="ct2-sub-ar">ب ت و / جواز سفر عدد</div>
             </td>
             <td class="ct2-cell">
-              <div class="ct2-lbl">Lieu et délivrance :</div>
-              <div class="ct2-val">{{ v2L.lieuDelivrance }}</div>
-              <div class="ct2-sub-ar">تاريخ و مكان الإصدار</div>
+              <div class="ct2-lbl">Date de délivrance :</div>
+              <div class="ct2-val">{{ data.locataire.ciDate || v2L.lieuDelivrance }}</div>
+              <div class="ct2-sub-ar">تاريخ الإصدار</div>
             </td>
           </tr>
           <tr>
@@ -230,9 +225,9 @@ function fmt3(v: number | undefined | null): string {
               <div class="ct2-sub-ar">رخصة سياقة عدد</div>
             </td>
             <td class="ct2-cell">
-              <div class="ct2-lbl">Lieu et délivrance :</div>
-              <div class="ct2-val">{{ v2L.permisLieu }}</div>
-              <div class="ct2-sub-ar">تاريخ و مكان الإصدار</div>
+              <div class="ct2-lbl">Date de délivrance :</div>
+              <div class="ct2-val">{{ data.locataire.permisDate || v2L.permisLieu }}</div>
+              <div class="ct2-sub-ar">تاريخ الإصدار</div>
             </td>
             <td class="ct2-cell">
               <div class="ct2-lbl">Motif de séjour :</div>
@@ -284,9 +279,9 @@ function fmt3(v: number | undefined | null): string {
               <div class="ct2-sub-ar">ب ت و / جواز سفر عدد</div>
             </td>
             <td class="ct2-cell">
-              <div class="ct2-lbl">Lieu et délivrance :</div>
-              <div class="ct2-val">{{ v2C.lieuDelivrance }}</div>
-              <div class="ct2-sub-ar">تاريخ و مكان الإصدار</div>
+              <div class="ct2-lbl">Date de délivrance :</div>
+              <div class="ct2-val">{{ data.conducteur.ciDate || v2C.lieuDelivrance }}</div>
+              <div class="ct2-sub-ar">تاريخ الإصدار</div>
             </td>
           </tr>
           <tr>
@@ -313,9 +308,9 @@ function fmt3(v: number | undefined | null): string {
               <div class="ct2-sub-ar">رخصة سياقة عدد</div>
             </td>
             <td class="ct2-cell">
-              <div class="ct2-lbl">Lieu et délivrance :</div>
-              <div class="ct2-val">{{ v2C.permisLieu }}</div>
-              <div class="ct2-sub-ar">تاريخ و مكان الإصدار</div>
+              <div class="ct2-lbl">Date de délivrance :</div>
+              <div class="ct2-val">{{ data.conducteur.permisDate || v2C.permisLieu }}</div>
+              <div class="ct2-sub-ar">تاريخ الإصدار</div>
             </td>
             <td class="ct2-cell">
               <div class="ct2-lbl">Motif de séjour :</div>
