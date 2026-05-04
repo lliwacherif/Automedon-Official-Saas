@@ -385,6 +385,10 @@ async function saveCurrentInvoice() {
     await (supabase.from('service_invoices') as any).insert([payload]);
     invoiceSaved.value = true;
     setTimeout(() => (invoiceSaved.value = false), 2500);
+
+    // Mark every service in this invoice as printed (same as on download).
+    await markServicesAsPrinted(Array.from(selectedServiceIds.value));
+
     await fetchSavedInvoices();
   } catch (e: any) {
     console.error('Error saving invoice:', e);
