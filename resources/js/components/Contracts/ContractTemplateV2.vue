@@ -45,6 +45,14 @@ const locataireFullName = computed(() => {
   return [nom, prenom].filter(Boolean).join(' ');
 });
 
+// V2 only: separate "renter" (LOCATAIRE) from the first driver. Falls back to
+// the first driver's name when not filled, so old contracts keep working.
+const renterFullName = computed(() => {
+  const r = props.data.v2?.renter;
+  const fromRenter = [r?.nom || '', r?.prenom || ''].filter(Boolean).join(' ').trim();
+  return fromRenter || locataireFullName.value;
+});
+
 const conducteurFullName = computed(() => {
   const nom = props.data.conducteur.nom || '';
   const prenom = props.data.conducteur.prenom || '';
@@ -159,7 +167,7 @@ function fmt3(v: number | undefined | null): string {
           </tr>
           <tr>
             <td class="ct2-cell" colspan="2">
-              <div class="ct2-row"><span class="ct2-lbl">Locataire :</span><span class="ct2-val">{{ locataireFullName }}</span></div>
+              <div class="ct2-row"><span class="ct2-lbl">Locataire :</span><span class="ct2-val">{{ renterFullName }}</span></div>
               <div class="ct2-sub-ar">المستأجر</div>
             </td>
             <td class="ct2-cell" colspan="2">

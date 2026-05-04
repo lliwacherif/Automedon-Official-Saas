@@ -46,6 +46,7 @@ function createEmptyContractData(): ContractData {
     signature: { lieu: '', date: '' },
     pricingMode: 'HT',
     v2: {
+      renter: { nom: '', prenom: '' },
       locataire: { mf: '', lieuDelivrance: '', dateEntreeTunisie: '', permisLieu: '', motifSejour: '' },
       conducteur: { mf: '', lieuDelivrance: '', dateEntreeTunisie: '', permisLieu: '', motifSejour: '' },
       periode: { stationSortie: '', stationRetour: '', franchise: '', prol1: '', prol2: '' },
@@ -57,6 +58,7 @@ function createEmptyContractData(): ContractData {
 
 function ensureV2(data: ContractData) {
   data.v2 = data.v2 || {};
+  data.v2.renter = { nom: '', prenom: '', ...(data.v2.renter || {}) };
   data.v2.locataire = { mf: '', lieuDelivrance: '', dateEntreeTunisie: '', permisLieu: '', motifSejour: '', ...(data.v2.locataire || {}) };
   data.v2.conducteur = { mf: '', lieuDelivrance: '', dateEntreeTunisie: '', permisLieu: '', motifSejour: '', ...(data.v2.conducteur || {}) };
   data.v2.periode = { stationSortie: '', stationRetour: '', franchise: '', prol1: '', prol2: '', ...(data.v2.periode || {}) };
@@ -280,6 +282,7 @@ async function loadReservation(id: string) {
         signature: { lieu: '', date: fmtDateForContract(new Date().toISOString()) },
         pricingMode: 'HT',
         v2: {
+          renter: { nom: '', prenom: '' },
           locataire: { mf: '', lieuDelivrance: '', dateEntreeTunisie: '', permisLieu: '', motifSejour: '' },
           conducteur: { mf: '', lieuDelivrance: '', dateEntreeTunisie: '', permisLieu: '', motifSejour: '' },
           periode: { stationSortie: '', stationRetour: '', franchise: '', prol1: '', prol2: '' },
@@ -594,10 +597,23 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- Locataire -->
+        <!-- Locataire (V2 only) — actual renter, separate from the first driver -->
+        <div v-if="contractTemplate === 'v2' && contractData.v2?.renter" class="sb-card">
+          <button class="sb-title" @click="toggleSection('renter')">
+            <span>Locataire (المستأجر)</span>
+            <ChevronDown class="h-4 w-4 transition-transform" :class="{ 'rotate-180': collapsedSections.renter }" />
+          </button>
+          <div v-show="!collapsedSections.renter" class="sb-body">
+            <p class="sb-hint">Personne qui loue la voiture (peut être différente du conducteur).</p>
+            <div class="sb-field"><label>Nom</label><input v-model="contractData.v2.renter.nom" /></div>
+            <div class="sb-field"><label>Prénom</label><input v-model="contractData.v2.renter.prenom" /></div>
+          </div>
+        </div>
+
+        <!-- Premier conducteur (V2) / Locataire (V1) -->
         <div class="sb-card">
           <button class="sb-title" @click="toggleSection('locataire')">
-            <span>Locataire (السائق الأول)</span>
+            <span>{{ contractTemplate === 'v2' ? 'Premier conducteur (السائق الأول)' : 'Locataire (السائق الأول)' }}</span>
             <ChevronDown class="h-4 w-4 transition-transform" :class="{ 'rotate-180': collapsedSections.locataire }" />
           </button>
           <div v-show="!collapsedSections.locataire" class="sb-body">

@@ -82,6 +82,10 @@ export interface ContractData {
   };
   pricingMode?: 'HT' | 'TTC';
   v2?: {
+    renter?: {
+      nom?: string;
+      prenom?: string;
+    };
     locataire?: {
       mf?: string;
       lieuDelivrance?: string;
