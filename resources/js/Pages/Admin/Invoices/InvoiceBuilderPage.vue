@@ -500,23 +500,39 @@ async function downloadPdf() {
 }
 
 async function markReservationsAsPrinted(ids: number[]) {
-  if (!ids.length) return;
+  if (!ids.length) {
+    console.warn('[Invoice] markReservationsAsPrinted called with no IDs - skipping.');
+    return;
+  }
   const tenantId = tenantStore.currentTenant?.id;
-  if (!tenantId) return;
+  if (!tenantId) {
+    console.warn('[Invoice] markReservationsAsPrinted: no tenant in store.');
+    return;
+  }
 
   const printedAt = new Date().toISOString();
   try {
-    await (supabase.from('reservations') as any)
+    const { data, error } = await (supabase.from('reservations') as any)
       .update({ invoice_printed_at: printedAt })
       .eq('tenant_id', tenantId)
-      .in('id', ids);
+      .in('id', ids)
+      .select('id');
+
+    if (error) throw error;
+
+    const updatedCount = data?.length || 0;
+    if (updatedCount !== ids.length) {
+      console.warn(`[Invoice] Expected to mark ${ids.length} reservation(s) but ${updatedCount} were updated.`);
+    } else {
+      console.log(`[Invoice] Marked ${updatedCount} reservation(s) as printed.`);
+    }
 
     // Reflect immediately in the picker without a re-fetch.
     for (const r of clientReservations.value) {
       if (ids.includes(r.id)) (r as any).invoice_printed_at = printedAt;
     }
-  } catch (e) {
-    console.error('Failed to mark reservations as printed:', e);
+  } catch (e: any) {
+    console.error('[Invoice] Failed to mark reservations as printed:', e?.message || e, e);
   }
 }
 

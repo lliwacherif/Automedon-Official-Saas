@@ -309,22 +309,38 @@ async function downloadPdf() {
 }
 
 async function markServicesAsPrinted(ids: number[]) {
-  if (!ids.length) return;
+  if (!ids.length) {
+    console.warn('[Invoice] markServicesAsPrinted called with no IDs - skipping.');
+    return;
+  }
   const tenantId = tenantStore.currentTenant?.id;
-  if (!tenantId) return;
+  if (!tenantId) {
+    console.warn('[Invoice] markServicesAsPrinted: no tenant in store.');
+    return;
+  }
 
   const printedAt = new Date().toISOString();
   try {
-    await (supabase.from('services') as any)
+    const { data, error } = await (supabase.from('services') as any)
       .update({ invoice_printed_at: printedAt })
       .eq('tenant_id', tenantId)
-      .in('id', ids);
+      .in('id', ids)
+      .select('id');
+
+    if (error) throw error;
+
+    const updatedCount = data?.length || 0;
+    if (updatedCount !== ids.length) {
+      console.warn(`[Invoice] Expected to mark ${ids.length} service(s) but ${updatedCount} were updated.`);
+    } else {
+      console.log(`[Invoice] Marked ${updatedCount} service(s) as printed.`);
+    }
 
     for (const s of allServices.value) {
       if (ids.includes(s.id)) (s as any).invoice_printed_at = printedAt;
     }
-  } catch (e) {
-    console.error('Failed to mark services as printed:', e);
+  } catch (e: any) {
+    console.error('[Invoice] Failed to mark services as printed:', e?.message || e, e);
   }
 }
 
@@ -381,7 +397,9 @@ async function saveCurrentInvoice() {
 function openSavedInvoice(invoice: any) {
   previewData.value = invoice.invoice_data as InvoiceData;
   viewingSavedId.value = invoice.id;
-  selectedServiceIds.value = new Set();
+  // Restore the saved service IDs so that downloading marks them as printed.
+  const ids = (invoice.service_ids || []) as number[];
+  selectedServiceIds.value = new Set(ids);
 }
 
 async function deleteSavedInvoice(id: number) {
