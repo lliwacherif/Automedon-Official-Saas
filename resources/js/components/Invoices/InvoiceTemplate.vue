@@ -233,8 +233,8 @@ function tvaPercent() {
 }
 
 .inv-logo {
-  height: 60px;
-  max-width: 200px;
+  height: 90px;
+  max-width: 300px;
   object-fit: contain;
   margin-bottom: 6px;
 }
