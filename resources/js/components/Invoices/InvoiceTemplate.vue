@@ -87,15 +87,14 @@ function tvaPercent() {
 
 <template>
   <div id="invoice-template" class="invoice-page">
+    <!-- Top Logo (centered) -->
+    <div v-if="data.company.logoUrl" class="inv-logo-banner">
+      <img :src="data.company.logoUrl" class="inv-logo" alt="Logo" />
+    </div>
+
     <!-- Header -->
     <div class="inv-header">
       <div class="inv-company">
-        <img
-          v-if="data.company.logoUrl"
-          :src="data.company.logoUrl"
-          class="inv-logo"
-          alt="Logo"
-        />
         <div class="inv-company-name">{{ data.company.name }}</div>
         <div class="inv-company-detail">{{ data.company.address }}</div>
         <div class="inv-company-detail">MF: {{ data.company.mf }}</div>
@@ -232,11 +231,17 @@ function tvaPercent() {
   max-width: 55%;
 }
 
+.inv-logo-banner {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 6mm;
+}
+
 .inv-logo {
-  height: 90px;
-  max-width: 300px;
+  height: 110px;
+  max-width: 360px;
   object-fit: contain;
-  margin-bottom: 6px;
 }
 
 .inv-company-name {
