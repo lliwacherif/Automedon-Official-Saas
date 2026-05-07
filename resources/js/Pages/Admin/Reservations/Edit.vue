@@ -163,6 +163,7 @@ const reservation = ref<Partial<Reservation>>({
     client_permit_number: '',
     client_cin_date: '',
     client_permit_date: '',
+    client_address: '',
     second_driver_name: '',
     second_driver_cin: '',
     second_driver_phone: '',
@@ -170,6 +171,7 @@ const reservation = ref<Partial<Reservation>>({
     second_driver_permit_number: '',
     second_driver_cin_date: '',
     second_driver_permit_date: '',
+    second_driver_address: '',
     start_date: '',
     end_date: '',
     duration_days: 0,
@@ -309,6 +311,7 @@ async function handleSubmit() {
             client_permit_number: reservation.value.client_permit_number || null,
             client_cin_date: reservation.value.client_cin_date || null,
             client_permit_date: reservation.value.client_permit_date || null,
+            client_address: reservation.value.client_address || null,
             second_driver_name: showSecondDriver.value ? (reservation.value.second_driver_name || null) : null,
             second_driver_cin: showSecondDriver.value ? (reservation.value.second_driver_cin || null) : null,
             second_driver_phone: showSecondDriver.value ? (reservation.value.second_driver_phone || null) : null,
@@ -316,6 +319,7 @@ async function handleSubmit() {
             second_driver_permit_number: showSecondDriver.value ? (reservation.value.second_driver_permit_number || null) : null,
             second_driver_cin_date: showSecondDriver.value ? (reservation.value.second_driver_cin_date || null) : null,
             second_driver_permit_date: showSecondDriver.value ? (reservation.value.second_driver_permit_date || null) : null,
+            second_driver_address: showSecondDriver.value ? (reservation.value.second_driver_address || null) : null,
             car_id: reservation.value.car_id!,
             start_date: new Date(reservation.value.start_date!).toISOString(),
             end_date: new Date(reservation.value.end_date!).toISOString(),
@@ -465,6 +469,7 @@ function selectAgency(idStr: string) {
         reservation.value.client_phone = agency.phone || '';
         reservation.value.client_email = agency.email || '';
         reservation.value.client_permit_number = '';
+        reservation.value.client_address = agency.address || '';
     } else {
         selectedAgencyId.value = null;
     }
@@ -478,6 +483,7 @@ function clearAgency() {
     reservation.value.client_phone = '';
     reservation.value.client_email = '';
     reservation.value.client_permit_number = '';
+    reservation.value.client_address = '';
 }
 </script>
 
@@ -653,6 +659,22 @@ function clearAgency() {
                                 <input v-model="reservation.client_permit_date" type="text" class="form-input" placeholder="Ex: 15/06/2018">
                             </div>
                         </div>
+
+                        <div class="md:col-span-2">
+                            <label class="form-label">
+                                {{ clientMode === 'agency' ? 'Adresse Agence' : 'Adresse Client' }}
+                                <span class="text-gray-400 font-normal">(optionnel)</span>
+                            </label>
+                            <div class="form-input-wrapper">
+                                <MapPin class="form-input-icon" />
+                                <input
+                                    v-model="reservation.client_address"
+                                    type="text"
+                                    class="form-input"
+                                    placeholder="Ex: 12 Rue de Carthage, Tunis 1000"
+                                >
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -729,6 +751,22 @@ function clearAgency() {
                             <div class="form-input-wrapper">
                                 <Calendar class="form-input-icon" />
                                 <input v-model="reservation.second_driver_permit_date" type="text" class="form-input" placeholder="Ex: 15/06/2018">
+                            </div>
+                        </div>
+
+                        <div class="md:col-span-2">
+                            <label class="form-label">
+                                Adresse
+                                <span class="text-gray-400 font-normal">(optionnel)</span>
+                            </label>
+                            <div class="form-input-wrapper">
+                                <MapPin class="form-input-icon" />
+                                <input
+                                    v-model="reservation.second_driver_address"
+                                    type="text"
+                                    class="form-input"
+                                    placeholder="Ex: 12 Rue de Carthage, Tunis 1000"
+                                >
                             </div>
                         </div>
                     </div>

@@ -17,6 +17,7 @@ export interface Reservation {
     client_permit_number: string | null;
     client_cin_date: string | null;
     client_permit_date: string | null;
+    client_address: string | null;
     // Second Driver
     second_driver_name: string | null;
     second_driver_cin: string | null;
@@ -25,6 +26,7 @@ export interface Reservation {
     second_driver_permit_number: string | null;
     second_driver_cin_date: string | null;
     second_driver_permit_date: string | null;
+    second_driver_address: string | null;
     // Reservation Details
     car_id: number;
     start_date: string;
