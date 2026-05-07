@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useReservations } from '@/composables/useReservations';
 import { useReservationDocuments } from '@/composables/useReservationDocuments';
 import { useTenantLink } from '@/composables/useTenantLink';
@@ -32,7 +32,7 @@ import {
     ScrollText,
 } from 'lucide-vue-next';
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const { reservations, loading, fetchReservations, deleteReservation } = useReservations();
 const { documents, fetchDocuments } = useReservationDocuments();
 const { tenantPath } = useTenantLink();
@@ -42,8 +42,38 @@ const router = useRouter();
 
 const search = ref('');
 const statusFilter = ref('all');
+const monthFilter = ref<string>('all');
 const expandedReservation = ref<number | null>(null);
 const showUpsell = ref(false);
+
+const currentYear = new Date().getFullYear();
+
+// Localized month names ("janvier", "février", ... or "January", "February", ...)
+// based on the active vue-i18n locale, capitalized for nicer dropdown display.
+const monthOptions = computed(() => {
+    const localeTag = (locale.value || 'fr-FR').toString().replace('_', '-');
+    const formatter = new Intl.DateTimeFormat(localeTag, { month: 'long' });
+    return Array.from({ length: 12 }, (_, i) => {
+        const raw = formatter.format(new Date(2024, i, 1));
+        const label = raw.charAt(0).toUpperCase() + raw.slice(1);
+        return { value: String(i + 1), label };
+    });
+});
+
+// Apply month filter on top of what useReservations already returns.
+// Server already handles status + search; month is purely client-side
+// because the column in DB is a timestamp and we want simple month/year matching.
+const filteredReservations = computed(() => {
+    if (monthFilter.value === 'all') return reservations.value;
+    const targetMonth = parseInt(monthFilter.value, 10);
+    if (Number.isNaN(targetMonth)) return reservations.value;
+    return reservations.value.filter(r => {
+        if (!r.start_date) return false;
+        const d = new Date(r.start_date);
+        if (Number.isNaN(d.getTime())) return false;
+        return d.getFullYear() === currentYear && (d.getMonth() + 1) === targetMonth;
+    });
+});
 
 onMounted(async () => {
     loadReservations();
@@ -130,7 +160,7 @@ import { formatDate, formatDateTime } from '@/utils/date';
                     </div>
                     <div>
                         <h1 class="text-xl font-bold text-gray-900 tracking-tight">{{ t('admin.reservations.title') }}</h1>
-                        <p class="text-sm text-gray-500">{{ reservations.length }} réservation{{ reservations.length !== 1 ? 's' : '' }}</p>
+                        <p class="text-sm text-gray-500">{{ filteredReservations.length }} réservation{{ filteredReservations.length !== 1 ? 's' : '' }}</p>
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
@@ -153,7 +183,7 @@ import { formatDate, formatDateTime } from '@/utils/date';
 
             <!-- Filters -->
             <div class="bg-white rounded-2xl ring-1 ring-gray-100 shadow-sm p-4">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
                         <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">
                             {{ t('admin.reservations.search') }}
@@ -186,6 +216,23 @@ import { formatDate, formatDateTime } from '@/utils/date';
                                 <option value="active">{{ t('admin.reservations.status_active') }}</option>
                                 <option value="completed">{{ t('admin.reservations.status_completed') }}</option>
                                 <option value="cancelled">{{ t('admin.reservations.status_cancelled') }}</option>
+                            </select>
+                            <ChevronDown class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">
+                            {{ t('admin.reservations.month_filter') }}
+                            <span class="text-gray-300 font-normal normal-case tracking-normal">({{ currentYear }})</span>
+                        </label>
+                        <div class="relative">
+                            <Calendar class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <select
+                                v-model="monthFilter"
+                                class="w-full pl-10 pr-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 appearance-none cursor-pointer transition-all"
+                            >
+                                <option value="all">{{ t('admin.reservations.all_months') }}</option>
+                                <option v-for="m in monthOptions" :key="m.value" :value="m.value">{{ m.label }}</option>
                             </select>
                             <ChevronDown class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                         </div>
@@ -242,7 +289,7 @@ import { formatDate, formatDateTime } from '@/utils/date';
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-if="reservations.length === 0">
+                            <tr v-if="filteredReservations.length === 0">
                                 <td colspan="10" class="px-5 py-16 text-center">
                                     <div class="flex flex-col items-center">
                                         <div class="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center mb-3">
@@ -252,7 +299,7 @@ import { formatDate, formatDateTime } from '@/utils/date';
                                     </div>
                                 </td>
                             </tr>
-                            <template v-for="res in reservations" :key="res.id">
+                            <template v-for="res in filteredReservations" :key="res.id">
                                 <tr 
                                     class="border-b border-gray-50 hover:bg-indigo-50/30 cursor-pointer transition-colors"
                                     @click="toggleExpand(res.id)"
@@ -395,7 +442,7 @@ import { formatDate, formatDateTime } from '@/utils/date';
 
                 <!-- Mobile Card View -->
                 <div class="md:hidden space-y-3">
-                    <div v-if="reservations.length === 0" class="flex flex-col items-center py-16 bg-white rounded-2xl ring-1 ring-gray-100">
+                    <div v-if="filteredReservations.length === 0" class="flex flex-col items-center py-16 bg-white rounded-2xl ring-1 ring-gray-100">
                         <div class="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center mb-3">
                             <ClipboardList class="w-6 h-6 text-gray-300" />
                         </div>
@@ -403,7 +450,7 @@ import { formatDate, formatDateTime } from '@/utils/date';
                     </div>
                     
                     <div 
-                        v-for="res in reservations" 
+                        v-for="res in filteredReservations" 
                         :key="res.id" 
                         class="bg-white rounded-2xl ring-1 ring-gray-100 shadow-sm overflow-hidden"
                     >
