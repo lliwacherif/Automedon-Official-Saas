@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useTenantStore } from '@/stores/tenant';
@@ -58,10 +58,100 @@ async function handleLogout() {
 const isActive = (path: string) => {
     return route.path.includes(path);
 };
+
+// ─────────────────────────────────────────────────────────────
+// Liquid pill: a single shared highlight that smoothly slides
+// between nav items on hover, and snaps to the active route
+// when the cursor leaves. Tracks size changes via ResizeObserver
+// so the pill follows items as their text reveals on hover.
+// ─────────────────────────────────────────────────────────────
+const navContainerRef = ref<HTMLElement | null>(null);
+const pillStyle = ref({
+    left: '0px',
+    top: '0px',
+    width: '0px',
+    height: '0px',
+    opacity: '0',
+});
+
+let pillResizeObserver: ResizeObserver | null = null;
+let pillTrackedEl: HTMLElement | null = null;
+let pillIsHovering = false;
+
+const measurePill = (el: HTMLElement) => {
+    if (!navContainerRef.value) return;
+    const containerRect = navContainerRef.value.getBoundingClientRect();
+    const elRect = el.getBoundingClientRect();
+    pillStyle.value = {
+        left: `${elRect.left - containerRect.left}px`,
+        top: `${elRect.top - containerRect.top}px`,
+        width: `${elRect.width}px`,
+        height: `${elRect.height}px`,
+        opacity: '1',
+    };
+};
+
+const trackPillTo = (el: HTMLElement | null) => {
+    if (pillResizeObserver) {
+        pillResizeObserver.disconnect();
+        pillResizeObserver = null;
+    }
+    pillTrackedEl = el;
+    if (!el) {
+        pillStyle.value = { ...pillStyle.value, opacity: '0' };
+        return;
+    }
+    measurePill(el);
+    pillResizeObserver = new ResizeObserver(() => {
+        if (pillTrackedEl) measurePill(pillTrackedEl);
+    });
+    pillResizeObserver.observe(el);
+};
+
+const findActiveNavItem = (): HTMLElement | null => {
+    if (!navContainerRef.value) return null;
+    return navContainerRef.value.querySelector('.nav-item-active') as HTMLElement | null;
+};
+
+const handleNavMouseOver = (e: MouseEvent) => {
+    const target = (e.target as HTMLElement | null)?.closest('.nav-item') as HTMLElement | null;
+    if (target && navContainerRef.value?.contains(target)) {
+        pillIsHovering = true;
+        if (target !== pillTrackedEl) trackPillTo(target);
+    }
+};
+
+const handleNavMouseLeave = () => {
+    pillIsHovering = false;
+    trackPillTo(findActiveNavItem());
+};
+
+const handleWindowResize = () => {
+    if (pillTrackedEl) measurePill(pillTrackedEl);
+};
+
+onMounted(async () => {
+    await nextTick();
+    trackPillTo(findActiveNavItem());
+    window.addEventListener('resize', handleWindowResize);
+});
+
+onBeforeUnmount(() => {
+    if (pillResizeObserver) pillResizeObserver.disconnect();
+    window.removeEventListener('resize', handleWindowResize);
+});
+
+watch(
+    () => route.path,
+    async () => {
+        await nextTick();
+        if (!pillIsHovering) trackPillTo(findActiveNavItem());
+    }
+);
 </script>
 
 <template>
-    <nav class="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-gray-200/60">
+    <nav class="liquid-nav sticky top-0 z-50">
         <div class="w-full px-4 sm:px-6 lg:px-8 xl:px-12">
             <div class="flex items-center justify-between h-16">
                 <!-- Left: Logo + Nav Links -->
@@ -81,7 +171,15 @@ const isActive = (path: string) => {
                     </RouterLink>
 
                     <!-- Desktop Navigation -->
-                    <div class="hidden lg:flex items-center gap-1">
+                    <div
+                        ref="navContainerRef"
+                        @mouseover="handleNavMouseOver"
+                        @mouseleave="handleNavMouseLeave"
+                        class="hidden lg:flex items-center gap-1 relative"
+                    >
+                        <!-- Liquid glass pill that follows hover / active route -->
+                        <div class="nav-pill" :style="pillStyle" aria-hidden="true"></div>
+
                         <!-- Public Links -->
                         <RouterLink 
                             v-if="tenantStore.currentTenant" 
@@ -558,7 +656,69 @@ const isActive = (path: string) => {
 </template>
 
 <style scoped>
-/* Desktop nav items — icon only, text reveals on hover */
+/* ───────────────────────────────────────────────
+   Option A — Liquid glass material for the bar
+   ─────────────────────────────────────────────── */
+.liquid-nav {
+    background-image: linear-gradient(
+        to bottom,
+        rgba(255, 255, 255, 0.72),
+        rgba(255, 255, 255, 0.52)
+    );
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    backdrop-filter: blur(24px) saturate(180%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.7),
+        0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+/* Soft hairline gradient at the bottom — reads as "glass edge" */
+.liquid-nav::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 1px;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(15, 23, 42, 0.08),
+        transparent
+    );
+    pointer-events: none;
+}
+
+/* ───────────────────────────────────────────────
+   Option B — The shared liquid pill
+   ─────────────────────────────────────────────── */
+.nav-pill {
+    position: absolute;
+    z-index: 0;
+    border-radius: 0.625rem;
+    background: linear-gradient(
+        180deg,
+        rgba(99, 102, 241, 0.14),
+        rgba(99, 102, 241, 0.08)
+    );
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.65),
+        inset 0 0 0 1px rgba(99, 102, 241, 0.18),
+        0 1px 2px rgba(99, 102, 241, 0.08);
+    -webkit-backdrop-filter: blur(8px) saturate(140%);
+    backdrop-filter: blur(8px) saturate(140%);
+    pointer-events: none;
+    transition:
+        left 450ms cubic-bezier(0.32, 0.72, 0, 1),
+        top 450ms cubic-bezier(0.32, 0.72, 0, 1),
+        width 450ms cubic-bezier(0.32, 0.72, 0, 1),
+        height 450ms cubic-bezier(0.32, 0.72, 0, 1),
+        opacity 220ms ease;
+    will-change: left, top, width, height;
+}
+
+/* ───────────────────────────────────────────────
+   Desktop nav items — icon only, text reveals on hover
+   Backgrounds are gone now: the pill provides the highlight.
+   ─────────────────────────────────────────────── */
 .nav-item {
     display: inline-flex;
     align-items: center;
@@ -567,33 +727,36 @@ const isActive = (path: string) => {
     font-size: 0.875rem;
     font-weight: 500;
     color: rgb(107 114 128);
-    border-radius: 0.5rem;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 0.625rem;
     white-space: nowrap;
     position: relative;
+    z-index: 1;
+    transition:
+        color 220ms cubic-bezier(0.32, 0.72, 0, 1),
+        padding 380ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .nav-item :deep(svg) {
     width: 1.25rem;
     height: 1.25rem;
     flex-shrink: 0;
+    transition: transform 320ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .nav-item > span {
     max-width: 0;
     opacity: 0;
     overflow: hidden;
-    transition: max-width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-                opacity 0.2s ease,
-                margin 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition:
+        max-width 380ms cubic-bezier(0.32, 0.72, 0, 1),
+        opacity 220ms ease,
+        margin 380ms cubic-bezier(0.32, 0.72, 0, 1);
     margin-left: 0;
 }
 
 .nav-item:hover {
     color: rgb(79 70 229);
-    background-color: rgb(238 242 255);
     padding: 0.55rem 0.75rem;
-    gap: 0;
 }
 
 .nav-item:hover > span {
@@ -602,13 +765,18 @@ const isActive = (path: string) => {
     margin-left: 0.4rem;
 }
 
-.nav-item-active {
-    color: rgb(79 70 229);
-    background-color: rgb(238 242 255);
-    box-shadow: inset 0 0 0 1px rgb(199 210 254);
+/* Option C — magnetic icon lift on hover */
+.nav-item:hover :deep(svg) {
+    transform: translateY(-1px) scale(1.08);
 }
 
-/* Right-side action buttons */
+.nav-item-active {
+    color: rgb(79 70 229);
+}
+
+/* ───────────────────────────────────────────────
+   Right-side action buttons — same magnetic feel
+   ─────────────────────────────────────────────── */
 .action-btn {
     display: inline-flex;
     align-items: center;
@@ -616,23 +784,47 @@ const isActive = (path: string) => {
     width: 2.25rem;
     height: 2.25rem;
     color: rgb(156 163 175);
-    border-radius: 0.5rem;
-    transition: all 0.15s ease;
+    border-radius: 0.625rem;
+    position: relative;
+    transition:
+        color 220ms cubic-bezier(0.32, 0.72, 0, 1),
+        background-color 220ms cubic-bezier(0.32, 0.72, 0, 1),
+        box-shadow 220ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .action-btn :deep(svg) {
     width: 1.15rem;
     height: 1.15rem;
+    transition: transform 320ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .action-btn:hover {
     color: rgb(79 70 229);
-    background-color: rgb(243 244 246);
+    background: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.7),
+        rgba(255, 255, 255, 0.4)
+    );
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.8),
+        inset 0 0 0 1px rgba(99, 102, 241, 0.15),
+        0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.action-btn:hover :deep(svg) {
+    transform: translateY(-1px) scale(1.08);
 }
 
 .action-btn-active {
     color: rgb(79 70 229);
-    background-color: rgb(238 242 255);
+    background: linear-gradient(
+        180deg,
+        rgba(99, 102, 241, 0.14),
+        rgba(99, 102, 241, 0.08)
+    );
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.65),
+        inset 0 0 0 1px rgba(99, 102, 241, 0.18);
 }
 
 /* Mobile nav items */
