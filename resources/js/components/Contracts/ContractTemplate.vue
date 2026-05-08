@@ -473,12 +473,12 @@ function fmt3(v: number): string {
 .ct-sec-body { padding: 5px 7px; }
 
 /* Field rows */
-.ct-frow { display: flex; align-items: baseline; gap: 4px; margin-bottom: 3px; }
+.ct-frow { display: flex; align-items: baseline; gap: 4px; margin-bottom: 4px; }
 .ct-flbl { font-weight: 700; font-size: 9px; white-space: nowrap; }
 .ct-flbl-ar { font-size: 8.5px; color: #444; white-space: nowrap; }
-.ct-fline { flex: 1; border-bottom: 1px dashed #bbb; min-height: 16px; font-size: 12.5px; font-weight: 700; color: #1040b0; font-family: monospace; padding: 1px 2px 2px; letter-spacing: 0.2px; }
+.ct-fline { flex: 1; border-bottom: none; min-height: 18px; font-size: 14px; font-weight: 700; color: #1040b0; font-family: monospace; padding: 1px 2px 3px; letter-spacing: 0.2px; }
 .ct-fline.ct-ar { direction: rtl; text-align: right; }
-.ct-fline.ct-empty { border-bottom: 1px dashed #ccc; }
+.ct-fline.ct-empty { border-bottom: none; }
 
 /* Dates block */
 .ct-dates-block { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid #000; }
@@ -492,7 +492,7 @@ function fmt3(v: number): string {
 .ct-km-row { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 6px; border-bottom: 1px solid #eee; gap: 4px; }
 .ct-km-row:last-child { border-bottom: none; }
 .ct-km-lbl { font-size: 8.5px; font-weight: 700; }
-.ct-km-val { border-bottom: 1px dashed #bbb; min-width: 80px; text-align: right; font-size: 12.5px; font-weight: 700; color: #1040b0; font-family: monospace; letter-spacing: 0.2px; }
+.ct-km-val { border-bottom: none; min-width: 80px; text-align: right; font-size: 14px; font-weight: 700; color: #1040b0; font-family: monospace; letter-spacing: 0.2px; padding-bottom: 2px; }
 
 /* Caution block */
 .ct-caution-block { border-bottom: 1px solid #000; padding: 4px 6px; }
@@ -507,13 +507,13 @@ function fmt3(v: number): string {
 .ct-enc-row { display: flex; justify-content: space-between; align-items: baseline; padding: 2.5px 6px; border-bottom: 1px solid #eee; gap: 4px; }
 .ct-enc-bold { font-weight: 700; background: #f8f8ff; }
 .ct-enc-lbl { font-size: 8.5px; font-weight: 700; flex: 1; }
-.ct-enc-val { border-bottom: 1px dashed #bbb; min-width: 90px; text-align: right; font-size: 12.5px; font-weight: 700; color: #1040b0; font-family: monospace; letter-spacing: 0.2px; }
+.ct-enc-val { border-bottom: none; min-width: 90px; text-align: right; font-size: 14px; font-weight: 700; color: #1040b0; font-family: monospace; letter-spacing: 0.2px; padding-bottom: 2px; }
 .ct-enc-bold .ct-enc-val { font-weight: 700; }
 
 /* Payment */
 .ct-pay-block { border-top: 1px solid #000; padding: 4px 6px; font-size: 8.5px; }
 .ct-pay-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 3px; }
-.ct-pay-line { border-bottom: 1px dashed #bbb; min-width: 80px; font-size: 11.5px; font-weight: 700; color: #1040b0; font-family: monospace; letter-spacing: 0.2px; }
+.ct-pay-line { border-bottom: none; min-width: 80px; font-size: 13px; font-weight: 700; color: #1040b0; font-family: monospace; letter-spacing: 0.2px; padding-bottom: 2px; }
 
 /* Vehicle section */
 .ct-veh-section { border-top: 1.5px solid #000; }
@@ -521,15 +521,15 @@ function fmt3(v: number): string {
 .ct-veh-table { width: 100%; border-collapse: collapse; }
 .ct-veh-table th, .ct-veh-table td { border: 1px solid #000; padding: 3px 5px; font-size: 8.5px; text-align: center; }
 .ct-veh-table th { background: #f0f0f0; font-weight: 700; }
-.ct-veh-val { color: #1040b0; font-family: monospace; font-size: 12.5px; font-weight: 700; letter-spacing: 0.2px; }
-.ct-yn { display: flex; gap: 4px; align-items: center; justify-content: center; }
+.ct-veh-val { color: #1040b0; font-family: monospace; font-size: 14px; font-weight: 700; letter-spacing: 0.2px; }
+.ct-veh-table td.ct-yn { text-align: center; vertical-align: middle; padding: 4px 5px; }
 
 /* Fuel */
 .ct-fuel-row { display: flex; align-items: center; gap: 6px; padding: 4px 7px; border-top: 1px solid #000; font-size: 8.5px; }
 
 /* Prolongation */
 .ct-prolong-row { display: flex; align-items: center; gap: 6px; padding: 4px 7px; border-top: 1px solid #000; font-size: 8.5px; }
-.ct-prolong-line { border-bottom: 1px dashed #bbb; flex: 1; font-size: 11.5px; font-weight: 700; color: #1040b0; font-family: monospace; letter-spacing: 0.2px; }
+.ct-prolong-line { border-bottom: none; flex: 1; font-size: 13px; font-weight: 700; color: #1040b0; font-family: monospace; letter-spacing: 0.2px; padding-bottom: 2px; }
 .ct-change-row { display: flex; align-items: center; gap: 6px; padding: 3px 7px; border-top: 1px solid #000; font-size: 8.5px; }
 
 /* Footer grid */

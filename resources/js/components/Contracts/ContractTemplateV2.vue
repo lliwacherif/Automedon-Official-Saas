@@ -768,15 +768,15 @@ function fmt3(v: number | undefined | null): string {
 .ct2-val {
   display: table-cell;
   vertical-align: baseline;
-  border-bottom: 1px solid #bbb;
-  padding: 1px 2px 2px;
+  border-bottom: none;
+  padding: 1px 2px 3px;
   font-family: "Courier New", monospace;
   color: #1040b0;
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 700;
   word-break: break-word;
-  line-height: 1.25;
-  min-height: 16px;
+  line-height: 1.3;
+  min-height: 18px;
   letter-spacing: 0.2px;
 }
 /* Block context (when a cell uses stacked label/value/arabic layout
@@ -896,7 +896,7 @@ function fmt3(v: number | undefined | null): string {
 .ct2-prol {
   margin-top: 3px;
   padding-top: 3px;
-  border-top: 1px dashed #999;
+  border-top: 1px solid #ccc;
   font-size: 8.5px;
   display: flex;
   flex-direction: column;
