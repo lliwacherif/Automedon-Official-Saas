@@ -377,7 +377,7 @@ function tvaPercent() {
 
 /* Column widths */
 .inv-col-num   { width: 5%;  text-align: center; padding: 0 4px; }
-.inv-col-desc  { width: 32%; text-align: left;   padding: 0 6px; }
+.inv-col-desc  { width: 32%; text-align: left;   padding: 0 6px; white-space: pre-wrap; word-break: break-word; line-height: 1.45; }
 .inv-col-dur   { width: 21%; text-align: center; padding: 0 4px; font-size: 10px; }
 .inv-col-pu    { width: 13%; text-align: right;  padding: 0 6px; }
 .inv-col-unite { width: 8%;  text-align: center; padding: 0 4px; }

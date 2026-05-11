@@ -33,6 +33,29 @@ const selectedServices = computed(() =>
   allServices.value.filter(s => selectedServiceIds.value.has(s.id))
 );
 
+// User overrides for the "Désignation" column, keyed by service id.
+// Survives `rebuildPreview()` which regenerates items from scratch.
+const designationOverrides = ref<Record<number, string>>({});
+
+// Short identifier shown next to each "Ligne N" in the Désignations editor card.
+const serviceLineBadge = (svc: any): string => {
+  if (!svc) return '';
+  const typeLabel = svc.service_type === 'transfert' ? 'Transfert' : 'Excursion';
+  const who = svc.client_name || svc.chauffeur_name || '';
+  const carLabel = svc.car
+    ? `${svc.car.brand || ''} ${svc.car.model || ''}`.trim()
+    : '';
+  const tail = who || carLabel;
+  return tail ? `${typeLabel} · ${tail}` : typeLabel;
+};
+
+const setServiceDesignation = (svcId: number, value: string, idx: number) => {
+  designationOverrides.value[svcId] = value;
+  if (previewData.value && previewData.value.items[idx]) {
+    previewData.value.items[idx].designation = value;
+  }
+};
+
 const availableServices = computed(() => {
   let list = allServices.value.filter(s => !selectedServiceIds.value.has(s.id));
   if (searchQuery.value) {
@@ -195,7 +218,14 @@ function rebuildPreview() {
     return;
   }
 
-  const items = selectedServices.value.map(s => buildItemFromService(s, pricingMode.value));
+  const items = selectedServices.value.map(svc => {
+    const item = buildItemFromService(svc, pricingMode.value);
+    const override = designationOverrides.value[svc.id];
+    if (override !== undefined && override !== '') {
+      item.designation = override;
+    }
+    return item;
+  });
   const s = companySettings.value;
   const tenant = tenantStore.currentTenant;
 
@@ -245,6 +275,7 @@ function addService(svc: any) {
 
 function removeService(id: number) {
   selectedServiceIds.value.delete(id);
+  delete designationOverrides.value[id];
   rebuildPreview();
 }
 
@@ -571,6 +602,38 @@ onMounted(() => { fetchAllServices(); fetchB2BClients(); fetchSavedInvoices(); }
 
     <main class="mx-auto grid max-w-[1500px] grid-cols-1 gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[320px_minmax(0,1fr)] lg:px-8">
       <aside class="h-fit space-y-5">
+        <!-- Désignations editor -->
+        <div v-if="previewData && previewData.items.length" class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Désignations</p>
+          <h2 class="mt-2 text-base font-semibold text-slate-900">Personnaliser les lignes</h2>
+          <p class="mt-2 text-xs leading-5 text-slate-500">
+            Modifiez librement le texte de la colonne « Désignation » de chaque ligne. Les changements
+            s'appliquent au preview et au PDF.
+          </p>
+
+          <div class="mt-4 space-y-4">
+            <div
+              v-for="(item, idx) in previewData.items"
+              :key="(selectedServices[idx]?.id ?? 'item') + '-' + idx"
+              class="space-y-1.5"
+            >
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-medium text-slate-600">Ligne {{ idx + 1 }}</span>
+                <span class="text-[10px] uppercase tracking-wider text-slate-400 truncate max-w-[180px]" :title="serviceLineBadge(selectedServices[idx])">
+                  {{ serviceLineBadge(selectedServices[idx]) }}
+                </span>
+              </div>
+              <textarea
+                :value="item.designation"
+                @input="setServiceDesignation(selectedServices[idx]?.id, ($event.target as HTMLTextAreaElement).value, idx)"
+                rows="3"
+                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y leading-relaxed"
+                :placeholder="`Texte affiché dans la colonne Désignation pour la ligne ${idx + 1}`"
+              ></textarea>
+            </div>
+          </div>
+        </div>
+
         <!-- Company Settings -->
         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Société</p>

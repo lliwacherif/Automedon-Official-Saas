@@ -71,6 +71,19 @@ const availableReservations = computed(() =>
   clientReservations.value.filter(r => !selectedReservationIds.value.has(r.id))
 );
 
+// Short identifier shown next to each "Ligne N" in the Désignations editor card.
+const lineItemBadge = (idx: number): string => {
+  const meta = itemsMetadata.value[idx];
+  if (!meta) return '';
+  const res = clientReservations.value.find(r => r.id === meta.reservationId);
+  if (!res) return `#${meta.reservationId}`;
+  const brand = (res.car?.brand || '').trim();
+  const model = (res.car?.model || '').trim();
+  const carLabel = `${brand} ${model}`.trim();
+  const number = res.reservation_number || `#${res.id}`;
+  return carLabel ? `${number} · ${carLabel}` : String(number);
+};
+
 // ── Watchers ──
 watch(fraisTimbreEnabled, (checked) => {
   if (!previewData.value) return;
@@ -747,6 +760,37 @@ onMounted(() => {
             <p><span class="font-semibold">Format:</span> A4 portrait</p>
             <p class="mt-1"><span class="font-semibold">Capture:</span> haute résolution</p>
             <p class="mt-1"><span class="font-semibold">Source:</span> template réel (pas un wrapper)</p>
+          </div>
+        </div>
+
+        <!-- Désignations editor -->
+        <div v-if="previewData && previewData.items.length" class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Désignations</p>
+          <h2 class="mt-2 text-base font-semibold text-slate-900">Personnaliser les lignes</h2>
+          <p class="mt-2 text-xs leading-5 text-slate-500">
+            Modifiez librement le texte de la colonne « Désignation » de chaque ligne. Les changements
+            s'appliquent au preview et au PDF.
+          </p>
+
+          <div class="mt-4 space-y-4">
+            <div
+              v-for="(item, idx) in previewData.items"
+              :key="(itemsMetadata[idx]?.reservationId ?? 'item') + '-' + idx"
+              class="space-y-1.5"
+            >
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-medium text-slate-600">Ligne {{ idx + 1 }}</span>
+                <span class="text-[10px] uppercase tracking-wider text-slate-400 truncate max-w-[180px]" :title="lineItemBadge(idx)">
+                  {{ lineItemBadge(idx) }}
+                </span>
+              </div>
+              <textarea
+                v-model="item.designation"
+                rows="3"
+                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-y leading-relaxed"
+                :placeholder="`Texte affiché dans la colonne Désignation pour la ligne ${idx + 1}`"
+              ></textarea>
+            </div>
           </div>
         </div>
 
