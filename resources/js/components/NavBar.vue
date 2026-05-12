@@ -20,6 +20,7 @@ import {
     Orbit,
     Calendar,
     Table,
+    UserRound,
     ShoppingBag,
     LogOut,
     LogIn,
@@ -295,6 +296,16 @@ watch(
                         <Calendar class="w-4 h-4" />
                     </button>
 
+                    <RouterLink
+                        v-if="tenantStore.currentTenant && authStore.isAdmin"
+                        :to="tenantPath('/admin/faithful-clients')"
+                        class="action-btn"
+                        :class="{ 'action-btn-active': isActive('/admin/faithful-clients') }"
+                        title="Clients Fidèles"
+                    >
+                        <UserRound class="w-4 h-4" />
+                    </RouterLink>
+
                     <RouterLink 
                         v-if="tenantStore.currentTenant && authStore.isAdmin"
                         :to="tenantPath('/admin/store')"
@@ -477,6 +488,17 @@ watch(
                             <Calendar class="w-5 h-5" />
                             <span>Calendrier Global</span>
                         </button>
+
+                        <RouterLink
+                            v-if="tenantStore.currentTenant && authStore.isAdmin"
+                            :to="tenantPath('/admin/faithful-clients')"
+                            @click="closeMobileMenu"
+                            class="mobile-nav-item"
+                            :class="{ 'mobile-nav-active': isActive('/admin/faithful-clients') }"
+                        >
+                            <UserRound class="w-5 h-5" />
+                            <span>Clients Fidèles</span>
+                        </RouterLink>
 
                         <RouterLink 
                             v-if="tenantStore.currentTenant && authStore.isAdmin"
