@@ -8,7 +8,11 @@ import type { ContractData } from '@/components/Contracts/ContractTemplate.vue';
 import { supabase } from '@/lib/supabase';
 import { useTenantStore } from '@/stores/tenant';
 // @ts-ignore
-import html2canvas from 'html2canvas';
+// html-to-image captures the contract via SVG <foreignObject>, which
+// delegates rendering back to the browser's native engine. This is the
+// only way to preserve Arabic letter-shaping / RTL ligatures in the PDF
+// (canvas-based rasterizers like html2canvas can't shape Arabic).
+import * as htmlToImage from 'html-to-image';
 import { jsPDF } from 'jspdf';
 
 const route = useRoute();
@@ -409,8 +413,6 @@ async function downloadPdf() {
   try {
     await nextTick();
 
-    // Wait for any in-flight fonts (system Tahoma is the primary Arabic font,
-    // so this is mostly a safety net for the Latin face).
     try {
       // @ts-ignore
       if (document.fonts?.ready) await document.fonts.ready;
@@ -423,47 +425,48 @@ async function downloadPdf() {
     if (pages.length === 0) throw new Error('No pages found');
 
     const filename = `Contrat_${contractData.value.contractNumber || 'draft'}.pdf`;
-    const scale = 3;
+    // Higher pixelRatio = sharper PDF text. 3x is a good balance of size vs
+    // sharpness for A4 contracts.
+    const pixelRatio = 3;
     let pdf: InstanceType<typeof jsPDF> | null = null;
 
     for (let i = 0; i < pages.length; i++) {
       const { clone, cleanup } = createExportClone(pages[i] as HTMLElement);
       cleanups.push(cleanup);
 
-      await new Promise((r) => setTimeout(r, 150));
+      // Give the browser a tick to lay out and paint the cloned subtree
+      // (especially important for the Arabic shaping pass).
+      await new Promise((r) => setTimeout(r, 200));
 
       const w = Math.ceil(clone.scrollWidth);
       const h = Math.ceil(clone.scrollHeight);
 
-      const canvas = await html2canvas(clone, {
-        scale,
-        useCORS: true,
-        allowTaint: false,
+      // html-to-image renders the DOM through SVG <foreignObject>, so the
+      // browser itself performs text layout — including Arabic letter
+      // shaping (ligatures, kerning, RTL flow). The output is a PNG data URL.
+      const dataUrl = await htmlToImage.toPng(clone, {
+        pixelRatio,
         backgroundColor: '#ffffff',
-        logging: false,
-        scrollX: 0,
-        scrollY: 0,
+        cacheBust: true,
         width: w,
         height: h,
-        windowWidth: w,
-        windowHeight: h,
+        style: {
+          margin: '0',
+          background: '#ffffff',
+        },
       });
-
-      const imgData = canvas.toDataURL('image/png');
-      const pageW = canvas.width / scale;
-      const pageH = canvas.height / scale;
 
       if (i === 0) {
         pdf = new jsPDF({
           unit: 'px',
-          format: [pageW, pageH],
-          orientation: pageW > pageH ? 'landscape' : 'portrait',
+          format: [w, h],
+          orientation: w > h ? 'landscape' : 'portrait',
           compress: true,
         });
-        pdf.addImage(imgData, 'PNG', 0, 0, pageW, pageH);
+        pdf.addImage(dataUrl, 'PNG', 0, 0, w, h);
       } else if (pdf) {
-        pdf.addPage([pageW, pageH], pageW > pageH ? 'landscape' : 'portrait');
-        pdf.addImage(imgData, 'PNG', 0, 0, pageW, pageH);
+        pdf.addPage([w, h], w > h ? 'landscape' : 'portrait');
+        pdf.addImage(dataUrl, 'PNG', 0, 0, w, h);
       }
     }
 

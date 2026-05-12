@@ -592,6 +592,10 @@ function fmt3(v: number | undefined | null): string {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
+  /* Preserve Arabic shaping / ligatures during PDF export. */
+  font-feature-settings: normal;
+  font-variant-ligatures: normal;
+  text-rendering: optimizeLegibility;
 }
 .ct2-paper * { box-sizing: border-box; }
 .ct2-inner { padding: 8px 10px 10px; }
@@ -770,7 +774,10 @@ function fmt3(v: number | undefined | null): string {
   vertical-align: baseline;
   border-bottom: none;
   padding: 1px 2px 3px;
-  font-family: "Courier New", monospace;
+  /* Tahoma first — has both Latin and proper Arabic letter-shaping.
+     Fallbacks cover macOS/Linux and finally Courier for the desired
+     "official form" Latin feel when Tahoma is missing. */
+  font-family: 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', 'Noto Naskh Arabic', 'Geeza Pro', 'Consolas', "Courier New", monospace;
   color: #1040b0;
   font-size: 13.5px;
   font-weight: 700;

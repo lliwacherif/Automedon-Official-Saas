@@ -443,6 +443,10 @@ function fmt3(v: number): string {
   box-shadow: 0 4px 20px rgba(0,0,0,.25);
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
+  /* Preserve Arabic shaping / ligatures during PDF export. */
+  font-feature-settings: normal;
+  font-variant-ligatures: normal;
+  text-rendering: optimizeLegibility;
 }
 .ct-paper * { box-sizing: border-box; }
 .ct-inner { padding: 12px 14px; }
@@ -476,7 +480,7 @@ function fmt3(v: number): string {
 .ct-frow { display: flex; align-items: baseline; gap: 4px; margin-bottom: 4px; }
 .ct-flbl { font-weight: 700; font-size: 9px; white-space: nowrap; }
 .ct-flbl-ar { font-size: 8.5px; color: #444; white-space: nowrap; }
-.ct-fline { flex: 1; border-bottom: none; min-height: 18px; font-size: 14px; font-weight: 700; color: #1040b0; font-family: monospace; padding: 1px 2px 3px; letter-spacing: 0.2px; }
+.ct-fline { flex: 1; border-bottom: none; min-height: 18px; font-size: 14px; font-weight: 700; color: #1040b0; font-family: 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', 'Noto Naskh Arabic', 'Geeza Pro', 'Consolas', 'Courier New', monospace; padding: 1px 2px 3px; letter-spacing: 0.2px; }
 .ct-fline.ct-ar { direction: rtl; text-align: right; }
 .ct-fline.ct-empty { border-bottom: none; }
 
@@ -492,7 +496,7 @@ function fmt3(v: number): string {
 .ct-km-row { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 6px; border-bottom: 1px solid #eee; gap: 4px; }
 .ct-km-row:last-child { border-bottom: none; }
 .ct-km-lbl { font-size: 8.5px; font-weight: 700; }
-.ct-km-val { border-bottom: none; min-width: 80px; text-align: right; font-size: 14px; font-weight: 700; color: #1040b0; font-family: monospace; letter-spacing: 0.2px; padding-bottom: 2px; }
+.ct-km-val { border-bottom: none; min-width: 80px; text-align: right; font-size: 14px; font-weight: 700; color: #1040b0; font-family: 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', 'Noto Naskh Arabic', 'Geeza Pro', 'Consolas', 'Courier New', monospace; letter-spacing: 0.2px; padding-bottom: 2px; }
 
 /* Caution block */
 .ct-caution-block { border-bottom: 1px solid #000; padding: 4px 6px; }
@@ -507,13 +511,13 @@ function fmt3(v: number): string {
 .ct-enc-row { display: flex; justify-content: space-between; align-items: baseline; padding: 2.5px 6px; border-bottom: 1px solid #eee; gap: 4px; }
 .ct-enc-bold { font-weight: 700; background: #f8f8ff; }
 .ct-enc-lbl { font-size: 8.5px; font-weight: 700; flex: 1; }
-.ct-enc-val { border-bottom: none; min-width: 90px; text-align: right; font-size: 14px; font-weight: 700; color: #1040b0; font-family: monospace; letter-spacing: 0.2px; padding-bottom: 2px; }
+.ct-enc-val { border-bottom: none; min-width: 90px; text-align: right; font-size: 14px; font-weight: 700; color: #1040b0; font-family: 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', 'Noto Naskh Arabic', 'Geeza Pro', 'Consolas', 'Courier New', monospace; letter-spacing: 0.2px; padding-bottom: 2px; }
 .ct-enc-bold .ct-enc-val { font-weight: 700; }
 
 /* Payment */
 .ct-pay-block { border-top: 1px solid #000; padding: 4px 6px; font-size: 8.5px; }
 .ct-pay-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 3px; }
-.ct-pay-line { border-bottom: none; min-width: 80px; font-size: 13px; font-weight: 700; color: #1040b0; font-family: monospace; letter-spacing: 0.2px; padding-bottom: 2px; }
+.ct-pay-line { border-bottom: none; min-width: 80px; font-size: 13px; font-weight: 700; color: #1040b0; font-family: 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', 'Noto Naskh Arabic', 'Geeza Pro', 'Consolas', 'Courier New', monospace; letter-spacing: 0.2px; padding-bottom: 2px; }
 
 /* Vehicle section */
 .ct-veh-section { border-top: 1.5px solid #000; }
@@ -521,7 +525,7 @@ function fmt3(v: number): string {
 .ct-veh-table { width: 100%; border-collapse: collapse; }
 .ct-veh-table th, .ct-veh-table td { border: 1px solid #000; padding: 3px 5px; font-size: 8.5px; text-align: center; }
 .ct-veh-table th { background: #f0f0f0; font-weight: 700; }
-.ct-veh-val { color: #1040b0; font-family: monospace; font-size: 14px; font-weight: 700; letter-spacing: 0.2px; }
+.ct-veh-val { color: #1040b0; font-family: 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', 'Noto Naskh Arabic', 'Geeza Pro', 'Consolas', 'Courier New', monospace; font-size: 14px; font-weight: 700; letter-spacing: 0.2px; }
 .ct-veh-table td.ct-yn { text-align: center; vertical-align: middle; padding: 4px 5px; }
 
 /* Fuel */
@@ -529,7 +533,7 @@ function fmt3(v: number): string {
 
 /* Prolongation */
 .ct-prolong-row { display: flex; align-items: center; gap: 6px; padding: 4px 7px; border-top: 1px solid #000; font-size: 8.5px; }
-.ct-prolong-line { border-bottom: none; flex: 1; font-size: 13px; font-weight: 700; color: #1040b0; font-family: monospace; letter-spacing: 0.2px; padding-bottom: 2px; }
+.ct-prolong-line { border-bottom: none; flex: 1; font-size: 13px; font-weight: 700; color: #1040b0; font-family: 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', 'Noto Naskh Arabic', 'Geeza Pro', 'Consolas', 'Courier New', monospace; letter-spacing: 0.2px; padding-bottom: 2px; }
 .ct-change-row { display: flex; align-items: center; gap: 6px; padding: 3px 7px; border-top: 1px solid #000; font-size: 8.5px; }
 
 /* Footer grid */
