@@ -171,12 +171,19 @@ import { formatDate, formatDateTime } from '@/utils/date';
                         <Building2 class="w-4 h-4" />
                         Agences
                     </RouterLink>
-                    <RouterLink 
-                        :to="tenantPath('/admin/reservations/new')" 
+                    <RouterLink
+                        :to="tenantPath('/admin/reservations/new')"
                         class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 rounded-xl shadow-md shadow-indigo-200 hover:shadow-lg hover:shadow-indigo-300 transition-all"
                     >
                         <Plus class="w-4 h-4" />
                         {{ t('admin.reservations.new_reservation') }}
+                    </RouterLink>
+                    <RouterLink
+                        :to="tenantPath('/admin/contracts/blank')"
+                        class="inline-flex items-center justify-center w-11 h-11 text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-xl ring-1 ring-amber-200 transition-all shrink-0"
+                        title="Contrat vierge"
+                    >
+                        <ScrollText class="w-4 h-4" />
                     </RouterLink>
                 </div>
             </div>

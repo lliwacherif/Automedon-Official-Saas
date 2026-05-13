@@ -93,6 +93,11 @@ const contractTemplate = computed<'default' | 'v2'>(() => {
   return t === 'v2' ? 'v2' : 'default';
 });
 
+// Blank mode: opened from /admin/contracts/blank, no reservation attached.
+// The form starts empty (only company info pre-filled) so the user can fill
+// it in by hand and download a one-off contract PDF.
+const isBlankMode = computed(() => !route.params.id);
+
 async function loadInvoiceSettings() {
   const tenantId = tenantStore.currentTenant?.id;
   if (!tenantId) return;
@@ -179,6 +184,41 @@ function fmtTimeForContract(dateStr: string): string {
   const hh = String(d.getHours()).padStart(2, '0');
   const mi = String(d.getMinutes()).padStart(2, '0');
   return `${hh}:${mi}`;
+}
+
+// Blank-mode loader: pre-populates only the company block (logo, address,
+// MF, GSM, email, RIB) so the user sees a branded but otherwise empty form
+// that they can fill in and export.
+async function loadBlankContract() {
+  loading.value = true;
+  try {
+    await loadInvoiceSettings();
+    const tenant = tenantStore.currentTenant;
+    if (!tenant) return;
+
+    let logoUrl: string | null = tenant.logo_url || null;
+    if (logoUrl) {
+      try { logoUrl = await toDataUrl(logoUrl); } catch { /* keep original */ }
+    }
+
+    const s = companySettings.value;
+    contractData.value.company = {
+      name: tenant.name || '',
+      logoUrl,
+      gsm: s.gsm || '',
+      email: s.email || '',
+      mf: s.mf || '',
+      rib: s.rib || '',
+      address: s.address || '',
+    };
+    contractData.value.rc = s.mf || '';
+    contractData.value.contractDate = fmtDateForContract(new Date().toISOString());
+    contractData.value.signature.date = fmtDateForContract(new Date().toISOString());
+  } catch (e) {
+    console.error('Error initializing blank contract', e);
+  } finally {
+    loading.value = false;
+  }
 }
 
 async function loadReservation(id: string) {
@@ -495,6 +535,8 @@ function goBack() {
 onMounted(() => {
   if (route.params.id) {
     loadReservation(route.params.id as string);
+  } else {
+    loadBlankContract();
   }
 });
 </script>
@@ -509,7 +551,9 @@ onMounted(() => {
             <ArrowLeft class="h-5 w-5" />
           </button>
           <div>
-            <p class="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">Contrat de location</p>
+            <p class="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">
+              {{ isBlankMode ? 'Contrat vierge' : 'Contrat de location' }}
+            </p>
             <h1 class="text-lg font-semibold text-slate-900 flex items-center gap-2">
               Contract Builder
               <span
@@ -517,6 +561,12 @@ onMounted(() => {
                 class="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-indigo-700"
               >
                 Template V2
+              </span>
+              <span
+                v-if="isBlankMode"
+                class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700"
+              >
+                Vierge
               </span>
             </h1>
           </div>
@@ -547,8 +597,9 @@ onMounted(() => {
             </button>
           </div>
 
-          <!-- Save -->
+          <!-- Save (hidden in blank mode — no reservation to attach to) -->
           <button
+            v-if="!isBlankMode"
             @click="saveContract"
             :disabled="saving || loading"
             class="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition disabled:opacity-60"

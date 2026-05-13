@@ -149,6 +149,12 @@ const routes = [
                 meta: { requiresAuth: true, requiresAdmin: true }
             },
             {
+                path: 'admin/contracts/blank',
+                component: () => import('../Pages/Admin/Contracts/ContractBuilderPage.vue'),
+                name: 'admin.contracts.blank',
+                meta: { requiresAuth: true, requiresAdmin: true }
+            },
+            {
                 path: 'admin/contracts/:id/build',
                 component: () => import('../Pages/Admin/Contracts/ContractBuilderPage.vue'),
                 name: 'admin.contracts.build',
