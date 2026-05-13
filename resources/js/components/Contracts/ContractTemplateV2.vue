@@ -506,6 +506,24 @@ function fmt3(v: number | undefined | null): string {
           </tr>
         </table>
 
+        <!-- Type de location / نوع الإيجار -->
+        <div class="ct2-loc-type-row">
+          <span class="ct2-loc-type-lbl">Type de location :</span>
+          <span class="ct2-loc-pill" :class="{ 'ct2-loc-pill-on': (data.locationType || 'Location') === 'Location' }">
+            <span class="ct2-loc-box">{{ (data.locationType || 'Location') === 'Location' ? '✓' : '' }}</span>
+            Location
+          </span>
+          <span class="ct2-loc-pill" :class="{ 'ct2-loc-pill-on': data.locationType === 'Transfert' }">
+            <span class="ct2-loc-box">{{ data.locationType === 'Transfert' ? '✓' : '' }}</span>
+            Transfert
+          </span>
+          <span class="ct2-loc-pill" :class="{ 'ct2-loc-pill-on': data.locationType === 'Excursion' }">
+            <span class="ct2-loc-box">{{ data.locationType === 'Excursion' ? '✓' : '' }}</span>
+            Excursion
+          </span>
+          <span class="ct2-loc-type-lbl-ar">: نوع الإيجار</span>
+        </div>
+
         <!-- Bottom: cars + insurance -->
         <div class="ct2-bottom">
           <div class="ct2-cars-block">
@@ -561,7 +579,9 @@ function fmt3(v: number | undefined | null): string {
           </div>
           <div class="ct2-sig-cell">
             <div class="ct2-sig-label">Contrat préparé par :<br><span style="font-weight:400;">Signature et Cachet</span></div>
-            <div class="ct2-sig-area"></div>
+            <div class="ct2-sig-area">
+              <div v-if="data.preparedBy" class="ct2-prepared-by-name">{{ data.preparedBy }}</div>
+            </div>
           </div>
         </div>
 
@@ -732,6 +752,57 @@ function fmt3(v: number | undefined | null): string {
   direction: rtl;
   unicode-bidi: isolate;
   line-height: 1.3;
+}
+
+/* ── Type de location pill row ── */
+.ct2-loc-type-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 8px;
+  border-bottom: 1px solid #000;
+  background: #fafafa;
+  font-size: 11px;
+  font-weight: 700;
+}
+.ct2-loc-type-lbl { font-weight: 800; }
+.ct2-loc-type-lbl-ar {
+  margin-left: auto;
+  font-weight: 800;
+  font-family: 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', 'Amiri', 'Noto Naskh Arabic', sans-serif;
+  direction: rtl;
+  unicode-bidi: isolate;
+}
+.ct2-loc-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border: 1px solid #555;
+  border-radius: 3px;
+  background: #fff;
+  font-weight: 700;
+}
+.ct2-loc-pill-on { background: #fff; border-color: #000; border-width: 1.5px; }
+.ct2-loc-box {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 1px solid #000;
+  background: #fff;
+  text-align: center;
+  font-size: 10px;
+  line-height: 10px;
+  font-weight: 900;
+}
+
+/* Prepared-by name printed inside the signature cell */
+.ct2-prepared-by-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: #222;
+  text-align: center;
+  margin-top: 4px;
 }
 
 /* ── Generic grid table ── */

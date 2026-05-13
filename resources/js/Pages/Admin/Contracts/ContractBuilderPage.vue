@@ -37,6 +37,8 @@ function createEmptyContractData(): ContractData {
   return {
     contractNumber: '',
     contractDate: '',
+    locationType: 'Location',
+    preparedBy: '',
     rc: '',
     company: { name: '', logoUrl: null, gsm: '', email: '', mf: '', rib: '', address: '' },
     locataire: { nom: '', prenom: '', dob: '', ci: '', ciDate: '', nationalite: '', adresse: '', telephone: '', permis: '', permisDate: '' },
@@ -274,6 +276,8 @@ async function loadReservation(id: string) {
       contractData.value = {
         contractNumber: reservation.contract_number || reservation.reservation_number || '',
         contractDate: fmtDateForContract(reservation.created_at || new Date().toISOString()),
+        locationType: 'Location',
+        preparedBy: '',
         rc: s.mf || '',
         company: {
           name: tenant.name,
@@ -644,6 +648,20 @@ onMounted(() => {
             <div class="sb-row-2">
               <div class="sb-field"><label>Date</label><input v-model="contractData.contractDate" placeholder="JJ/MM/AAAA" /></div>
               <div class="sb-field"><label>RC N°</label><input v-model="contractData.rc" placeholder="B049892016" /></div>
+            </div>
+            <div class="sb-row-2">
+              <div class="sb-field">
+                <label>Type de location</label>
+                <select v-model="contractData.locationType">
+                  <option value="Location">Location</option>
+                  <option value="Transfert">Transfert</option>
+                  <option value="Excursion">Excursion</option>
+                </select>
+              </div>
+              <div class="sb-field">
+                <label>Contrat préparé par</label>
+                <input v-model="contractData.preparedBy" placeholder="Nom de l'agent" />
+              </div>
             </div>
             <template v-if="contractTemplate === 'v2'">
               <div class="sb-divider">

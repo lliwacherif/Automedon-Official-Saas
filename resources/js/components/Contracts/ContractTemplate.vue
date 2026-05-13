@@ -2,9 +2,15 @@
 import { computed } from 'vue';
 import ContractConditionsPage from '@/components/Contracts/ContractConditionsPage.vue';
 
+export type ContractLocationType = 'Location' | 'Transfert' | 'Excursion' | '';
+
 export interface ContractData {
   contractNumber: string;
   contractDate: string;
+  /** Optional rental type ("Location" by default). Displayed as a 3-state pill row. */
+  locationType?: ContractLocationType;
+  /** Optional name of the agent who prepared the contract (printed near the signatures). */
+  preparedBy?: string;
   rc: string;
   company: {
     name: string;
@@ -192,6 +198,33 @@ function fmt3(v: number): string {
         <span class="ct-contract-badge">عقد كراء &nbsp;&nbsp; N° {{ data.contractNumber || '______' }}</span>
       </div>
 
+      <!-- Type de location / نوع الإيجار -->
+      <div class="ct-loc-type-row">
+        <span class="ct-loc-type-lbl">Type de location :</span>
+        <span
+          class="ct-loc-pill"
+          :class="{ 'ct-loc-pill-on': (data.locationType || 'Location') === 'Location' }"
+        >
+          <span class="ct-loc-box">{{ (data.locationType || 'Location') === 'Location' ? '✓' : '' }}</span>
+          Location
+        </span>
+        <span
+          class="ct-loc-pill"
+          :class="{ 'ct-loc-pill-on': data.locationType === 'Transfert' }"
+        >
+          <span class="ct-loc-box">{{ data.locationType === 'Transfert' ? '✓' : '' }}</span>
+          Transfert
+        </span>
+        <span
+          class="ct-loc-pill"
+          :class="{ 'ct-loc-pill-on': data.locationType === 'Excursion' }"
+        >
+          <span class="ct-loc-box">{{ data.locationType === 'Excursion' ? '✓' : '' }}</span>
+          Excursion
+        </span>
+        <span class="ct-loc-type-lbl-ar">: نوع الإيجار</span>
+      </div>
+
       <!-- Main body grid -->
       <div class="ct-body-grid">
         <!-- Left column -->
@@ -353,6 +386,11 @@ function fmt3(v: number): string {
             &nbsp;<b>le</b> <span class="ct-fline" style="min-width:80px;">{{ data.signature.date }}</span>
             &nbsp;<span style="font-size:8px;color:#555;">التاريخ :</span>
           </div>
+          <div class="ct-prepared-by-row">
+            <b>Contrat préparé par :</b>
+            <span class="ct-fline" style="min-width:140px;">{{ data.preparedBy || '' }}</span>
+            <span style="font-size:8px;color:#555;">: العقد محرر من قبل</span>
+          </div>
           <div class="ct-sig-row">
             <div class="ct-sig-box">
               <div class="ct-sig-line"></div>
@@ -467,6 +505,43 @@ function fmt3(v: number): string {
 .ct-meta-mid { text-align: center; }
 .ct-contract-badge { background: #e8e8ff; border: 1.5px solid #000; padding: 3px 12px; font-weight: 900; font-size: 13px; color: red; }
 
+/* Type de location pill row */
+.ct-loc-type-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1.5px solid #000;
+  background: #f4f4ff;
+  padding: 5px 10px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.ct-loc-type-lbl { font-weight: 800; }
+.ct-loc-type-lbl-ar { margin-left: auto; font-weight: 800; }
+.ct-loc-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border: 1px solid #555;
+  border-radius: 3px;
+  background: #fff;
+  font-weight: 700;
+}
+.ct-loc-pill-on { background: #fff; border-color: #000; border-width: 1.5px; }
+.ct-loc-box {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 1px solid #000;
+  background: #fff;
+  text-align: center;
+  font-size: 10px;
+  line-height: 10px;
+  font-weight: 900;
+}
+
 /* Body grid */
 .ct-body-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1.5px solid #000; }
 .ct-left-col { border-right: 1.5px solid #000; }
@@ -541,6 +616,7 @@ function fmt3(v: number): string {
 .ct-footer-block { padding: 6px 10px; }
 .ct-footer-text { font-size: 7.5px; color: #333; margin-bottom: 4px; line-height: 1.4; }
 .ct-footer-fait { font-size: 9px; font-weight: 700; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.ct-prepared-by-row { font-size: 9px; font-weight: 700; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
 .ct-sig-row { display: flex; justify-content: space-between; align-items: flex-start; margin-top: 8px; gap: 10px; }
 .ct-sig-box { width: 32%; text-align: center; font-size: 8px; color: #555; }
 .ct-sig-line { height: 50px; border: 1px dashed #bbb; margin-bottom: 4px; }
