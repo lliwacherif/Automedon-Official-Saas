@@ -5,9 +5,12 @@ import { useTenantStore } from '@/stores/tenant';
 export interface FaithfulClient {
     id: number;
     tenant_id: string;
+    /** Full display name, kept in sync as "first_name last_name" for autocomplete/search. */
     full_name: string;
+    first_name?: string;
+    last_name?: string;
     cin: string;
-    phone: string;
+    phone?: string;
     email?: string;
     permit_number?: string;
     cin_date?: string;

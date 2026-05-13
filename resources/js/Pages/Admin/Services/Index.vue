@@ -40,6 +40,50 @@ const { cars, fetchCars } = useCars();
 import { useB2BClients } from '@/composables/useB2BClients';
 const { clients: b2bClients, fetchClients: fetchB2BClients } = useB2BClients();
 
+import { useFaithfulClients, type FaithfulClient } from '@/composables/useFaithfulClients';
+const { searchFaithfulClients } = useFaithfulClients();
+
+// ──────────────────────────────────────────────────────────────────
+// Faithful-client autocomplete on the "Nom du Client" field.
+// Mirrors the behaviour of the reservation form: type 2+ chars and
+// pick a suggestion to auto-fill name + CIN.
+// ──────────────────────────────────────────────────────────────────
+const clientSuggestions = ref<FaithfulClient[]>([]);
+const showClientSuggestions = ref(false);
+const isSearchingClients = ref(false);
+
+const handleClientNameInput = async () => {
+    const query = form.value.client_name;
+    if (!query || query.length < 2) {
+        clientSuggestions.value = [];
+        showClientSuggestions.value = false;
+        return;
+    }
+    isSearchingClients.value = true;
+    try {
+        const results = await searchFaithfulClients(query);
+        clientSuggestions.value = results;
+        showClientSuggestions.value = results.length > 0;
+    } catch (e) {
+        console.error('Error searching clients:', e);
+    } finally {
+        isSearchingClients.value = false;
+    }
+};
+
+const selectFaithfulClient = (client: FaithfulClient) => {
+    form.value.client_name = client.full_name;
+    form.value.client_cin = client.cin;
+    showClientSuggestions.value = false;
+    clientSuggestions.value = [];
+};
+
+const closeSuggestionsWithDelay = () => {
+    setTimeout(() => {
+        showClientSuggestions.value = false;
+    }, 200);
+};
+
 const isModalOpen = ref(false);
 const isEditMode = ref(false);
 const editingServiceId = ref<number | null>(null);
@@ -143,6 +187,8 @@ function closeModal() {
     isEditMode.value = false;
     editingServiceId.value = null;
     formError.value = '';
+    clientSuggestions.value = [];
+    showClientSuggestions.value = false;
 }
 
 async function handleSubmit() {
@@ -625,9 +671,40 @@ const formatCurrency = (v: number) => new Intl.NumberFormat('fr-TN', { style: 'c
                                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         <div>
                                             <label class="form-label">Nom du Client</label>
-                                            <div class="form-input-wrapper">
-                                                <User class="form-input-icon" />
-                                                <input v-model="form.client_name" type="text" class="form-input" placeholder="Nom complet">
+                                            <div class="relative">
+                                                <div class="form-input-wrapper">
+                                                    <User class="form-input-icon" />
+                                                    <input
+                                                        v-model="form.client_name"
+                                                        type="text"
+                                                        @input="handleClientNameInput"
+                                                        @focus="handleClientNameInput"
+                                                        @blur="closeSuggestionsWithDelay"
+                                                        class="form-input"
+                                                        placeholder="Nom complet"
+                                                        autocomplete="off"
+                                                    >
+                                                </div>
+                                                <!-- Faithful client autocomplete dropdown -->
+                                                <div
+                                                    v-if="showClientSuggestions"
+                                                    class="absolute z-20 w-full bg-white mt-1 rounded-xl ring-1 ring-gray-200 shadow-xl max-h-60 overflow-auto"
+                                                >
+                                                    <ul>
+                                                        <li
+                                                            v-for="client in clientSuggestions"
+                                                            :key="client.id"
+                                                            @mousedown="selectFaithfulClient(client)"
+                                                            class="px-4 py-2.5 hover:bg-indigo-50 cursor-pointer border-b border-gray-50 last:border-0 transition-colors"
+                                                        >
+                                                            <div class="text-sm font-semibold text-gray-900">{{ client.full_name }}</div>
+                                                            <div class="text-xs text-gray-400 flex justify-between mt-0.5">
+                                                                <span class="font-mono">{{ client.cin }}</span>
+                                                                <span>{{ client.phone }}</span>
+                                                            </div>
+                                                        </li>
+                                                    </ul>
+                                                </div>
                                             </div>
                                         </div>
                                         <div>

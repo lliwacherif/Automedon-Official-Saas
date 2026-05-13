@@ -19,6 +19,7 @@ import {
     Loader2, 
     X,
     CircleCheck,
+    FileText,
 } from 'lucide-vue-next';
 import { RouterLink } from 'vue-router';
 import { useI18n } from 'vue-i18n';
@@ -339,22 +340,23 @@ const netRevenue = computed(() => {
                             <thead>
                                 <tr class="border-b border-gray-100">
                                     <th class="px-5 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">{{ t('admin.reservations.client') }}</th>
+                                    <th class="px-5 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Contrat</th>
                                     <th class="px-5 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">{{ t('admin.reservations.dates') }}</th>
                                     <th class="px-5 py-3 text-right text-[11px] font-bold text-gray-400 uppercase tracking-wider">{{ t('admin.reservations.total_price') }}</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr v-if="filteredReservations.length === 0">
-                                    <td colspan="3" class="px-5 py-12 text-center">
+                                    <td colspan="4" class="px-5 py-12 text-center">
                                         <div class="flex flex-col items-center">
                                             <ClipboardList class="w-6 h-6 text-gray-300 mb-2" />
                                             <p class="text-gray-400 text-sm">{{ t('admin.history.no_reservations') }}</p>
                                         </div>
                                     </td>
                                 </tr>
-                                <tr 
-                                    v-for="res in filteredReservations" 
-                                    :key="res.id" 
+                                <tr
+                                    v-for="res in filteredReservations"
+                                    :key="res.id"
                                     class="border-b border-gray-50 hover:bg-indigo-50/30 transition-colors"
                                 >
                                     <td class="px-5 py-3">
@@ -364,6 +366,16 @@ const netRevenue = computed(() => {
                                             </div>
                                             <span class="text-sm font-semibold text-gray-900">{{ res.client_name }}</span>
                                         </div>
+                                    </td>
+                                    <td class="px-5 py-3">
+                                        <span
+                                            v-if="res.contract_number"
+                                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 ring-1 ring-indigo-100 text-indigo-700 text-xs font-mono font-semibold"
+                                        >
+                                            <FileText class="w-3 h-3" />
+                                            {{ res.contract_number }}
+                                        </span>
+                                        <span v-else class="text-xs text-gray-300">—</span>
                                     </td>
                                     <td class="px-5 py-3 text-sm text-gray-500">
                                         {{ formatDate(res.start_date) }} - {{ formatDate(res.end_date) }}

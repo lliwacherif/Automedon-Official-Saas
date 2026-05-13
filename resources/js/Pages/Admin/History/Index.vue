@@ -210,7 +210,7 @@ function formatShort(v: number): string {
 }
 function formatPlate(plate: string): string {
     if (!plate) return '';
-    return plate.replace(/(\d+)(TN)(\d+)/i, '$1 $2 $3');
+    return plate.replace(/(\d+)(TU|TN)(\d+)/i, '$1 $2 $3');
 }
 function relativeTime(dateStr: string | null): string {
     if (!dateStr) return 'Aucune activité';

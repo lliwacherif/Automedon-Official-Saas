@@ -21,7 +21,8 @@ const {
 // previous Settings page implementation.
 // ─────────────────────────────────────────────────────────────
 const form = ref({
-    full_name: '',
+    first_name: '',
+    last_name: '',
     cin: '',
     phone: '',
     email: '',
@@ -29,6 +30,15 @@ const form = ref({
     cin_date: '',
     permit_date: '',
 });
+
+// Compose a "Prenom Nom" string that we keep storing in full_name so existing
+// autocomplete (reservation form, services modal) and search continue to work
+// without any changes elsewhere.
+const composedFullName = (): string =>
+    [form.value.first_name, form.value.last_name]
+        .map(s => s.trim())
+        .filter(Boolean)
+        .join(' ');
 const formLoading = ref(false);
 const formError = ref('');
 const formSuccess = ref('');
@@ -59,17 +69,29 @@ const handleCreate = async () => {
     formSuccess.value = '';
     formLoading.value = true;
     try {
+        const fullName = composedFullName();
         await createFaithfulClient({
-            full_name: form.value.full_name,
+            full_name: fullName,
+            first_name: form.value.first_name.trim() || undefined,
+            last_name: form.value.last_name.trim() || undefined,
             cin: form.value.cin,
-            phone: form.value.phone,
+            phone: form.value.phone.trim() || undefined,
             email: form.value.email || undefined,
             permit_number: form.value.permit_number || undefined,
             cin_date: form.value.cin_date || undefined,
             permit_date: form.value.permit_date || undefined,
         });
         formSuccess.value = 'Client fidèle ajouté avec succès';
-        form.value = { full_name: '', cin: '', phone: '', email: '', permit_number: '', cin_date: '', permit_date: '' };
+        form.value = {
+            first_name: '',
+            last_name: '',
+            cin: '',
+            phone: '',
+            email: '',
+            permit_number: '',
+            cin_date: '',
+            permit_date: '',
+        };
         setTimeout(() => { formSuccess.value = ''; }, 2500);
     } catch (e: any) {
         formError.value = e.message || "Erreur lors de l'ajout du client";
@@ -197,13 +219,25 @@ function onDocsUpdated(updated: FaithfulClient) {
                         </div>
 
                         <form @submit.prevent="handleCreate" class="p-5 space-y-3">
-                            <div>
-                                <label class="form-label">Nom complet *</label>
-                                <div class="form-input-wrapper">
-                                    <User class="form-input-icon" />
-                                    <input v-model="form.full_name" type="text" required class="form-input" placeholder="Ex: Jeanne Doe" />
+                            <!-- Identité : Nom + Prénom -->
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="form-label">Nom *</label>
+                                    <div class="form-input-wrapper">
+                                        <User class="form-input-icon" />
+                                        <input v-model="form.last_name" type="text" required class="form-input" placeholder="Ex: Doe" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="form-label">Prénom *</label>
+                                    <div class="form-input-wrapper">
+                                        <User class="form-input-icon" />
+                                        <input v-model="form.first_name" type="text" required class="form-input" placeholder="Ex: Jeanne" />
+                                    </div>
                                 </div>
                             </div>
+
+                            <!-- CIN + Délivrance CIN -->
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
                                     <label class="form-label">CIN *</label>
@@ -213,33 +247,21 @@ function onDocsUpdated(updated: FaithfulClient) {
                                     </div>
                                 </div>
                                 <div>
-                                    <label class="form-label">Téléphone *</label>
-                                    <div class="form-input-wrapper">
-                                        <Phone class="form-input-icon" />
-                                        <input v-model="form.phone" type="tel" required class="form-input" placeholder="+216 12 345 678" />
-                                    </div>
-                                </div>
-                            </div>
-                            <div>
-                                <label class="form-label">Email</label>
-                                <div class="form-input-wrapper">
-                                    <Mail class="form-input-icon" />
-                                    <input v-model="form.email" type="email" class="form-input" placeholder="client@email.com" />
-                                </div>
-                            </div>
-                            <div>
-                                <label class="form-label">Numéro de permis</label>
-                                <div class="form-input-wrapper">
-                                    <IdCard class="form-input-icon" />
-                                    <input v-model="form.permit_number" type="text" class="form-input" placeholder="12345678" />
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-2 gap-3">
-                                <div>
                                     <label class="form-label">Délivrance CIN</label>
                                     <div class="form-input-wrapper">
                                         <Calendar class="form-input-icon" />
                                         <input v-model="form.cin_date" type="text" class="form-input" placeholder="01/01/2020" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Permis + Délivrance permis -->
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="form-label">Numéro de permis</label>
+                                    <div class="form-input-wrapper">
+                                        <IdCard class="form-input-icon" />
+                                        <input v-model="form.permit_number" type="text" class="form-input" placeholder="12345678" />
                                     </div>
                                 </div>
                                 <div>
@@ -247,6 +269,24 @@ function onDocsUpdated(updated: FaithfulClient) {
                                     <div class="form-input-wrapper">
                                         <Calendar class="form-input-icon" />
                                         <input v-model="form.permit_date" type="text" class="form-input" placeholder="15/06/2018" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Contact (optionnel) au bas du formulaire -->
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="form-label">Email</label>
+                                    <div class="form-input-wrapper">
+                                        <Mail class="form-input-icon" />
+                                        <input v-model="form.email" type="email" class="form-input" placeholder="client@email.com" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="form-label">Téléphone</label>
+                                    <div class="form-input-wrapper">
+                                        <Phone class="form-input-icon" />
+                                        <input v-model="form.phone" type="tel" class="form-input" placeholder="+216 12 345 678" />
                                     </div>
                                 </div>
                             </div>
@@ -350,7 +390,7 @@ function onDocsUpdated(updated: FaithfulClient) {
                             </div>
 
                             <div class="space-y-1 text-xs">
-                                <div class="flex items-center gap-1.5 text-gray-600">
+                                <div v-if="client.phone" class="flex items-center gap-1.5 text-gray-600">
                                     <Phone class="w-3 h-3 text-gray-400 shrink-0" />
                                     <span class="truncate">{{ client.phone }}</span>
                                 </div>

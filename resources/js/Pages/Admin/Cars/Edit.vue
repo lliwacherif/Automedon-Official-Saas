@@ -54,7 +54,7 @@ const form = ref({
 
 const fullPlateNumber = computed(() => {
     if (form.value.plate_prefix && form.value.plate_suffix) {
-        return `${form.value.plate_prefix}TN${form.value.plate_suffix}`;
+        return `${form.value.plate_prefix}TU${form.value.plate_suffix}`;
     }
     return '';
 });
@@ -64,8 +64,9 @@ onMounted(async () => {
         isEditing.value = true;
         const car = await fetchCarById(Number(route.params.id));
         if (car) {
-            // Parse plate number: ***TN****
-            const match = car.plate_number.match(/^(\d+)TN(\d+)$/);
+            // Parse plate number: ***TU**** (legacy plates with TN are still
+            // accepted so existing cars can be edited without re-typing).
+            const match = car.plate_number.match(/^(\d+)(?:TU|TN)(\d+)$/);
             const platePrefix = match ? match[1] : '';
             const plateSuffix = match ? match[2] : '';
             
@@ -128,7 +129,7 @@ function removeImage() {
 }
 
 function validatePlateNumber(prefix: string, suffix: string): boolean {
-    // Tunisian plate format: ***TN**** (flexible digit count)
+    // Tunisian plate format: ***TU**** (flexible digit count)
     return /^\d{1,3}$/.test(prefix) && /^\d{1,4}$/.test(suffix);
 }
 
@@ -138,7 +139,7 @@ async function handleSubmit() {
 
     // Validate plate number parts
     if (!validatePlateNumber(form.value.plate_prefix, form.value.plate_suffix)) {
-        error.value = 'Format de plaque invalide. Utilisez uniquement des chiffres (ex: 245 TN 4521)';
+        error.value = 'Format de plaque invalide. Utilisez uniquement des chiffres (ex: 245 TU 4521)';
         loading.value = false;
         return;
     }
@@ -321,7 +322,7 @@ async function handleSubmit() {
                                     class="form-input text-center font-mono font-bold"
                                 >
                             </div>
-                            <span class="text-lg font-extrabold text-gray-400 tracking-wider">TN</span>
+                            <span class="text-lg font-extrabold text-gray-400 tracking-wider">TU</span>
                             <div class="form-input-wrapper w-32">
                                 <input 
                                     v-model="form.plate_suffix" 

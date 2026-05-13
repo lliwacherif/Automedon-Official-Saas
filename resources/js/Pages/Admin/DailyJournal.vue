@@ -254,7 +254,7 @@ function formatRangeText(): string {
 // ───────────────────────────────────────────────
 function formatPlate(plate: string): string {
     if (!plate) return '';
-    return plate.replace(/(\d+)(TN)(\d+)/i, '$1 $2 $3');
+    return plate.replace(/(\d+)(TU|TN)(\d+)/i, '$1 $2 $3');
 }
 
 function getDailyStatus(car: any) {
