@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useTenantStore } from '@/stores/tenant';
 import { format } from 'date-fns';
 
-export type CarBrand = 'Renault' | 'Dacia' | 'Skoda' | 'Hyundai' | 'Seat' | 'MG' | 'Mahindra' | 'Kia' | 'Honda' | 'Peugeot' | 'Cherry' | 'Geely' | 'Volkswagen' | 'Suzuki' | 'Chevrolet' | 'Fiat';
+export type CarBrand = 'Renault' | 'Dacia' | 'Skoda' | 'Hyundai' | 'Seat' | 'MG' | 'Mahindra' | 'Kia' | 'Honda' | 'Peugeot' | 'Cherry' | 'Geely' | 'Volkswagen' | 'Suzuki' | 'Chevrolet' | 'Fiat' | 'Toyota' | 'Haval' | 'Citroen';
 export type CarStatus = 'disponible' | 'loue' | 'maintenance';
 
 export type CarPaperType = 'carte_grise' | 'assurance' | 'vignette' | 'visite_technique';
@@ -68,7 +68,10 @@ export function useCars() {
             'Volkswagen': [],
             'Suzuki': [],
             'Chevrolet': [],
-            'Fiat': []
+            'Fiat': [],
+            'Toyota': [],
+            'Haval': [],
+            'Citroen': []
         };
 
         cars.value.forEach(car => {

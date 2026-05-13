@@ -77,10 +77,7 @@ function getStatusClass(status: string) {
     }
 }
 
-// Helper to get brand logo path
-const getBrandLogo = (brand: string) => {
-    return `/images/${brand}.png`;
-};
+import { getBrandLogo } from '@/utils/carBrandLogo';
 </script>
 
 <template>

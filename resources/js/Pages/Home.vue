@@ -53,10 +53,7 @@ const filteredCars = computed(() => {
     return result;
 });
 
-// Helper to get brand logo path
-const getBrandLogo = (brand: string) => {
-    return `/images/${brand}.png`;
-};
+import { getBrandLogo } from '@/utils/carBrandLogo';
 
 import { formatDate } from '@/utils/date';
 

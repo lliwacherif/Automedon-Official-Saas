@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue';
 import { supabase } from '@/lib/supabase';
 import { useTenantStore } from '@/stores/tenant';
 import { useTenantLink } from '@/composables/useTenantLink';
+import { getBrandLogo } from '@/utils/carBrandLogo';
 import { RouterLink } from 'vue-router';
 import type { Database } from '@/types/supabase';
 import {
@@ -227,9 +228,7 @@ function relativeTime(dateStr: string | null): string {
     const years = Math.floor(days / 365);
     return `Il y a ${years} an${years > 1 ? 's' : ''}`;
 }
-function getBrandLogo(brand: string | null | undefined): string {
-    return `/images/${brand || ''}.png`;
-}
+// getBrandLogo is imported from '@/utils/carBrandLogo'
 function statusMeta(status: string | null) {
     if (status === 'maintenance') return { label: 'Maintenance', class: 'car-status car-status--maintenance', Icon: Wrench };
     if (status === 'loue') return { label: 'Loué', class: 'car-status car-status--loue', Icon: User };
