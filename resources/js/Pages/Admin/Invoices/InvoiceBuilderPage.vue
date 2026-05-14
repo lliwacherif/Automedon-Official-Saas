@@ -794,6 +794,54 @@ onMounted(() => {
           </div>
         </div>
 
+        <!-- Client info editor (CLIENT block on the invoice header) -->
+        <div v-if="previewData?.client" class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Client</p>
+          <h2 class="mt-2 text-base font-semibold text-slate-900">Informations client</h2>
+          <p class="mt-2 text-xs leading-5 text-slate-500">
+            Modifiez le bloc <span class="font-semibold text-slate-700">CLIENT</span> affiché en haut de la facture : nom, adresse, matricule fiscal et téléphone.
+          </p>
+
+          <div class="mt-4 space-y-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Nom du client</label>
+              <input
+                v-model="previewData.client.name"
+                type="text"
+                placeholder="Ex: Liwa Cherif"
+                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Adresse</label>
+              <input
+                v-model="previewData.client.address"
+                type="text"
+                placeholder="Adresse client..."
+                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Matricule Fiscal (MF)</label>
+              <input
+                v-model="previewData.client.mf"
+                type="text"
+                placeholder="Client MF..."
+                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 mb-1">Téléphone</label>
+              <input
+                v-model="previewData.client.tel"
+                type="tel"
+                placeholder="Ex: 29662305"
+                class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+        </div>
+
         <!-- Company Info Settings -->
         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Informations société</p>
