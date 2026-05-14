@@ -15,6 +15,10 @@ export interface FaithfulClient {
     permit_number?: string;
     cin_date?: string;
     permit_date?: string;
+    /** Postal address. Auto-filled into the reservation form on selection. */
+    address?: string;
+    /** ISO-formatted date string (YYYY-MM-DD). */
+    date_of_birth?: string;
     /** URLs of up to 2 personal documents (CIN, permit, etc.). */
     documents?: string[];
     created_at: string;

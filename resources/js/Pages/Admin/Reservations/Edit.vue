@@ -48,7 +48,8 @@ const selectClient = (client: FaithfulClient) => {
     if (client.permit_number) reservation.value.client_permit_number = client.permit_number;
     if (client.cin_date) reservation.value.client_cin_date = client.cin_date;
     if (client.permit_date) reservation.value.client_permit_date = client.permit_date;
-    
+    if (client.address) reservation.value.client_address = client.address;
+
     showClientSuggestions.value = false;
     clientSuggestions.value = [];
 };

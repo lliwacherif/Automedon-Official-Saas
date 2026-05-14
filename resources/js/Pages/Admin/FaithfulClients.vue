@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue';
 import {
     Loader2, UserPlus, Users, Trash2, User, CreditCard, Phone, Mail,
     IdCard, Calendar, AlertCircle, CircleCheck, Paperclip, Search, X,
-    UserRound, Sparkles, Plus,
+    UserRound, Sparkles, Plus, MapPin, Cake,
 } from 'lucide-vue-next';
 import { useFaithfulClients, type FaithfulClient } from '@/composables/useFaithfulClients';
 import FaithfulClientDocumentsModal from '@/components/FaithfulClientDocumentsModal.vue';
@@ -29,6 +29,8 @@ const form = ref({
     permit_number: '',
     cin_date: '',
     permit_date: '',
+    address: '',
+    date_of_birth: '',
 });
 
 // Compose a "Prenom Nom" string that we keep storing in full_name so existing
@@ -80,6 +82,8 @@ const handleCreate = async () => {
             permit_number: form.value.permit_number || undefined,
             cin_date: form.value.cin_date || undefined,
             permit_date: form.value.permit_date || undefined,
+            address: form.value.address.trim() || undefined,
+            date_of_birth: form.value.date_of_birth || undefined,
         });
         formSuccess.value = 'Client fidèle ajouté avec succès';
         form.value = {
@@ -91,6 +95,8 @@ const handleCreate = async () => {
             permit_number: '',
             cin_date: '',
             permit_date: '',
+            address: '',
+            date_of_birth: '',
         };
         setTimeout(() => { formSuccess.value = ''; }, 2500);
     } catch (e: any) {
@@ -273,6 +279,24 @@ function onDocsUpdated(updated: FaithfulClient) {
                                 </div>
                             </div>
 
+                            <!-- Adresse + Date de naissance (optionnel) -->
+                            <div class="grid grid-cols-1 gap-3">
+                                <div>
+                                    <label class="form-label">Adresse client</label>
+                                    <div class="form-input-wrapper">
+                                        <MapPin class="form-input-icon" />
+                                        <input v-model="form.address" type="text" class="form-input" placeholder="Rue, ville, code postal..." />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="form-label">Date de naissance</label>
+                                    <div class="form-input-wrapper">
+                                        <Cake class="form-input-icon" />
+                                        <input v-model="form.date_of_birth" type="date" class="form-input" />
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- Contact (optionnel) au bas du formulaire -->
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
@@ -401,6 +425,14 @@ function onDocsUpdated(updated: FaithfulClient) {
                                 <div v-if="client.permit_number" class="flex items-center gap-1.5 text-gray-500">
                                     <IdCard class="w-3 h-3 text-gray-400 shrink-0" />
                                     <span class="truncate font-mono">{{ client.permit_number }}</span>
+                                </div>
+                                <div v-if="client.address" class="flex items-center gap-1.5 text-gray-500">
+                                    <MapPin class="w-3 h-3 text-gray-400 shrink-0" />
+                                    <span class="truncate">{{ client.address }}</span>
+                                </div>
+                                <div v-if="client.date_of_birth" class="flex items-center gap-1.5 text-gray-500">
+                                    <Cake class="w-3 h-3 text-gray-400 shrink-0" />
+                                    <span class="truncate">{{ client.date_of_birth }}</span>
                                 </div>
                             </div>
 

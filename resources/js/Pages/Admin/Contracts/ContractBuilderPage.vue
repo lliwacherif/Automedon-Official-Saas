@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ArrowLeft, FileDown, Loader2, Save, Check, ChevronDown } from 'lucide-vue-next';
+import { ArrowLeft, FileDown, Loader2, Save, Check, ChevronDown, Sparkles, Search } from 'lucide-vue-next';
 import ContractTemplate from '@/components/Contracts/ContractTemplate.vue';
 import ContractTemplateV2 from '@/components/Contracts/ContractTemplateV2.vue';
 import type { ContractData } from '@/components/Contracts/ContractTemplate.vue';
 import { supabase } from '@/lib/supabase';
 import { useTenantStore } from '@/stores/tenant';
+import { useCars } from '@/composables/useCars';
+import { useFaithfulClients, type FaithfulClient } from '@/composables/useFaithfulClients';
 // @ts-ignore
 // html-to-image captures the contract via SVG <foreignObject>, which
 // delegates rendering back to the browser's native engine. This is the
@@ -88,6 +90,101 @@ watch(
 
 // Company settings
 const companySettings = ref({ address: '', mf: '', email: '', gsm: '', rib: '' });
+
+// ──────────────────────────────────────────────────────────────────
+// Fleet picker — lets the user select a car from the agency's fleet
+// to pre-fill marque / immatriculation in the Véhicule section.
+// ──────────────────────────────────────────────────────────────────
+const { cars, fetchCars } = useCars();
+const selectedFleetCarId = ref<number | null>(null);
+
+function onFleetCarSelected(value: string) {
+  const carId = value ? Number(value) : null;
+  selectedFleetCarId.value = carId;
+  if (carId === null) return;
+  const car = cars.value.find((c) => c.id === carId);
+  if (!car) return;
+  contractData.value.vehicule.marque = `${car.brand} ${car.model}`.trim();
+  contractData.value.vehicule.immatriculation = car.plate_number || '';
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Faithful-client autocomplete for the Locataire (V1) /
+// Premier conducteur (V2) section. Typing in Nom or Prénom triggers
+// a fuzzy search; picking a result auto-fills every Locataire field.
+// ──────────────────────────────────────────────────────────────────
+const { searchFaithfulClients } = useFaithfulClients();
+const locataireSuggestions = ref<FaithfulClient[]>([]);
+const showLocataireSuggestions = ref(false);
+const isSearchingLocataire = ref(false);
+
+async function handleLocataireNameInput() {
+  const query = `${contractData.value.locataire.prenom || ''} ${contractData.value.locataire.nom || ''}`.trim();
+  if (!query || query.length < 2) {
+    locataireSuggestions.value = [];
+    showLocataireSuggestions.value = false;
+    return;
+  }
+  isSearchingLocataire.value = true;
+  try {
+    const results = await searchFaithfulClients(query);
+    locataireSuggestions.value = results;
+    showLocataireSuggestions.value = results.length > 0;
+  } catch (e) {
+    console.error('Faithful client search failed:', e);
+  } finally {
+    isSearchingLocataire.value = false;
+  }
+}
+
+function closeLocataireSuggestionsWithDelay() {
+  setTimeout(() => {
+    showLocataireSuggestions.value = false;
+  }, 200);
+}
+
+function selectLocataireClient(client: FaithfulClient) {
+  // Resolve "Nom" / "Prénom" from the stored split fields, falling back
+  // to a naive split of full_name for legacy rows.
+  let nom = client.last_name || '';
+  let prenom = client.first_name || '';
+  if (!nom && !prenom && client.full_name) {
+    const parts = client.full_name.trim().split(/\s+/);
+    prenom = parts[0] || '';
+    nom = parts.slice(1).join(' ');
+  }
+
+  // Convert ISO date (YYYY-MM-DD) to JJ/MM/AAAA used everywhere on the contract.
+  let dob = '';
+  if (client.date_of_birth) {
+    const d = new Date(client.date_of_birth);
+    if (!isNaN(d.getTime())) {
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yyyy = d.getFullYear();
+      dob = `${dd}/${mm}/${yyyy}`;
+    }
+  }
+
+  contractData.value.locataire.nom = nom;
+  contractData.value.locataire.prenom = prenom;
+  contractData.value.locataire.dob = dob;
+  contractData.value.locataire.ci = client.cin || '';
+  contractData.value.locataire.ciDate = client.cin_date || '';
+  contractData.value.locataire.adresse = client.address || '';
+  contractData.value.locataire.telephone = client.phone || '';
+  contractData.value.locataire.permis = client.permit_number || '';
+  contractData.value.locataire.permisDate = client.permit_date || '';
+
+  // V2 has a dedicated Locataire (renter) section — admin asked for Nom/Prénom only there.
+  if (contractData.value.v2?.renter) {
+    contractData.value.v2.renter.nom = nom;
+    contractData.value.v2.renter.prenom = prenom;
+  }
+
+  showLocataireSuggestions.value = false;
+  locataireSuggestions.value = [];
+}
 
 // Active contract template — driven by tenant.contract_template
 const contractTemplate = computed<'default' | 'v2'>(() => {
@@ -236,6 +333,9 @@ async function loadReservation(id: string) {
 
     if (error) throw error;
     if (!reservation) throw new Error('Reservation not found');
+
+    // Sync the fleet picker so the dropdown reflects the reservation's car.
+    selectedFleetCarId.value = reservation.car_id ?? reservation.car?.id ?? null;
 
     const tenant = tenantStore.currentTenant;
     if (!tenant) throw new Error('Tenant not found');
@@ -536,11 +636,15 @@ function goBack() {
   router.back();
 }
 
-onMounted(() => {
+onMounted(async () => {
+  // Always preload the fleet so the Véhicule picker is populated whether the
+  // page opens in blank mode or from an existing reservation.
+  fetchCars().catch((e) => console.error('fetchCars failed for contract builder:', e));
+
   if (route.params.id) {
-    loadReservation(route.params.id as string);
+    await loadReservation(route.params.id as string);
   } else {
-    loadBlankContract();
+    await loadBlankContract();
   }
 });
 </script>
@@ -700,8 +804,51 @@ onMounted(() => {
             <ChevronDown class="h-4 w-4 transition-transform" :class="{ 'rotate-180': collapsedSections.locataire }" />
           </button>
           <div v-show="!collapsedSections.locataire" class="sb-body">
-            <div class="sb-field"><label>Nom (الاسم)</label><input v-model="contractData.locataire.nom" /></div>
-            <div class="sb-field"><label>Prénom (اللقب)</label><input v-model="contractData.locataire.prenom" /></div>
+            <p class="sb-hint sb-hint-accent">
+              <Search class="w-3 h-3" />
+              Tapez un nom ou prénom pour rechercher dans vos Clients Fidèles et auto-remplir tous les champs.
+            </p>
+            <div class="sb-autocomplete-wrap">
+              <div class="sb-field">
+                <label>Nom (الاسم)</label>
+                <input
+                  v-model="contractData.locataire.nom"
+                  @input="handleLocataireNameInput"
+                  @focus="handleLocataireNameInput"
+                  @blur="closeLocataireSuggestionsWithDelay"
+                  autocomplete="off"
+                />
+              </div>
+              <div class="sb-field">
+                <label>Prénom (اللقب)</label>
+                <input
+                  v-model="contractData.locataire.prenom"
+                  @input="handleLocataireNameInput"
+                  @focus="handleLocataireNameInput"
+                  @blur="closeLocataireSuggestionsWithDelay"
+                  autocomplete="off"
+                />
+              </div>
+
+              <div v-if="showLocataireSuggestions" class="sb-suggestions">
+                <button
+                  v-for="client in locataireSuggestions"
+                  :key="client.id"
+                  type="button"
+                  class="sb-suggestion-item"
+                  @mousedown.prevent="selectLocataireClient(client)"
+                >
+                  <div class="sb-sug-avatar">{{ client.full_name.charAt(0).toUpperCase() }}</div>
+                  <div class="sb-sug-info">
+                    <div class="sb-sug-name">{{ client.full_name }}</div>
+                    <div class="sb-sug-meta">
+                      <span class="sb-sug-cin">{{ client.cin }}</span>
+                      <span v-if="client.phone">· {{ client.phone }}</span>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
             <div class="sb-field"><label>Date et Lieu de Naissance</label><input v-model="contractData.locataire.dob" placeholder="JJ/MM/AAAA — Lieu" /></div>
             <div class="sb-field"><label>N° CI ou Passeport</label><input v-model="contractData.locataire.ci" /></div>
             <div class="sb-field"><label>Date de délivrance (CIN/Passport)</label><input v-model="contractData.locataire.ciDate" placeholder="JJ/MM/AAAA" /></div>
@@ -768,6 +915,22 @@ onMounted(() => {
             <ChevronDown class="h-4 w-4 transition-transform" :class="{ 'rotate-180': collapsedSections.vehicule }" />
           </button>
           <div v-show="!collapsedSections.vehicule" class="sb-body">
+            <div class="sb-field">
+              <label class="sb-label-flex">
+                <Sparkles class="w-3 h-3 text-indigo-500" />
+                Sélectionner depuis la flotte
+              </label>
+              <select
+                :value="selectedFleetCarId ?? ''"
+                @change="onFleetCarSelected(($event.target as HTMLSelectElement).value)"
+              >
+                <option value="">— Saisie manuelle —</option>
+                <option v-for="car in cars" :key="car.id" :value="car.id">
+                  {{ car.brand }} {{ car.model }} — {{ car.plate_number }}<template v-if="car.status === 'loue'"> · Loué</template><template v-else-if="car.status === 'maintenance'"> · Maintenance</template>
+                </option>
+              </select>
+              <p class="sb-hint">Pré-remplit Marque/Modèle et N° Immatriculation. Vous pouvez ensuite ajuster manuellement.</p>
+            </div>
             <div class="sb-field"><label>Marque / Modèle</label><input v-model="contractData.vehicule.marque" placeholder="e.g. Volkswagen Virtus" /></div>
             <div class="sb-field"><label>N° Immatriculation</label><input v-model="contractData.vehicule.immatriculation" placeholder="244 TU 1132" /></div>
             <div class="sb-row-2">
@@ -1077,5 +1240,113 @@ onMounted(() => {
   color: #94a3b8;
   margin: 4px 0 0;
   line-height: 1.4;
+}
+
+.sb-hint-accent {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.06), rgba(139, 92, 246, 0.04));
+  border: 1px dashed rgba(99, 102, 241, 0.25);
+  color: #4f46e5;
+  font-weight: 600;
+  margin: 0;
+}
+
+.sb-label-flex {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ─── Faithful client autocomplete ──────────────────────────── */
+.sb-autocomplete-wrap {
+  position: relative;
+  display: grid;
+  gap: 10px;
+}
+
+.sb-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 6px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow:
+    0 10px 28px -10px rgba(15, 23, 42, 0.18),
+    0 4px 10px -6px rgba(15, 23, 42, 0.10);
+  max-height: 280px;
+  overflow-y: auto;
+  z-index: 30;
+}
+
+.sb-suggestion-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: none;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease;
+  border-bottom: 1px solid #f1f5f9;
+}
+.sb-suggestion-item:last-child { border-bottom: none; }
+.sb-suggestion-item:hover { background: #eef2ff; }
+
+.sb-sug-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+  font-weight: 700;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px -2px rgba(99, 102, 241, 0.45);
+}
+
+.sb-sug-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.sb-sug-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sb-sug-meta {
+  font-size: 11px;
+  color: #64748b;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.sb-sug-cin {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+  padding: 1px 6px;
+  background: #f1f5f9;
+  border-radius: 6px;
+  color: #475569;
+  font-weight: 600;
 }
 </style>
