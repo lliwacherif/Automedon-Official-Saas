@@ -4,6 +4,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useTenantStore } from '@/stores/tenant';
 import { useTenantLink } from '@/composables/useTenantLink';
+import { userCanAccessPage, type PageKey } from '@/utils/pagePermissions';
 import LanguageSwitcher from '@/components/LanguageSwitcher.vue';
 import GlobalCalendarModal from '@/components/GlobalCalendarModal.vue';
 import {
@@ -59,6 +60,10 @@ async function handleLogout() {
 const isActive = (path: string) => {
     return route.path.includes(path);
 };
+
+// Helper: can the current user see the nav item for the given page key?
+const canSee = (pageKey: PageKey) =>
+    userCanAccessPage(authStore.role, authStore.allowedPages, pageKey);
 
 // ─────────────────────────────────────────────────────────────
 // Liquid pill: a single shared highlight that smoothly slides
@@ -198,7 +203,7 @@ watch(
                         <!-- Admin Links -->
                         <template v-if="authStore.isAdmin && tenantStore.currentTenant">
                             <RouterLink 
-                                v-if="authStore.role === 'admin'"
+                                v-if="canSee('kpi')"
                                 :to="tenantPath('/admin/kpi')" 
                                 class="nav-item"
                                 :class="{ 'nav-item-active': isActive('/admin/kpi') }"
@@ -208,6 +213,7 @@ watch(
                             </RouterLink>
 
                             <RouterLink 
+                                v-if="canSee('fleet')"
                                 :to="tenantPath('/admin/cars')" 
                                 class="nav-item"
                                 :class="{ 'nav-item-active': isActive('/admin/cars') }"
@@ -217,6 +223,7 @@ watch(
                             </RouterLink>
 
                             <RouterLink 
+                                v-if="canSee('reservations')"
                                 :to="tenantPath('/admin/reservations')" 
                                 class="nav-item"
                                 :class="{ 'nav-item-active': isActive('/admin/reservations') && !isActive('/admin/reservations-table') }"
@@ -226,6 +233,7 @@ watch(
                             </RouterLink>
 
                             <RouterLink 
+                                v-if="canSee('services')"
                                 :to="tenantPath('/admin/services')" 
                                 class="nav-item"
                                 :class="{ 'nav-item-active': isActive('/admin/services') }"
@@ -235,6 +243,7 @@ watch(
                             </RouterLink>
 
                             <RouterLink 
+                                v-if="canSee('maintenance')"
                                 :to="tenantPath('/admin/maintenance')" 
                                 class="nav-item"
                                 :class="{ 'nav-item-active': isActive('/admin/maintenance') }"
@@ -244,7 +253,7 @@ watch(
                             </RouterLink>
 
                             <RouterLink 
-                                v-if="authStore.role === 'admin'"
+                                v-if="canSee('history')"
                                 :to="tenantPath('/admin/history')" 
                                 class="nav-item"
                                 :class="{ 'nav-item-active': isActive('/admin/history') }"
@@ -254,6 +263,7 @@ watch(
                             </RouterLink>
 
                             <RouterLink 
+                                v-if="canSee('reports')"
                                 :to="tenantPath('/admin/reports')" 
                                 class="nav-item"
                                 :class="{ 'nav-item-active': isActive('/admin/reports') }"
@@ -263,6 +273,7 @@ watch(
                             </RouterLink>
 
                             <RouterLink 
+                                v-if="canSee('daily_journal')"
                                 :to="tenantPath('/admin/daily-journal')" 
                                 class="nav-item"
                                 :class="{ 'nav-item-active': isActive('/admin/daily-journal') }"
@@ -278,7 +289,7 @@ watch(
                 <div class="hidden lg:flex items-center gap-1.5">
                     <!-- Quick Action Buttons -->
                     <button 
-                        v-if="authStore.isAdmin && tenantStore.currentTenant" 
+                        v-if="authStore.isAdmin && tenantStore.currentTenant && canSee('reservations_table')" 
                         @click="router.push(tenantPath('/admin/reservations-table'))"
                         class="action-btn"
                         :class="{ 'action-btn-active': isActive('/admin/reservations-table') }"
@@ -297,7 +308,7 @@ watch(
                     </button>
 
                     <RouterLink
-                        v-if="tenantStore.currentTenant && authStore.isAdmin"
+                        v-if="tenantStore.currentTenant && authStore.isAdmin && canSee('faithful_clients')"
                         :to="tenantPath('/admin/faithful-clients')"
                         class="action-btn"
                         :class="{ 'action-btn-active': isActive('/admin/faithful-clients') }"
@@ -307,7 +318,7 @@ watch(
                     </RouterLink>
 
                     <RouterLink 
-                        v-if="tenantStore.currentTenant && authStore.isAdmin"
+                        v-if="tenantStore.currentTenant && authStore.isAdmin && canSee('store')"
                         :to="tenantPath('/admin/store')"
                         class="action-btn"
                         :class="{ 'action-btn-active': isActive('/admin/store') }"
@@ -471,7 +482,7 @@ watch(
                         </RouterLink>
 
                         <button 
-                            v-if="authStore.isAdmin && tenantStore.currentTenant"
+                            v-if="authStore.isAdmin && tenantStore.currentTenant && canSee('reservations_table')"
                             @click="() => { router.push(tenantPath('/admin/reservations-table')); closeMobileMenu(); }"
                             class="mobile-nav-item w-full text-left"
                             :class="{ 'mobile-nav-active': isActive('/admin/reservations-table') }"
@@ -490,7 +501,7 @@ watch(
                         </button>
 
                         <RouterLink
-                            v-if="tenantStore.currentTenant && authStore.isAdmin"
+                            v-if="tenantStore.currentTenant && authStore.isAdmin && canSee('faithful_clients')"
                             :to="tenantPath('/admin/faithful-clients')"
                             @click="closeMobileMenu"
                             class="mobile-nav-item"
@@ -501,7 +512,7 @@ watch(
                         </RouterLink>
 
                         <RouterLink 
-                            v-if="tenantStore.currentTenant && authStore.isAdmin"
+                            v-if="tenantStore.currentTenant && authStore.isAdmin && canSee('store')"
                             :to="tenantPath('/admin/store')"
                             @click="closeMobileMenu"
                             class="mobile-nav-item"
@@ -528,7 +539,7 @@ watch(
                             </div>
 
                             <RouterLink 
-                                v-if="authStore.role === 'admin'"
+                                v-if="canSee('kpi')"
                                 :to="tenantPath('/admin/kpi')"
                                 @click="closeMobileMenu"
                                 class="mobile-nav-item"
@@ -539,6 +550,7 @@ watch(
                             </RouterLink>
 
                             <RouterLink 
+                                v-if="canSee('fleet')"
                                 :to="tenantPath('/admin/cars')"
                                 @click="closeMobileMenu"
                                 class="mobile-nav-item"
@@ -549,6 +561,7 @@ watch(
                             </RouterLink>
 
                             <RouterLink 
+                                v-if="canSee('reservations')"
                                 :to="tenantPath('/admin/reservations')"
                                 @click="closeMobileMenu"
                                 class="mobile-nav-item"
@@ -559,6 +572,7 @@ watch(
                             </RouterLink>
 
                             <RouterLink 
+                                v-if="canSee('services')"
                                 :to="tenantPath('/admin/services')"
                                 @click="closeMobileMenu"
                                 class="mobile-nav-item"
@@ -569,6 +583,7 @@ watch(
                             </RouterLink>
 
                             <RouterLink 
+                                v-if="canSee('maintenance')"
                                 :to="tenantPath('/admin/maintenance')"
                                 @click="closeMobileMenu"
                                 class="mobile-nav-item"
@@ -589,7 +604,7 @@ watch(
                             </RouterLink>
 
                             <RouterLink 
-                                v-if="authStore.role === 'admin'"
+                                v-if="canSee('history')"
                                 :to="tenantPath('/admin/history')"
                                 @click="closeMobileMenu"
                                 class="mobile-nav-item"
@@ -600,6 +615,7 @@ watch(
                             </RouterLink>
 
                             <RouterLink 
+                                v-if="canSee('reports')"
                                 :to="tenantPath('/admin/reports')"
                                 @click="closeMobileMenu"
                                 class="mobile-nav-item"
@@ -610,6 +626,7 @@ watch(
                             </RouterLink>
 
                             <RouterLink 
+                                v-if="canSee('daily_journal')"
                                 :to="tenantPath('/admin/daily-journal')"
                                 @click="closeMobileMenu"
                                 class="mobile-nav-item"

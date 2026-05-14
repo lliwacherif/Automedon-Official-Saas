@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useTenantStore } from '@/stores/tenant'
+import { pageKeyForPath, userCanAccessPage } from '@/utils/pagePermissions'
 
 // Import Pages
 const Home = () => import('../Pages/Home.vue')
@@ -303,6 +304,22 @@ router.beforeEach(async (to, from, next) => {
         return
     }
 
+    // Per-user page allow-list (only enforced for non-admin tenant users)
+    if (to.meta.requiresAdmin && authStore.isAdmin && authStore.role !== 'admin' && authStore.role !== 'root') {
+        const pageKey = pageKeyForPath(to.path)
+        if (pageKey && !userCanAccessPage(authStore.role, authStore.allowedPages, pageKey)) {
+            // Fall back to a page the user can see
+            const tenantSlug = to.params.tenantSlug as string | undefined
+            const fallback = pickFallbackRouteName(authStore.allowedPages)
+            if (tenantSlug) {
+                next({ name: fallback, params: { tenantSlug } })
+            } else {
+                next({ name: 'home' })
+            }
+            return
+        }
+    }
+
     if (to.meta.requiresAuth && !authStore.user && !authStore.isAdmin) {
         // Standard client auth
         next({ name: 'login' })
@@ -310,5 +327,27 @@ router.beforeEach(async (to, from, next) => {
         next()
     }
 })
+
+function pickFallbackRouteName(allowedPages: string[] | null | undefined): string {
+    const pageRouteMap: Record<string, string> = {
+        fleet: 'admin.cars.index',
+        kpi: 'admin.dashboard',
+        reservations: 'admin.reservations.index',
+        reservations_table: 'admin.reservations.table',
+        services: 'admin.services.index',
+        maintenance: 'admin.maintenance.index',
+        history: 'admin.history.index',
+        reports: 'admin.reports',
+        daily_journal: 'admin.daily_journal.index',
+        faithful_clients: 'admin.faithful_clients.index',
+        store: 'admin.store.index',
+    }
+    if (allowedPages && allowedPages.length > 0) {
+        for (const key of allowedPages) {
+            if (pageRouteMap[key]) return pageRouteMap[key]
+        }
+    }
+    return 'admin.settings'
+}
 
 export default router

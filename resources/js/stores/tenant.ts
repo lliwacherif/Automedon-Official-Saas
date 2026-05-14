@@ -235,23 +235,31 @@ export const useTenantStore = defineStore('tenant', () => {
     }
 
     // Create a new user for the current tenant
-    async function createTenantUser(username: string, password: string, role: 'user' | 'assistant' = 'user') {
+    async function createTenantUser(
+        username: string,
+        password: string,
+        role: 'user' | 'assistant' = 'user',
+        allowedPages: string[] | null = null,
+    ) {
         if (!currentTenant.value?.id) throw new Error("No tenant selected");
 
         loading.value = true;
         try {
             const passwordHash = await hashPassword(password);
 
+            const payload: Record<string, unknown> = {
+                tenant_id: currentTenant.value.id,
+                username,
+                password_hash: passwordHash,
+                role,
+            };
+            if (allowedPages !== null) {
+                payload.allowed_pages = allowedPages;
+            }
+
             const { data, error: userError } = await (supabase
                 .from('tenant_users') as any)
-                .insert([
-                    {
-                        tenant_id: currentTenant.value.id,
-                        username,
-                        password_hash: passwordHash,
-                        role
-                    }
-                ])
+                .insert([payload])
                 .select()
                 .single();
 

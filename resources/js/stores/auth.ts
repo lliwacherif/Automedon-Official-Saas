@@ -21,6 +21,7 @@ export const useAuthStore = defineStore('auth', () => {
     const role = ref<string>('');
     const currentUserId = ref<string | null>(null);
     const isAdmin = ref(false);
+    const allowedPages = ref<string[] | null>(null);
 
     // For Root Admin
     const isRoot = ref(false);
@@ -39,6 +40,7 @@ export const useAuthStore = defineStore('auth', () => {
                 role.value = session.role;
                 currentUserId.value = session.id;
                 isRoot.value = session.role === 'root';
+                allowedPages.value = session.allowed_pages ?? null;
             } catch (e) {
                 console.error("Invalid session", e);
                 localStorage.removeItem('app_session');
@@ -57,7 +59,7 @@ export const useAuthStore = defineStore('auth', () => {
 
         let query = supabase
             .from('tenant_users')
-            .select('id, password_hash, role, tenant_id')
+            .select('id, password_hash, role, tenant_id, allowed_pages')
             .eq('username', username);
 
         if (tenantId) {
@@ -77,11 +79,13 @@ export const useAuthStore = defineStore('auth', () => {
             role.value = data.role;
             currentUserId.value = data.id;
             isRoot.value = data.role === 'root';
+            allowedPages.value = data.allowed_pages ?? null;
 
             const sessionData = {
                 id: data.id,
                 role: data.role,
                 tenant_id: data.tenant_id,
+                allowed_pages: data.allowed_pages ?? null,
                 timestamp: new Date().getTime()
             };
             localStorage.setItem('app_session', JSON.stringify(sessionData));
@@ -89,18 +93,48 @@ export const useAuthStore = defineStore('auth', () => {
             if (isRoot.value) {
                 router.push({ name: 'root.dashboard' });
             } else {
-                if (data.role === 'admin') {
-                    const slug = tenantStore.currentTenant?.slug;
-                    if (slug) router.push({ name: 'admin.dashboard', params: { tenantSlug: slug } });
-                } else {
-                    const slug = tenantStore.currentTenant?.slug;
-                    if (slug) router.push({ name: 'admin.reservations.index', params: { tenantSlug: slug } });
+                const slug = tenantStore.currentTenant?.slug;
+                if (slug) {
+                    const target = resolveLandingRoute(data.role, data.allowed_pages ?? null);
+                    router.push({ name: target, params: { tenantSlug: slug } });
                 }
             }
             return true;
         } else {
             throw new Error('Invalid password');
         }
+    }
+
+    /**
+     * Pick the first page the user can land on after logging in.
+     * Admins → KPI dashboard (existing behaviour).
+     * Restricted users → first item in allowed_pages, or reservations as
+     * a safe fallback when the list is empty / legacy.
+     */
+    function resolveLandingRoute(userRole: string, pages: string[] | null): string {
+        if (userRole === 'admin') return 'admin.dashboard';
+
+        const pageRouteMap: Record<string, string> = {
+            fleet: 'admin.cars.index',
+            kpi: 'admin.dashboard',
+            reservations: 'admin.reservations.index',
+            reservations_table: 'admin.reservations.table',
+            services: 'admin.services.index',
+            maintenance: 'admin.maintenance.index',
+            history: 'admin.history.index',
+            reports: 'admin.reports',
+            daily_journal: 'admin.daily_journal.index',
+            faithful_clients: 'admin.faithful_clients.index',
+            store: 'admin.store.index',
+        };
+
+        if (pages && pages.length > 0) {
+            for (const key of pages) {
+                if (pageRouteMap[key]) return pageRouteMap[key];
+            }
+        }
+
+        return 'admin.reservations.index';
     }
 
     async function changePassword(currentPass: string, newPass: string) {
@@ -137,6 +171,7 @@ export const useAuthStore = defineStore('auth', () => {
             role.value = '';
             currentUserId.value = null;
             isRoot.value = false;
+            allowedPages.value = null;
 
             localStorage.removeItem('app_session');
 
@@ -185,6 +220,7 @@ export const useAuthStore = defineStore('auth', () => {
         isAdmin,
         isRoot,
         role,
+        allowedPages,
         loading,
         initializeAuth,
         loginUser,
