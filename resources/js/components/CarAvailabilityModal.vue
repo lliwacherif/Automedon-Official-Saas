@@ -23,7 +23,7 @@ import {
     differenceInHours
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { X, ChevronLeft, ChevronRight, Check, AlertCircle, Calendar as CalendarIcon, Clock, Wrench, CarFront, CalendarRange } from 'lucide-vue-next';
+import { X, ChevronLeft, ChevronRight, Check, AlertCircle, Calendar as CalendarIcon, Clock, Bus, CarFront, CalendarRange } from 'lucide-vue-next';
 import { formatDateTime } from '@/utils/date';
 import { useAuthStore } from '@/stores/auth';
 
@@ -324,7 +324,7 @@ const tooltipInfo = computed(() => {
                                     </p>
                                     <p v-if="!isAvailableToday && activeReservation" class="text-[11px] sm:text-xs mt-0.5" :class="isAvailableToday ? 'text-emerald-600/70' : 'text-red-500/70'">
                                         Jusqu'au {{ formatDateTime(activeReservation.end_date) }}
-                                        <span v-if="activeReservation._type === 'service'" class="ml-1 text-orange-500 font-semibold">(Service)</span>
+                                        <span v-if="activeReservation._type === 'service'" class="ml-1 text-pink-500 font-semibold">(Service)</span>
                                     </p>
                                 </div>
                                 <div 
@@ -399,7 +399,7 @@ const tooltipInfo = computed(() => {
                                                         v-if="isSameMonth(date, currentMonth) && isDateReserved(date)"
                                                         class="absolute inset-y-0.5 sm:inset-y-1"
                                                         :class="[
-                                                            getDateType(date) === 'service' ? 'bg-orange-100/70' : 'bg-red-100/70',
+                                                            getDateType(date) === 'service' ? 'bg-pink-100/70' : 'bg-red-100/70',
                                                             isRangeStart(date) && !isRangeEnd(date) ? 'left-1/2 right-0 rounded-l-lg' : '',
                                                             isRangeEnd(date) && !isRangeStart(date) ? 'left-0 right-1/2 rounded-r-lg' : '',
                                                             isRangeMiddle(date) ? 'left-0 right-0' : '',
@@ -425,7 +425,7 @@ const tooltipInfo = computed(() => {
                                                                 
                                                                 isSameMonth(date, currentMonth) && isDateReserved(date) && !isToday(date)
                                                                     ? getDateType(date) === 'service' 
-                                                                        ? 'bg-orange-100 text-orange-700' 
+                                                                        ? 'bg-pink-100 text-pink-700' 
                                                                         : 'bg-red-100 text-red-700'
                                                                     : '',
                                                                     
@@ -453,12 +453,12 @@ const tooltipInfo = computed(() => {
                                                                 <div 
                                                                     class="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full"
                                                                     :class="isDateReserved(date) 
-                                                                        ? getDateType(date) === 'service' ? 'bg-orange-500' : 'bg-red-500' 
+                                                                        ? getDateType(date) === 'service' ? 'bg-pink-500' : 'bg-red-500' 
                                                                         : 'bg-emerald-400'"
                                                                 ></div>
                                                                 <div 
                                                                     v-if="getDateType(date) === 'both'"
-                                                                    class="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-orange-500"
+                                                                    class="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-pink-500"
                                                                 ></div>
                                                             </div>
                                                             <!-- Today indicator dot -->
@@ -483,7 +483,7 @@ const tooltipInfo = computed(() => {
                                                 <span class="text-[11px] sm:text-xs text-gray-500 font-medium">Réservé</span>
                                             </div>
                                             <div class="flex items-center gap-1.5">
-                                                <span class="w-2.5 h-2.5 rounded-full bg-orange-500 ring-2 ring-orange-100"></span>
+                                                <span class="w-2.5 h-2.5 rounded-full bg-pink-500 ring-2 ring-pink-100"></span>
                                                 <span class="text-[11px] sm:text-xs text-gray-500 font-medium">Service</span>
                                             </div>
                                         </div>
@@ -524,14 +524,14 @@ const tooltipInfo = computed(() => {
                                                 v-for="res in futureReservations" 
                                                 :key="res.id"
                                                 class="bg-white rounded-xl p-3 sm:p-3.5 ring-1 transition-all hover:shadow-sm"
-                                                :class="res._type === 'service' ? 'ring-orange-200/60 hover:ring-orange-300' : 'ring-gray-200/80 hover:ring-indigo-200'"
+                                                :class="res._type === 'service' ? 'ring-pink-200/60 hover:ring-pink-300' : 'ring-gray-200/80 hover:ring-indigo-200'"
                                             >
                                                 <div class="flex items-start gap-2.5">
                                                     <div 
                                                         class="p-1.5 rounded-lg shrink-0 mt-0.5"
-                                                        :class="res._type === 'service' ? 'bg-orange-50' : 'bg-indigo-50'"
+                                                        :class="res._type === 'service' ? 'bg-pink-50' : 'bg-indigo-50'"
                                                     >
-                                                        <Wrench v-if="res._type === 'service'" class="w-3.5 h-3.5 text-orange-500" />
+                                                                <Bus v-if="res._type === 'service'" class="w-3.5 h-3.5 text-pink-500" />
                                                         <CarFront v-else class="w-3.5 h-3.5 text-indigo-500" />
                                                     </div>
                                                     <div class="flex-1 min-w-0">
@@ -539,7 +539,7 @@ const tooltipInfo = computed(() => {
                                                         <div class="flex items-center gap-1.5 mb-1.5">
                                                             <span 
                                                                 class="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
-                                                                :class="res._type === 'service' ? 'text-orange-600 bg-orange-50' : 'text-indigo-600 bg-indigo-50'"
+                                                                :class="res._type === 'service' ? 'text-pink-600 bg-pink-50' : 'text-indigo-600 bg-indigo-50'"
                                                             >
                                                                 {{ res._type === 'service' ? (res.service_type || 'Service') : 'Réservation' }}
                                                             </span>
@@ -622,7 +622,7 @@ const tooltipInfo = computed(() => {
                                                     isSameMonth(date, currentMonth) ? (
                                                         isDateReserved(date) 
                                                             ? getDateType(date) === 'service' 
-                                                                ? 'bg-orange-100 text-orange-700' 
+                                                                ? 'bg-pink-100 text-pink-700' 
                                                                 : 'bg-red-100 text-red-700'
                                                             : 'bg-green-50 text-green-700'
                                                     ) : ''
@@ -636,12 +636,12 @@ const tooltipInfo = computed(() => {
                                                     <div 
                                                         class="w-1 h-1 rounded-full"
                                                         :class="isDateReserved(date) 
-                                                            ? getDateType(date) === 'service' ? 'bg-orange-500' : 'bg-red-500' 
+                                                            ? getDateType(date) === 'service' ? 'bg-pink-500' : 'bg-red-500' 
                                                             : 'bg-green-500'"
                                                     ></div>
                                                     <div 
                                                         v-if="getDateType(date) === 'both'"
-                                                        class="w-1 h-1 rounded-full bg-orange-500"
+                                                        class="w-1 h-1 rounded-full bg-pink-500"
                                                     ></div>
                                                 </div>
                                             </div>
@@ -660,7 +660,7 @@ const tooltipInfo = computed(() => {
                                         <span class="text-xs text-gray-600">Réservé</span>
                                     </div>
                                     <div class="flex items-center gap-2">
-                                        <span class="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
+                                        <span class="w-2.5 h-2.5 rounded-full bg-pink-500"></span>
                                         <span class="text-xs text-gray-600">Service</span>
                                     </div>
                                 </div>
@@ -699,7 +699,7 @@ const tooltipInfo = computed(() => {
                                                 <div v-if="isSameMonth(date, monthDate)" 
                                                     class="absolute inset-0 rounded transition-colors"
                                                     :class="isDateReserved(date) 
-                                                        ? getDateType(date) === 'service' ? 'bg-orange-100' : 'bg-red-100' 
+                                                        ? getDateType(date) === 'service' ? 'bg-pink-100' : 'bg-red-100' 
                                                         : 'bg-green-50'"
                                                 ></div>
                                             </div>
@@ -754,7 +754,7 @@ const tooltipInfo = computed(() => {
                                                     isSameMonth(date, currentMonth) ? (
                                                         isDateReserved(date)
                                                             ? getDateType(date) === 'service' 
-                                                                ? 'bg-orange-50 border-orange-100' 
+                                                                ? 'bg-pink-50 border-pink-100' 
                                                                 : 'bg-red-50 border-red-100'
                                                             : 'bg-green-50 border-green-100'
                                                     ) : ''
@@ -765,14 +765,14 @@ const tooltipInfo = computed(() => {
                                                         :class="[
                                                             isToday(date) ? 'text-indigo-600' : 'text-gray-700',
                                                             isSameMonth(date, currentMonth) && isDateReserved(date) 
-                                                                ? getDateType(date) === 'service' ? 'text-orange-700' : 'text-red-700' 
+                                                                ? getDateType(date) === 'service' ? 'text-pink-700' : 'text-red-700' 
                                                                 : '',
                                                             isSameMonth(date, currentMonth) && !isDateReserved(date) ? 'text-green-700' : ''
                                                         ]">
                                                         {{ format(date, 'd') }}
                                                     </span>
                                                     <div v-if="isSameMonth(date, currentMonth)">
-                                                        <Wrench v-if="getDateType(date) === 'service'" class="w-4 h-4 text-orange-500" />
+                                                        <Bus v-if="getDateType(date) === 'service'" class="w-4 h-4 text-pink-500" />
                                                         <AlertCircle v-else-if="isDateReserved(date)" class="w-4 h-4 text-red-500" />
                                                         <Check v-else class="w-4 h-4 text-green-500" />
                                                     </div>
@@ -780,7 +780,7 @@ const tooltipInfo = computed(() => {
                                                 
                                                 <div v-if="isSameMonth(date, currentMonth)" class="mt-auto text-xs font-medium truncate"
                                                     :class="isDateReserved(date) 
-                                                        ? getDateType(date) === 'service' ? 'text-orange-600' : 'text-red-600' 
+                                                        ? getDateType(date) === 'service' ? 'text-pink-600' : 'text-red-600' 
                                                         : 'text-green-600'">
                                                     {{ isDateReserved(date) 
                                                         ? getDateType(date) === 'service' ? 'Service' : 'Loué' 
@@ -823,7 +823,7 @@ const tooltipInfo = computed(() => {
                                                     class="absolute inset-0 rounded-full transition-colors"
                                                     :class="isDateReserved(date) 
                                                         ? getDateType(date) === 'service' 
-                                                            ? 'bg-orange-100 text-orange-700 font-bold' 
+                                                            ? 'bg-pink-100 text-pink-700 font-bold' 
                                                             : 'bg-red-100 text-red-700 font-bold' 
                                                         : 'bg-green-50 text-green-700'"
                                                 ></div>
@@ -846,7 +846,7 @@ const tooltipInfo = computed(() => {
                                     <span class="text-gray-600 font-medium text-xs sm:text-sm">Réservé</span>
                                 </div>
                                 <div class="flex items-center gap-2">
-                                    <span class="w-3 h-3 rounded-full bg-orange-500"></span>
+                                    <span class="w-3 h-3 rounded-full bg-pink-500"></span>
                                     <span class="text-gray-600 font-medium text-xs sm:text-sm">Service</span>
                                 </div>
                             </div>

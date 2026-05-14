@@ -103,6 +103,18 @@ export function useServices() {
                 .eq('id', id)
                 .select();
             if (err) throw err;
+
+            // Keep DB car.status in sync: mark the (possibly new) car as 'loue'
+            // when the edited service is currently active. Mirrors createService.
+            if (service.car_id && service.start_date && service.end_date) {
+                const now = new Date();
+                const start = new Date(service.start_date);
+                const end = new Date(service.end_date);
+                if (start <= now && end >= now) {
+                    await updateCar(service.car_id, { status: 'loue' });
+                }
+            }
+
             await fetchServices();
             return data?.[0] || null;
         } catch (e: any) {
@@ -153,6 +165,74 @@ export function useServices() {
         }
     }
 
+    /**
+     * Builds a map of car_id -> human-readable conflict reason for the given
+     * date range. Used to disable busy options in the service form's car
+     * picker. Detects overlaps with reservations, other services, and
+     * maintenance dates falling inside the window. When editing an existing
+     * service, pass its id as `excludeServiceId` so it doesn't conflict with
+     * itself.
+     */
+    async function findCarConflictsInRange(
+        startDate: string,
+        endDate: string,
+        excludeServiceId?: number,
+    ): Promise<Map<number, string>> {
+        const conflicts = new Map<number, string>();
+        const tenantId = tenantStore.currentTenant?.id;
+
+        try {
+            // Reservation overlaps
+            let resQuery = supabase
+                .from('reservations')
+                .select('car_id')
+                .in('status', ['confirmed', 'active'])
+                .lt('start_date', endDate)
+                .gt('end_date', startDate);
+            if (tenantId) resQuery = resQuery.eq('tenant_id', tenantId);
+            const { data: resData } = await resQuery;
+            for (const r of resData || []) {
+                const carId = (r as any).car_id;
+                if (!conflicts.has(carId)) conflicts.set(carId, 'Réservation');
+            }
+
+            // Service overlaps (excluding the one being edited)
+            let svcQuery = supabase
+                .from('services')
+                .select('id, car_id, service_type')
+                .lt('start_date', endDate)
+                .gt('end_date', startDate);
+            if (tenantId) svcQuery = svcQuery.eq('tenant_id', tenantId);
+            if (excludeServiceId) svcQuery = svcQuery.neq('id', excludeServiceId);
+            const { data: svcData } = await svcQuery;
+            for (const s of svcData || []) {
+                const carId = (s as any).car_id;
+                const stype = (s as any).service_type;
+                const reason = stype === 'transfert' ? 'Transfert' : 'Excursion';
+                if (!conflicts.has(carId)) conflicts.set(carId, reason);
+            }
+
+            // Maintenance dates inside the range
+            const startDateOnly = startDate.slice(0, 10);
+            const endDateOnly = endDate.slice(0, 10);
+            let maintQuery = supabase
+                .from('maintenance_records')
+                .select('car_id')
+                .gte('maintenance_date', startDateOnly)
+                .lte('maintenance_date', endDateOnly);
+            if (tenantId) maintQuery = maintQuery.eq('tenant_id', tenantId);
+            const { data: maintData } = await maintQuery;
+            for (const m of maintData || []) {
+                const carId = (m as any).car_id;
+                if (!conflicts.has(carId)) conflicts.set(carId, 'Maintenance');
+            }
+        } catch (e: any) {
+            console.error('findCarConflictsInRange error:', e);
+        }
+
+        return conflicts;
+    }
+
     async function checkServiceAvailability(carId: number, startDate: string, endDate: string, excludeId?: number) {
         const tenantId = tenantStore.currentTenant?.id;
         try {
@@ -201,5 +281,6 @@ export function useServices() {
         updateService,
         deleteService,
         checkServiceAvailability,
+        findCarConflictsInRange,
     };
 }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { RouterLink } from 'vue-router';
 import { useServices, type ServiceType } from '@/composables/useServices';
 import { useCars } from '@/composables/useCars';
@@ -34,7 +34,7 @@ import {
     Building2,
 } from 'lucide-vue-next';
 
-const { services, loading, fetchServices, createService, updateService, deleteService, checkServiceAvailability } = useServices();
+const { services, loading, fetchServices, createService, updateService, deleteService, checkServiceAvailability, findCarConflictsInRange } = useServices();
 const { cars, fetchCars } = useCars();
 
 import { useB2BClients } from '@/composables/useB2BClients';
@@ -120,7 +120,104 @@ onMounted(async () => {
     await Promise.all([fetchServices(), fetchCars(), fetchB2BClients()]);
 });
 
-const availableCars = computed(() => cars.value || []);
+// ──────────────────────────────────────────────────────────────────
+// Car availability — keeps the car dropdown honest about which
+// vehicles are busy (reservations, other services, maintenance).
+// When dates are set, conflicts are computed against the actual
+// requested range. When dates aren't set yet, we fall back to the
+// car's live status (already overlaid by useCars.fetchCars).
+// ──────────────────────────────────────────────────────────────────
+const carConflicts = ref<Map<number, string>>(new Map());
+
+const datesAreValid = computed(() => {
+    if (!form.value.start_date || !form.value.end_date) return false;
+    const s = new Date(form.value.start_date);
+    const e = new Date(form.value.end_date);
+    return !isNaN(s.getTime()) && !isNaN(e.getTime()) && s < e;
+});
+
+async function refreshCarConflicts() {
+    if (!isModalOpen.value) return;
+
+    if (!datesAreValid.value) {
+        // No (valid) date range yet — use the live overlay status from useCars
+        const live = new Map<number, string>();
+        for (const c of cars.value || []) {
+            if (c.status === 'loue') live.set(c.id, 'Occupé');
+            else if (c.status === 'maintenance') live.set(c.id, 'Maintenance');
+        }
+        carConflicts.value = live;
+        return;
+    }
+
+    try {
+        const startIso = new Date(form.value.start_date).toISOString();
+        const endIso = new Date(form.value.end_date).toISOString();
+        const excludeId = isEditMode.value ? (editingServiceId.value ?? undefined) : undefined;
+        carConflicts.value = await findCarConflictsInRange(startIso, endIso, excludeId);
+
+        // If the user already picked a car that's now in conflict, push them
+        // back to the picker and explain why.
+        if (form.value.car_id && carConflicts.value.has(form.value.car_id)) {
+            const reason = carConflicts.value.get(form.value.car_id);
+            formError.value = `Le véhicule sélectionné n'est plus disponible pour cette période (${reason}). Veuillez en choisir un autre.`;
+            form.value.car_id = 0;
+        }
+    } catch (e) {
+        console.error('refreshCarConflicts failed:', e);
+    }
+}
+
+watch(
+    () => [form.value.start_date, form.value.end_date, isModalOpen.value, cars.value.length] as const,
+    () => { refreshCarConflicts(); },
+);
+
+// Clear the "no longer available" warning once the user picks a fresh car.
+watch(
+    () => form.value.car_id,
+    (id) => {
+        if (id && !carConflicts.value.has(id) && formError.value.startsWith('Le véhicule sélectionné')) {
+            formError.value = '';
+        }
+    },
+);
+
+const availableCars = computed(() => {
+    const all = [...(cars.value || [])];
+    // Sort so available cars come first, busy cars after.
+    all.sort((a, b) => {
+        const aBusy = carConflicts.value.has(a.id) ? 1 : 0;
+        const bBusy = carConflicts.value.has(b.id) ? 1 : 0;
+        return aBusy - bBusy;
+    });
+    return all;
+});
+
+const availabilityInfo = computed(() => {
+    const total = cars.value?.length || 0;
+    if (total === 0) {
+        return { label: 'Aucun véhicule dans la flotte', tone: 'neutral' as const };
+    }
+    if (!datesAreValid.value) {
+        return {
+            label: 'Sélectionnez les dates pour filtrer les véhicules disponibles',
+            tone: 'neutral' as const,
+        };
+    }
+    const busy = carConflicts.value.size;
+    const free = Math.max(0, total - busy);
+    if (free === 0) {
+        return {
+            label: 'Aucun véhicule disponible pour cette période',
+            tone: 'danger' as const,
+        };
+    }
+    return {
+        label: `${free} véhicule${free > 1 ? 's' : ''} disponible${free > 1 ? 's' : ''} pour cette période`,
+        tone: 'success' as const,
+    };
+});
 
 function openModal() {
     isEditMode.value = false;
@@ -601,12 +698,35 @@ const formatCurrency = (v: number) => new Intl.NumberFormat('fr-TN', { style: 'c
                                         <Car class="form-input-icon" />
                                         <select v-model="form.car_id" required class="form-input appearance-none cursor-pointer">
                                             <option :value="0" disabled>-- Choisir un véhicule --</option>
-                                            <option v-for="car in availableCars" :key="car.id" :value="car.id">
-                                                {{ car.brand }} {{ car.model }} - {{ car.plate_number }}
+                                            <option
+                                                v-for="car in availableCars"
+                                                :key="car.id"
+                                                :value="car.id"
+                                                :disabled="carConflicts.has(car.id)"
+                                            >
+                                                {{ car.brand }} {{ car.model }} — {{ car.plate_number }}{{ carConflicts.has(car.id) ? ` · Occupé (${carConflicts.get(car.id)})` : '' }}
                                             </option>
                                         </select>
                                         <ChevronDown class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                                     </div>
+                                    <p
+                                        class="mt-1.5 text-[11px] flex items-center gap-1.5 pl-1"
+                                        :class="{
+                                            'text-gray-500': availabilityInfo.tone === 'neutral',
+                                            'text-emerald-600': availabilityInfo.tone === 'success',
+                                            'text-red-600': availabilityInfo.tone === 'danger',
+                                        }"
+                                    >
+                                        <span
+                                            class="inline-block w-1.5 h-1.5 rounded-full"
+                                            :class="{
+                                                'bg-gray-300': availabilityInfo.tone === 'neutral',
+                                                'bg-emerald-500': availabilityInfo.tone === 'success',
+                                                'bg-red-500': availabilityInfo.tone === 'danger',
+                                            }"
+                                        ></span>
+                                        {{ availabilityInfo.label }}
+                                    </p>
                                 </div>
 
                                 <!-- Dates -->
