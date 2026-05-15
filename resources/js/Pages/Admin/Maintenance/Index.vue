@@ -9,7 +9,7 @@ import type { Database } from '@/types/supabase';
 import { 
     Wrench, Calendar, Gauge, DollarSign, MapPin, Edit, Trash2, Plus, Car, X, ChevronDown, Loader2, FileText, Hash, CircleCheck,
     AlertTriangle, Upload, Image, Eye, Camera, User, CreditCard, IdCard, ClipboardList, ShieldAlert,
-    Search, ArrowLeft, ImageOff,
+    Search, ArrowLeft, ImageOff, Droplet, Droplets, Filter, ClipboardCheck, Sparkles,
 } from 'lucide-vue-next';
 
 const { cars, loading: carsLoading, fetchCars, fetchCarById, updateCar } = useCars();
@@ -68,6 +68,13 @@ const formData = ref<any>({
     responsible_client_permit: '',
     linked_reservation_id: null,
     damage_images: [] as string[],
+    // Vidange (OIL_CHANGE) specific
+    oil_change_subtype: 'simple' as 'simple' | 'complete',
+    oil_brand: '',
+    oil_filter_changed: false,
+    other_filters_changed: '',
+    inspection_done: false,
+    inspection_notes: '',
 });
 
 const damageImageFiles = ref<{ file: File; preview: string }[]>([]);
@@ -75,6 +82,23 @@ const carReservations = ref<any[]>([]);
 const loadingReservations = ref(false);
 
 const isRepairMode = computed(() => formData.value.maintenance_type === 'REPAIR');
+const isVidangeMode = computed(() => formData.value.maintenance_type === 'OIL_CHANGE');
+
+// When the user switches the Vidange sub-type, prefill the structured fields
+// with sensible defaults so the form reflects what "Simple" vs "Complète"
+// actually means in practice (mandatory inspection + oil filter on Complète).
+watch(() => formData.value.oil_change_subtype, (subtype, prev) => {
+    if (!isVidangeMode.value) return;
+    if (subtype === prev) return;
+    if (subtype === 'complete') {
+        formData.value.oil_filter_changed = true;
+        formData.value.inspection_done = true;
+    } else if (subtype === 'simple') {
+        formData.value.other_filters_changed = '';
+        formData.value.inspection_done = false;
+        formData.value.inspection_notes = '';
+    }
+});
 
 const filteredCars = computed(() => {
     return cars.value.map(car => ({
@@ -196,6 +220,8 @@ function openAddModal() {
         damage_type: '', damage_date: new Date().toISOString().split('T')[0],
         responsible_client_name: '', responsible_client_cin: '', responsible_client_permit: '',
         linked_reservation_id: null, damage_images: [],
+        oil_change_subtype: 'simple', oil_brand: '', oil_filter_changed: false,
+        other_filters_changed: '', inspection_done: false, inspection_notes: '',
     };
     damageImageFiles.value = [];
     if (selectedCarId.value) fetchCarReservations(selectedCarId.value);
@@ -215,6 +241,12 @@ function openEditModal(record: any) {
         responsible_client_permit: record.responsible_client_permit || '',
         linked_reservation_id: record.linked_reservation_id || null,
         damage_images: record.damage_images || [],
+        oil_change_subtype: (record.oil_change_subtype as 'simple' | 'complete') || 'simple',
+        oil_brand: record.oil_brand || '',
+        oil_filter_changed: Boolean(record.oil_filter_changed),
+        other_filters_changed: record.other_filters_changed || '',
+        inspection_done: Boolean(record.inspection_done),
+        inspection_notes: record.inspection_notes || '',
     };
     damageImageFiles.value = [];
     if (record.car_id) fetchCarReservations(record.car_id);
@@ -268,6 +300,31 @@ async function submitForm() {
             provider: formData.value.provider || null,
             next_due_mileage: formData.value.next_due_mileage || null,
         };
+
+        if (isVidangeMode.value) {
+            const subtype = formData.value.oil_change_subtype || 'simple';
+            payload.oil_change_subtype = subtype;
+            payload.oil_brand = formData.value.oil_brand || null;
+            payload.oil_filter_changed = Boolean(formData.value.oil_filter_changed);
+            // "Complète"-only fields stay null on Simple so the data is clean.
+            payload.other_filters_changed = subtype === 'complete'
+                ? (formData.value.other_filters_changed || null)
+                : null;
+            payload.inspection_done = subtype === 'complete'
+                ? Boolean(formData.value.inspection_done)
+                : false;
+            payload.inspection_notes = subtype === 'complete'
+                ? (formData.value.inspection_notes || null)
+                : null;
+        } else {
+            // Make sure switching to a non-Vidange type wipes Vidange columns.
+            payload.oil_change_subtype = null;
+            payload.oil_brand = null;
+            payload.oil_filter_changed = false;
+            payload.other_filters_changed = null;
+            payload.inspection_done = false;
+            payload.inspection_notes = null;
+        }
 
         if (isRepairMode.value) {
             payload.damage_type = formData.value.damage_type || null;
@@ -583,8 +640,23 @@ onMounted(async () => {
                                     <td class="px-5 py-3.5">
                                         <span class="type-badge" :class="{ 'type-badge-repair': record.maintenance_type === 'REPAIR' }">
                                             {{ MAINTENANCE_TYPE_LABELS[record.maintenance_type] }}
+                                            <span
+                                                v-if="record.maintenance_type === 'OIL_CHANGE' && record.oil_change_subtype"
+                                                class="vidange-chip"
+                                                :class="record.oil_change_subtype === 'complete' ? 'vidange-chip--complete' : 'vidange-chip--simple'"
+                                            >
+                                                <Droplets v-if="record.oil_change_subtype === 'complete'" class="w-2.5 h-2.5" />
+                                                <Droplet v-else class="w-2.5 h-2.5" />
+                                                {{ record.oil_change_subtype === 'complete' ? 'Complète' : 'Simple' }}
+                                            </span>
                                         </span>
                                         <div v-if="record.maintenance_type === 'REPAIR' && record.damage_type" class="text-[11px] text-red-500 font-medium mt-0.5">{{ record.damage_type }}</div>
+                                        <div
+                                            v-if="record.maintenance_type === 'OIL_CHANGE' && record.oil_brand"
+                                            class="text-[11px] text-amber-600 font-medium mt-0.5"
+                                        >
+                                            {{ record.oil_brand }}
+                                        </div>
                                     </td>
                                     <td class="px-5 py-3.5">
                                         <div class="text-sm font-semibold text-gray-900">{{ record.odometer.toLocaleString() }} km</div>
@@ -624,7 +696,18 @@ onMounted(async () => {
                                     <div class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0"><Calendar class="w-4 h-4 text-gray-500" /></div>
                                     <span class="text-sm font-bold text-gray-900">{{ formatDate(record.maintenance_date) }}</span>
                                 </div>
-                                <span class="type-badge" :class="{ 'type-badge-repair': record.maintenance_type === 'REPAIR' }">{{ MAINTENANCE_TYPE_LABELS[record.maintenance_type] }}</span>
+                                <span class="type-badge" :class="{ 'type-badge-repair': record.maintenance_type === 'REPAIR' }">
+                                    {{ MAINTENANCE_TYPE_LABELS[record.maintenance_type] }}
+                                    <span
+                                        v-if="record.maintenance_type === 'OIL_CHANGE' && record.oil_change_subtype"
+                                        class="vidange-chip"
+                                        :class="record.oil_change_subtype === 'complete' ? 'vidange-chip--complete' : 'vidange-chip--simple'"
+                                    >
+                                        <Droplets v-if="record.oil_change_subtype === 'complete'" class="w-2.5 h-2.5" />
+                                        <Droplet v-else class="w-2.5 h-2.5" />
+                                        {{ record.oil_change_subtype === 'complete' ? 'Complète' : 'Simple' }}
+                                    </span>
+                                </span>
                             </div>
                             <div class="flex items-center gap-2.5"><div class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0"><Gauge class="w-4 h-4 text-gray-500" /></div><span class="text-sm text-gray-700">{{ record.odometer.toLocaleString() }} km</span></div>
                             <div v-if="record.provider" class="flex items-center gap-2.5"><div class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0"><MapPin class="w-4 h-4 text-gray-500" /></div><span class="text-sm text-gray-500">{{ record.provider }}</span></div>
@@ -680,6 +763,172 @@ onMounted(async () => {
                                             <ChevronDown class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                                         </div>
                                     </div>
+
+                                    <!-- ===== VIDANGE-SPECIFIC FIELDS ===== -->
+                                    <Transition name="expand">
+                                        <div v-if="isVidangeMode" class="space-y-4 bg-amber-50/40 rounded-xl p-4 ring-1 ring-amber-100">
+                                            <div class="flex items-center gap-2 mb-1">
+                                                <Droplet class="w-4 h-4 text-amber-600" />
+                                                <h4 class="text-sm font-bold text-amber-700 uppercase tracking-wider">Quel type de vidange ?</h4>
+                                            </div>
+
+                                            <!-- Sub-type cards -->
+                                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <button
+                                                    type="button"
+                                                    @click="formData.oil_change_subtype = 'simple'"
+                                                    class="vidange-card"
+                                                    :class="{ 'vidange-card--active': formData.oil_change_subtype === 'simple' }"
+                                                >
+                                                    <div class="vidange-card-icon vidange-card-icon--amber">
+                                                        <Droplet class="w-5 h-5" />
+                                                    </div>
+                                                    <div class="vidange-card-body">
+                                                        <div class="vidange-card-title">Simple</div>
+                                                        <div class="vidange-card-desc">Huile + filtre à huile (optionnel)</div>
+                                                    </div>
+                                                    <div v-if="formData.oil_change_subtype === 'simple'" class="vidange-card-check">
+                                                        <CircleCheck class="w-4 h-4" />
+                                                    </div>
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    @click="formData.oil_change_subtype = 'complete'"
+                                                    class="vidange-card"
+                                                    :class="{ 'vidange-card--active vidange-card--complete': formData.oil_change_subtype === 'complete' }"
+                                                >
+                                                    <div class="vidange-card-icon vidange-card-icon--emerald">
+                                                        <Droplets class="w-5 h-5" />
+                                                    </div>
+                                                    <div class="vidange-card-body">
+                                                        <div class="vidange-card-title">
+                                                            Complète
+                                                            <Sparkles class="inline-block w-3 h-3 text-emerald-500 ml-0.5" />
+                                                        </div>
+                                                        <div class="vidange-card-desc">Full service avec inspection</div>
+                                                    </div>
+                                                    <div v-if="formData.oil_change_subtype === 'complete'" class="vidange-card-check">
+                                                        <CircleCheck class="w-4 h-4" />
+                                                    </div>
+                                                </button>
+                                            </div>
+
+                                            <!-- Oil brand (always required for both subtypes) -->
+                                            <div>
+                                                <label class="form-label">Huile moteur *</label>
+                                                <div class="form-input-wrapper">
+                                                    <Droplet class="form-input-icon" />
+                                                    <input
+                                                        v-model="formData.oil_brand"
+                                                        type="text"
+                                                        required
+                                                        class="form-input"
+                                                        placeholder="Ex: Mobil 1 5W30, Total Quartz 10W40..."
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <!-- Oil filter -->
+                                            <div>
+                                                <label
+                                                    class="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-white ring-1 ring-amber-100 hover:ring-amber-200 cursor-pointer transition-all"
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        v-model="formData.oil_filter_changed"
+                                                        class="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 mt-0.5"
+                                                    />
+                                                    <div class="flex-1">
+                                                        <div class="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
+                                                            <Filter class="w-3.5 h-3.5 text-amber-500" />
+                                                            Filtre à huile remplacé
+                                                            <span
+                                                                class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider"
+                                                                :class="formData.oil_change_subtype === 'complete'
+                                                                    ? 'bg-emerald-100 text-emerald-700'
+                                                                    : 'bg-gray-100 text-gray-500'"
+                                                            >
+                                                                {{ formData.oil_change_subtype === 'complete' ? 'Obligatoire' : 'Optionnel' }}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </label>
+                                            </div>
+
+                                            <!-- Complète-only: other filters + inspection -->
+                                            <Transition name="expand">
+                                                <div v-if="formData.oil_change_subtype === 'complete'" class="space-y-3">
+                                                    <div>
+                                                        <label class="form-label flex items-center gap-1">
+                                                            <Filter class="w-3 h-3 text-amber-500" />
+                                                            Autres filtres remplacés
+                                                            <span class="ml-1 text-[10px] font-medium text-gray-400 normal-case">(optionnel)</span>
+                                                        </label>
+                                                        <div class="form-input-wrapper">
+                                                            <Filter class="form-input-icon" />
+                                                            <input
+                                                                v-model="formData.other_filters_changed"
+                                                                type="text"
+                                                                class="form-input"
+                                                                placeholder="Ex: Filtre à air, habitacle, carburant..."
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <div>
+                                                        <label
+                                                            class="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-white ring-1 ring-emerald-100 hover:ring-emerald-200 cursor-pointer transition-all"
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                v-model="formData.inspection_done"
+                                                                class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 mt-0.5"
+                                                            />
+                                                            <div class="flex-1">
+                                                                <div class="text-sm font-semibold text-gray-800 flex items-center gap-1.5">
+                                                                    <ClipboardCheck class="w-3.5 h-3.5 text-emerald-500" />
+                                                                    Inspection effectuée
+                                                                    <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700">
+                                                                        Obligatoire
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </label>
+
+                                                        <div v-if="formData.inspection_done" class="form-input-wrapper items-start mt-2">
+                                                            <FileText class="form-input-icon mt-2.5" />
+                                                            <textarea
+                                                                v-model="formData.inspection_notes"
+                                                                rows="2"
+                                                                class="form-input"
+                                                                placeholder="Notes d'inspection (freins, suspension, pneus, fuites...)"
+                                                            ></textarea>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </Transition>
+
+                                            <!-- Next due mileage (moved here so all Vidange info is grouped) -->
+                                            <div>
+                                                <label class="form-label flex items-center gap-1">
+                                                    <Gauge class="w-3 h-3 text-amber-500" />
+                                                    Prochaine vidange à (km)
+                                                    <span class="ml-1 text-[10px] font-medium text-gray-400 normal-case">(optionnel)</span>
+                                                </label>
+                                                <div class="form-input-wrapper">
+                                                    <Gauge class="form-input-icon" />
+                                                    <input
+                                                        v-model.number="formData.next_due_mileage"
+                                                        type="number"
+                                                        min="0"
+                                                        class="form-input"
+                                                        placeholder="Ex: 50000"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </Transition>
 
                                     <!-- ===== REPAIR-SPECIFIC FIELDS ===== -->
                                     <Transition name="expand">
@@ -809,15 +1058,6 @@ onMounted(async () => {
                                                 <DollarSign class="form-input-icon" />
                                                 <input v-model.number="formData.cost" type="number" min="0" step="0.01" required class="form-input" placeholder="Ex: 150.00" />
                                             </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Next Due Mileage -->
-                                    <div v-if="formData.maintenance_type === 'OIL_CHANGE'">
-                                        <label class="form-label">Prochaine Vidange à (km)</label>
-                                        <div class="form-input-wrapper">
-                                            <Gauge class="form-input-icon" />
-                                            <input v-model.number="formData.next_due_mileage" type="number" min="0" class="form-input" placeholder="Ex: 50000" />
                                         </div>
                                     </div>
 
@@ -969,4 +1209,124 @@ onMounted(async () => {
 .expand-enter-active, .expand-leave-active { transition: all 0.3s ease; overflow: hidden; }
 .expand-enter-from, .expand-leave-to { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; margin-top: 0; margin-bottom: 0; }
 .expand-enter-to, .expand-leave-from { opacity: 1; max-height: 1000px; }
+
+/* ────────────────────────────────────────────
+ * Vidange Simple / Complète sub-type cards
+ * ──────────────────────────────────────────── */
+.vidange-card {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+    background: white;
+    border: 1.5px solid rgb(229 231 235);
+    border-radius: 0.85rem;
+    cursor: pointer;
+    transition:
+        transform 0.18s cubic-bezier(0.32, 0.72, 0, 1),
+        border-color 0.18s ease,
+        box-shadow 0.18s ease,
+        background 0.18s ease;
+    text-align: left;
+}
+
+.vidange-card:hover {
+    transform: translateY(-1px);
+    border-color: rgb(252 211 77);
+    box-shadow: 0 6px 14px -8px rgba(251, 191, 36, 0.5);
+}
+
+.vidange-card--active {
+    border-color: rgb(245 158 11);
+    background: linear-gradient(180deg, rgba(254, 243, 199, 0.7), rgba(254, 243, 199, 0.2));
+    box-shadow:
+        inset 0 0 0 1.5px rgb(245 158 11),
+        0 8px 18px -10px rgba(245, 158, 11, 0.5);
+}
+
+.vidange-card--complete.vidange-card--active {
+    border-color: rgb(16 185 129);
+    background: linear-gradient(180deg, rgba(209, 250, 229, 0.6), rgba(209, 250, 229, 0.15));
+    box-shadow:
+        inset 0 0 0 1.5px rgb(16 185 129),
+        0 8px 18px -10px rgba(16, 185, 129, 0.5);
+}
+
+.vidange-card-icon {
+    flex-shrink: 0;
+    width: 2.4rem;
+    height: 2.4rem;
+    border-radius: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.vidange-card-icon--amber {
+    background: linear-gradient(135deg, #fcd34d, #f59e0b);
+    color: white;
+    box-shadow: 0 4px 10px -4px rgba(245, 158, 11, 0.5);
+}
+
+.vidange-card-icon--emerald {
+    background: linear-gradient(135deg, #34d399, #10b981);
+    color: white;
+    box-shadow: 0 4px 10px -4px rgba(16, 185, 129, 0.5);
+}
+
+.vidange-card-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.vidange-card-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: rgb(17 24 39);
+    line-height: 1.2;
+}
+
+.vidange-card-desc {
+    margin-top: 0.15rem;
+    font-size: 0.75rem;
+    color: rgb(107 114 128);
+    line-height: 1.3;
+}
+
+.vidange-card-check {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 1.4rem;
+    height: 1.4rem;
+    background: white;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: rgb(16 185 129);
+    box-shadow: 0 2px 5px -2px rgba(0, 0, 0, 0.15);
+}
+
+.vidange-card--active:not(.vidange-card--complete) .vidange-card-check {
+    color: rgb(245 158 11);
+}
+
+/* Vidange sub-type chip used in the history table/cards */
+.vidange-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-left: 0.35rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 0.4rem;
+    font-size: 0.625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    line-height: 1.2;
+}
+.vidange-chip--simple { background: rgb(254 243 199); color: rgb(146 64 14); }
+.vidange-chip--complete { background: rgb(209 250 229); color: rgb(6 95 70); }
 </style>

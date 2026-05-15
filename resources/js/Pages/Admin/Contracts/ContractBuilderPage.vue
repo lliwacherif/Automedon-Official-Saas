@@ -430,9 +430,12 @@ function closeLocataireSuggestionsWithDelay() {
   }, 200);
 }
 
-function selectLocataireClient(client: FaithfulClient) {
-  // Resolve "Nom" / "Prénom" from the stored split fields, falling back
-  // to a naive split of full_name for legacy rows.
+/**
+ * Split a FaithfulClient into the contract's nom / prenom / dob slots, with
+ * a fallback to naively splitting full_name for legacy rows that only have
+ * full_name set. Reused by both Locataire and Conducteur autocompletes.
+ */
+function splitFaithfulClient(client: FaithfulClient) {
   let nom = client.last_name || '';
   let prenom = client.first_name || '';
   if (!nom && !prenom && client.full_name) {
@@ -453,6 +456,12 @@ function selectLocataireClient(client: FaithfulClient) {
     }
   }
 
+  return { nom, prenom, dob };
+}
+
+function selectLocataireClient(client: FaithfulClient) {
+  const { nom, prenom, dob } = splitFaithfulClient(client);
+
   contractData.value.locataire.nom = nom;
   contractData.value.locataire.prenom = prenom;
   contractData.value.locataire.dob = dob;
@@ -472,6 +481,79 @@ function selectLocataireClient(client: FaithfulClient) {
   showLocataireSuggestions.value = false;
   locataireSuggestions.value = [];
   locataireAutocompleteAnchor.value = null;
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Conducteur (السائق الثاني) — same Clients Fidèles autocomplete as
+// Locataire/Premier conducteur, but bound to the second-driver fields.
+// ──────────────────────────────────────────────────────────────────
+const conducteurSuggestions = ref<FaithfulClient[]>([]);
+const showConducteurSuggestions = ref(false);
+const isSearchingConducteur = ref(false);
+const conducteurAutocompleteAnchor = ref<'name' | 'ci' | null>(null);
+
+async function handleConducteurNameInput() {
+  const query = `${contractData.value.conducteur.prenom || ''} ${contractData.value.conducteur.nom || ''}`.trim();
+  if (!query || query.length < 2) {
+    conducteurSuggestions.value = [];
+    showConducteurSuggestions.value = false;
+    return;
+  }
+  isSearchingConducteur.value = true;
+  try {
+    const results = await searchFaithfulClients(query);
+    conducteurSuggestions.value = results;
+    showConducteurSuggestions.value = results.length > 0;
+    conducteurAutocompleteAnchor.value = 'name';
+  } catch (e) {
+    console.error('Faithful client search failed (conducteur):', e);
+  } finally {
+    isSearchingConducteur.value = false;
+  }
+}
+
+async function handleConducteurCinInput() {
+  const query = (contractData.value.conducteur.ci || '').trim();
+  if (!query || query.length < 2) {
+    conducteurSuggestions.value = [];
+    showConducteurSuggestions.value = false;
+    return;
+  }
+  isSearchingConducteur.value = true;
+  try {
+    const results = await searchFaithfulClients(query);
+    conducteurSuggestions.value = results;
+    showConducteurSuggestions.value = results.length > 0;
+    conducteurAutocompleteAnchor.value = 'ci';
+  } catch (e) {
+    console.error('Faithful client search by CIN failed (conducteur):', e);
+  } finally {
+    isSearchingConducteur.value = false;
+  }
+}
+
+function closeConducteurSuggestionsWithDelay() {
+  setTimeout(() => {
+    showConducteurSuggestions.value = false;
+  }, 200);
+}
+
+function selectConducteurClient(client: FaithfulClient) {
+  const { nom, prenom, dob } = splitFaithfulClient(client);
+
+  contractData.value.conducteur.nom = nom;
+  contractData.value.conducteur.prenom = prenom;
+  contractData.value.conducteur.dob = dob;
+  contractData.value.conducteur.ci = client.cin || '';
+  contractData.value.conducteur.ciDate = client.cin_date || '';
+  contractData.value.conducteur.adresse = client.address || '';
+  contractData.value.conducteur.telephone = client.phone || '';
+  contractData.value.conducteur.permis = client.permit_number || '';
+  contractData.value.conducteur.permisDate = client.permit_date || '';
+
+  showConducteurSuggestions.value = false;
+  conducteurSuggestions.value = [];
+  conducteurAutocompleteAnchor.value = null;
 }
 
 // Active contract template — driven by tenant.contract_template
@@ -1211,10 +1293,83 @@ onMounted(async () => {
             <ChevronDown class="h-4 w-4 transition-transform" :class="{ 'rotate-180': collapsedSections.conducteur }" />
           </button>
           <div v-show="!collapsedSections.conducteur" class="sb-body">
-            <div class="sb-field"><label>Nom</label><input v-model="contractData.conducteur.nom" /></div>
-            <div class="sb-field"><label>Prénom</label><input v-model="contractData.conducteur.prenom" /></div>
+            <p class="sb-hint sb-hint-accent">
+              <Search class="w-3 h-3" />
+              Tapez un nom, prénom <strong>ou CIN</strong> pour rechercher dans vos Clients Fidèles et auto-remplir tous les champs.
+            </p>
+            <div class="sb-autocomplete-wrap">
+              <div class="sb-field">
+                <label>Nom</label>
+                <input
+                  v-model="contractData.conducteur.nom"
+                  @input="handleConducteurNameInput"
+                  @focus="handleConducteurNameInput"
+                  @blur="closeConducteurSuggestionsWithDelay"
+                  autocomplete="off"
+                />
+              </div>
+              <div class="sb-field">
+                <label>Prénom</label>
+                <input
+                  v-model="contractData.conducteur.prenom"
+                  @input="handleConducteurNameInput"
+                  @focus="handleConducteurNameInput"
+                  @blur="closeConducteurSuggestionsWithDelay"
+                  autocomplete="off"
+                />
+              </div>
+
+              <div v-if="showConducteurSuggestions && conducteurAutocompleteAnchor === 'name'" class="sb-suggestions">
+                <button
+                  v-for="client in conducteurSuggestions"
+                  :key="client.id"
+                  type="button"
+                  class="sb-suggestion-item"
+                  @mousedown.prevent="selectConducteurClient(client)"
+                >
+                  <div class="sb-sug-avatar">{{ client.full_name.charAt(0).toUpperCase() }}</div>
+                  <div class="sb-sug-info">
+                    <div class="sb-sug-name">{{ client.full_name }}</div>
+                    <div class="sb-sug-meta">
+                      <span class="sb-sug-cin">{{ client.cin }}</span>
+                      <span v-if="client.phone">· {{ client.phone }}</span>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
             <div class="sb-field"><label>Date et Lieu de Naissance</label><input v-model="contractData.conducteur.dob" placeholder="JJ/MM/AAAA — Lieu" /></div>
-            <div class="sb-field"><label>N° CI ou Passeport</label><input v-model="contractData.conducteur.ci" /></div>
+            <div class="sb-autocomplete-wrap">
+              <div class="sb-field">
+                <label>N° CI ou Passeport</label>
+                <input
+                  v-model="contractData.conducteur.ci"
+                  @input="handleConducteurCinInput"
+                  @focus="handleConducteurCinInput"
+                  @blur="closeConducteurSuggestionsWithDelay"
+                  autocomplete="off"
+                />
+              </div>
+
+              <div v-if="showConducteurSuggestions && conducteurAutocompleteAnchor === 'ci'" class="sb-suggestions">
+                <button
+                  v-for="client in conducteurSuggestions"
+                  :key="client.id"
+                  type="button"
+                  class="sb-suggestion-item"
+                  @mousedown.prevent="selectConducteurClient(client)"
+                >
+                  <div class="sb-sug-avatar">{{ client.full_name.charAt(0).toUpperCase() }}</div>
+                  <div class="sb-sug-info">
+                    <div class="sb-sug-name">{{ client.full_name }}</div>
+                    <div class="sb-sug-meta">
+                      <span class="sb-sug-cin">{{ client.cin }}</span>
+                      <span v-if="client.phone">· {{ client.phone }}</span>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
             <div class="sb-field"><label>Date de délivrance (CIN/Passport)</label><input v-model="contractData.conducteur.ciDate" placeholder="JJ/MM/AAAA" /></div>
             <div class="sb-field"><label>Nationalité</label><input v-model="contractData.conducteur.nationalite" /></div>
             <div class="sb-field"><label>Adresse</label><input v-model="contractData.conducteur.adresse" /></div>

@@ -5,6 +5,8 @@ import type { Database } from '@/types/supabase';
 
 export type MaintenanceType = 'OIL_CHANGE' | 'BRAKE_SERVICE' | 'REPAIR' | 'ROUTINE_CHECK' | 'LAVAGE' | 'ASSURANCE' | 'VIGNETTE' | 'LEASING' | 'TIRES' | 'BATTERY';
 
+export type OilChangeSubtype = 'simple' | 'complete';
+
 export interface MaintenanceRecord {
     id: number;
     created_at: string;
@@ -24,6 +26,13 @@ export interface MaintenanceRecord {
     responsible_client_permit: string | null;
     linked_reservation_id: number | null;
     damage_images: string[] | null;
+    // OIL_CHANGE-specific fields
+    oil_change_subtype: OilChangeSubtype | null;
+    oil_brand: string | null;
+    oil_filter_changed: boolean | null;
+    other_filters_changed: string | null;
+    inspection_done: boolean | null;
+    inspection_notes: string | null;
 }
 
 // French labels for maintenance types
