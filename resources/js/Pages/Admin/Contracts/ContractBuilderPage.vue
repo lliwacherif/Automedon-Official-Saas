@@ -117,6 +117,9 @@ const { searchFaithfulClients } = useFaithfulClients();
 const locataireSuggestions = ref<FaithfulClient[]>([]);
 const showLocataireSuggestions = ref(false);
 const isSearchingLocataire = ref(false);
+// Which field triggered the current suggestion list — controls which input
+// the dropdown is anchored under (Nom/Prénom block vs CIN block).
+const locataireAutocompleteAnchor = ref<'name' | 'ci' | null>(null);
 
 async function handleLocataireNameInput() {
   const query = `${contractData.value.locataire.prenom || ''} ${contractData.value.locataire.nom || ''}`.trim();
@@ -130,8 +133,29 @@ async function handleLocataireNameInput() {
     const results = await searchFaithfulClients(query);
     locataireSuggestions.value = results;
     showLocataireSuggestions.value = results.length > 0;
+    locataireAutocompleteAnchor.value = 'name';
   } catch (e) {
     console.error('Faithful client search failed:', e);
+  } finally {
+    isSearchingLocataire.value = false;
+  }
+}
+
+async function handleLocataireCinInput() {
+  const query = (contractData.value.locataire.ci || '').trim();
+  if (!query || query.length < 2) {
+    locataireSuggestions.value = [];
+    showLocataireSuggestions.value = false;
+    return;
+  }
+  isSearchingLocataire.value = true;
+  try {
+    const results = await searchFaithfulClients(query);
+    locataireSuggestions.value = results;
+    showLocataireSuggestions.value = results.length > 0;
+    locataireAutocompleteAnchor.value = 'ci';
+  } catch (e) {
+    console.error('Faithful client search by CIN failed:', e);
   } finally {
     isSearchingLocataire.value = false;
   }
@@ -184,6 +208,7 @@ function selectLocataireClient(client: FaithfulClient) {
 
   showLocataireSuggestions.value = false;
   locataireSuggestions.value = [];
+  locataireAutocompleteAnchor.value = null;
 }
 
 // Active contract template — driven by tenant.contract_template
@@ -806,7 +831,7 @@ onMounted(async () => {
           <div v-show="!collapsedSections.locataire" class="sb-body">
             <p class="sb-hint sb-hint-accent">
               <Search class="w-3 h-3" />
-              Tapez un nom ou prénom pour rechercher dans vos Clients Fidèles et auto-remplir tous les champs.
+              Tapez un nom, prénom <strong>ou CIN</strong> pour rechercher dans vos Clients Fidèles et auto-remplir tous les champs.
             </p>
             <div class="sb-autocomplete-wrap">
               <div class="sb-field">
@@ -830,7 +855,7 @@ onMounted(async () => {
                 />
               </div>
 
-              <div v-if="showLocataireSuggestions" class="sb-suggestions">
+              <div v-if="showLocataireSuggestions && locataireAutocompleteAnchor === 'name'" class="sb-suggestions">
                 <button
                   v-for="client in locataireSuggestions"
                   :key="client.id"
@@ -850,7 +875,37 @@ onMounted(async () => {
               </div>
             </div>
             <div class="sb-field"><label>Date et Lieu de Naissance</label><input v-model="contractData.locataire.dob" placeholder="JJ/MM/AAAA — Lieu" /></div>
-            <div class="sb-field"><label>N° CI ou Passeport</label><input v-model="contractData.locataire.ci" /></div>
+            <div class="sb-autocomplete-wrap">
+              <div class="sb-field">
+                <label>N° CI ou Passeport</label>
+                <input
+                  v-model="contractData.locataire.ci"
+                  @input="handleLocataireCinInput"
+                  @focus="handleLocataireCinInput"
+                  @blur="closeLocataireSuggestionsWithDelay"
+                  autocomplete="off"
+                />
+              </div>
+
+              <div v-if="showLocataireSuggestions && locataireAutocompleteAnchor === 'ci'" class="sb-suggestions">
+                <button
+                  v-for="client in locataireSuggestions"
+                  :key="client.id"
+                  type="button"
+                  class="sb-suggestion-item"
+                  @mousedown.prevent="selectLocataireClient(client)"
+                >
+                  <div class="sb-sug-avatar">{{ client.full_name.charAt(0).toUpperCase() }}</div>
+                  <div class="sb-sug-info">
+                    <div class="sb-sug-name">{{ client.full_name }}</div>
+                    <div class="sb-sug-meta">
+                      <span class="sb-sug-cin">{{ client.cin }}</span>
+                      <span v-if="client.phone">· {{ client.phone }}</span>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
             <div class="sb-field"><label>Date de délivrance (CIN/Passport)</label><input v-model="contractData.locataire.ciDate" placeholder="JJ/MM/AAAA" /></div>
             <div class="sb-field"><label>Nationalité</label><input v-model="contractData.locataire.nationalite" /></div>
             <div class="sb-field"><label>Adresse</label><input v-model="contractData.locataire.adresse" /></div>
