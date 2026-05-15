@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ArrowLeft, FileDown, Loader2, Save, Check, ChevronDown, Sparkles, Search } from 'lucide-vue-next';
+import { ArrowLeft, FileDown, Loader2, Save, Check, ChevronDown, Sparkles, Search, CalendarPlus, AlertCircle, ExternalLink, X } from 'lucide-vue-next';
 import ContractTemplate from '@/components/Contracts/ContractTemplate.vue';
 import ContractTemplateV2 from '@/components/Contracts/ContractTemplateV2.vue';
 import type { ContractData } from '@/components/Contracts/ContractTemplate.vue';
@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { useTenantStore } from '@/stores/tenant';
 import { useCars } from '@/composables/useCars';
 import { useFaithfulClients, type FaithfulClient } from '@/composables/useFaithfulClients';
+import { useReservations } from '@/composables/useReservations';
 // @ts-ignore
 // html-to-image captures the contract via SVG <foreignObject>, which
 // delegates rendering back to the browser's native engine. This is the
@@ -95,7 +96,7 @@ const companySettings = ref({ address: '', mf: '', email: '', gsm: '', rib: '' }
 // Fleet picker — lets the user select a car from the agency's fleet
 // to pre-fill marque / immatriculation in the Véhicule section.
 // ──────────────────────────────────────────────────────────────────
-const { cars, fetchCars } = useCars();
+const { cars, fetchCars, updateCar } = useCars();
 const selectedFleetCarId = ref<number | null>(null);
 
 function onFleetCarSelected(value: string) {
@@ -106,6 +107,268 @@ function onFleetCarSelected(value: string) {
   if (!car) return;
   contractData.value.vehicule.marque = `${car.brand} ${car.model}`.trim();
   contractData.value.vehicule.immatriculation = car.plate_number || '';
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Save-as-reservation — turns a blank contract into a fully-fledged
+// reservation in one click. Available only in blank mode (where no
+// reservation backs the contract yet).
+// ──────────────────────────────────────────────────────────────────
+const { createReservation } = useReservations();
+
+const showSaveAsReservationModal = ref(false);
+const saveAsReservationLoading = ref(false);
+const saveAsReservationError = ref<string | null>(null);
+const saveAsReservationSuccess = ref<{ id: number; reservation_number: string } | null>(null);
+
+/** "YYYY-MM-DD" (from <input type="date">) → "DD/MM/YYYY". Empty in / empty out. */
+function isoToFrenchDate(iso: string): string {
+  if (!iso) return '';
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return '';
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+/** "DD/MM/YYYY" → "YYYY-MM-DD" for <input type="date">. Returns '' on bad input. */
+function frenchDateToIso(fr: string): string {
+  if (!fr) return '';
+  const parts = fr.split(/[/\-.]/).map((p) => p.trim());
+  if (parts.length !== 3) return '';
+  const [dd, mm, yyyy] = parts;
+  if (!dd || !mm || !yyyy) return '';
+  if (isNaN(+dd) || isNaN(+mm) || isNaN(+yyyy)) return '';
+  return `${yyyy.padStart(4, '0')}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+}
+
+/** Parse a JJ/MM/AAAA date + an optional HH:MM time into a local Date. */
+function parseFrenchDateTime(dateStr: string, timeStr: string): Date | null {
+  if (!dateStr) return null;
+  const parts = dateStr.split(/[/\-.]/).map((p) => p.trim());
+  if (parts.length !== 3) return null;
+  const [ddStr, mmStr, yyyyStr] = parts;
+  const dd = parseInt(ddStr, 10);
+  const mm = parseInt(mmStr, 10);
+  const yyyy = parseInt(yyyyStr, 10);
+  if (!dd || !mm || !yyyy) return null;
+
+  let hour = 0;
+  let minute = 0;
+  if (timeStr) {
+    const timeParts = timeStr.split(':').map((p) => p.trim());
+    if (timeParts.length >= 2) {
+      hour = parseInt(timeParts[0], 10) || 0;
+      minute = parseInt(timeParts[1], 10) || 0;
+    }
+  }
+  const d = new Date(yyyy, mm - 1, dd, hour, minute, 0);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// Two-way bindings for the native <input type="date"> pickers in the
+// "Période de location" section. The contract template still stores
+// dates as JJ/MM/AAAA strings, but the user gets a real calendar widget.
+const periodeDepartDateInput = computed({
+  get: () => frenchDateToIso(contractData.value.periode.departDate),
+  set: (v: string) => {
+    contractData.value.periode.departDate = isoToFrenchDate(v);
+  },
+});
+
+const periodeRetourDateInput = computed({
+  get: () => frenchDateToIso(contractData.value.periode.retourDate),
+  set: (v: string) => {
+    contractData.value.periode.retourDate = isoToFrenchDate(v);
+  },
+});
+
+/** Live preview of the reservation that would be created from the current contract. */
+const reservationPreview = computed(() => {
+  const d = contractData.value;
+
+  // Resolve car: prefer the explicit fleet selection, then fall back to
+  // matching by plate (case-insensitive, ignoring whitespace).
+  let car: { id: number; brand: string; model: string; plate: string } | null = null;
+  if (selectedFleetCarId.value) {
+    const c = cars.value.find((c) => c.id === selectedFleetCarId.value);
+    if (c) car = { id: c.id, brand: c.brand, model: c.model, plate: c.plate_number || '' };
+  } else if (d.vehicule.immatriculation) {
+    const wanted = d.vehicule.immatriculation.replace(/\s+/g, '').toLowerCase();
+    const c = cars.value.find(
+      (c) => (c.plate_number || '').replace(/\s+/g, '').toLowerCase() === wanted,
+    );
+    if (c) car = { id: c.id, brand: c.brand, model: c.model, plate: c.plate_number || '' };
+  }
+
+  const start = parseFrenchDateTime(d.periode.departDate, d.periode.departHeure);
+  const end = parseFrenchDateTime(d.periode.retourDate, d.periode.retourHeure);
+
+  let durationDays = 0;
+  if (start && end && end > start) {
+    durationDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)));
+  }
+
+  const clientName = `${d.locataire.prenom || ''} ${d.locataire.nom || ''}`.trim();
+  const secondDriverName = `${d.conducteur.prenom || ''} ${d.conducteur.nom || ''}`.trim();
+
+  const totalPrice = Number(d.encaissement.totalPartiel) || 0;
+  const advancePayment = Number(d.v2?.reglement?.avance) || 0;
+
+  return {
+    car,
+    start,
+    end,
+    durationDays,
+    clientName,
+    clientCin: d.locataire.ci || '',
+    clientPhone: d.locataire.telephone || '',
+    clientPermit: d.locataire.permis || '',
+    clientAddress: d.locataire.adresse || '',
+    secondDriverName,
+    secondDriverCin: d.conducteur.ci || '',
+    contractNumber: d.contractNumber || '',
+    totalPrice,
+    advancePayment,
+    pricePerDay: durationDays > 0 ? Math.round((totalPrice / durationDays) * 1000) / 1000 : totalPrice,
+  };
+});
+
+/** Human-readable issues that must be fixed before a reservation can be created. */
+const reservationValidationErrors = computed<string[]>(() => {
+  const errs: string[] = [];
+  const p = reservationPreview.value;
+  const plate = contractData.value.vehicule.immatriculation;
+  if (!p.car) {
+    errs.push(
+      plate
+        ? `Aucun véhicule de la flotte ne correspond à la plaque « ${plate} ». Sélectionnez-en un depuis « Sélectionner depuis la flotte ».`
+        : "Aucun véhicule sélectionné — utilisez « Sélectionner depuis la flotte » dans la section Véhicule.",
+    );
+  }
+  if (!p.start) errs.push("Date/heure de départ manquante (Période de location).");
+  if (!p.end) errs.push("Date/heure de retour manquante (Période de location).");
+  if (p.start && p.end && p.end <= p.start) {
+    errs.push("La date de retour doit être après la date de départ.");
+  }
+  if (!p.clientName) errs.push("Nom et prénom du locataire requis.");
+  if (!p.clientCin) errs.push("N° CI ou Passeport du locataire requis.");
+  return errs;
+});
+
+const canSaveAsReservation = computed(() => reservationValidationErrors.value.length === 0);
+
+function openSaveAsReservationModal() {
+  saveAsReservationError.value = null;
+  saveAsReservationSuccess.value = null;
+  showSaveAsReservationModal.value = true;
+}
+
+function closeSaveAsReservationModal() {
+  if (saveAsReservationLoading.value) return;
+  showSaveAsReservationModal.value = false;
+}
+
+async function confirmSaveAsReservation() {
+  if (!canSaveAsReservation.value || saveAsReservationLoading.value) return;
+
+  saveAsReservationLoading.value = true;
+  saveAsReservationError.value = null;
+
+  try {
+    const p = reservationPreview.value;
+    const d = contractData.value;
+    const now = new Date();
+    const isActiveNow = p.start! <= now && p.end! >= now;
+    const isFuture = p.start! > now;
+    const status = isActiveNow ? 'active' : isFuture ? 'confirmed' : 'completed';
+
+    const hasSecondDriver = Boolean(p.secondDriverName || p.secondDriverCin);
+
+    const payload: Record<string, unknown> = {
+      client_name: p.clientName,
+      client_cin: p.clientCin,
+      client_phone: p.clientPhone,
+      client_permit_number: p.clientPermit || null,
+      client_cin_date: d.locataire.ciDate || null,
+      client_permit_date: d.locataire.permisDate || null,
+      client_address: p.clientAddress || null,
+      car_id: p.car!.id,
+      start_date: p.start!.toISOString(),
+      end_date: p.end!.toISOString(),
+      duration_days: p.durationDays || 1,
+      price_per_day: p.pricePerDay,
+      total_price: p.totalPrice,
+      advance_payment: p.advancePayment,
+      caution: 0,
+      caution_currency: 'DT',
+      status,
+      contract_number: p.contractNumber || null,
+      notes: `Réservation créée depuis le Contrat Vierge${d.preparedBy ? ' par ' + d.preparedBy : ''}.`,
+    };
+
+    if (hasSecondDriver) {
+      payload.second_driver_name = p.secondDriverName || null;
+      payload.second_driver_cin = p.secondDriverCin || null;
+      payload.second_driver_phone = d.conducteur.telephone || null;
+      payload.second_driver_permit_number = d.conducteur.permis || null;
+      payload.second_driver_cin_date = d.conducteur.ciDate || null;
+      payload.second_driver_permit_date = d.conducteur.permisDate || null;
+      payload.second_driver_address = d.conducteur.adresse || null;
+    }
+
+    const created = await createReservation(payload as any);
+    if (!created || !created.id) {
+      throw new Error("La création de la réservation a échoué (aucune donnée retournée).");
+    }
+
+    // If the rental window already covers "now", force the car into 'loué' so
+    // the Fleet page reflects reality instantly. The fetchCars overlay will
+    // keep it consistent for past/future windows.
+    if (isActiveNow && p.car) {
+      try {
+        await updateCar(p.car.id, { status: 'loue' });
+      } catch (e) {
+        console.warn('Could not mark car as loué after creating reservation:', e);
+      }
+    }
+
+    // Best-effort: persist the contract data and link it to the new
+    // reservation so it shows up later under /admin/contracts/:id/build.
+    const tenantId = tenantStore.currentTenant?.id;
+    if (tenantId) {
+      try {
+        await (supabase.from('rental_contracts') as any).insert([
+          {
+            tenant_id: tenantId,
+            reservation_id: created.id,
+            contract_number: d.contractNumber || null,
+            contract_data: JSON.parse(JSON.stringify(d)),
+            updated_at: new Date().toISOString(),
+          },
+        ]);
+      } catch (e) {
+        console.warn('Could not persist contract data for new reservation:', e);
+      }
+    }
+
+    saveAsReservationSuccess.value = {
+      id: created.id,
+      reservation_number: created.reservation_number || `#${created.id}`,
+    };
+  } catch (e: any) {
+    saveAsReservationError.value = e?.message || "Erreur lors de la création de la réservation.";
+  } finally {
+    saveAsReservationLoading.value = false;
+  }
+}
+
+function goToCreatedReservation() {
+  if (!saveAsReservationSuccess.value) return;
+  const tenantSlug = tenantStore.currentTenant?.slug;
+  if (!tenantSlug) return;
+  router.push({
+    name: 'admin.reservations.show',
+    params: { tenantSlug, id: saveAsReservationSuccess.value.id },
+  });
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -744,6 +1007,18 @@ onMounted(async () => {
             <span class="hidden sm:inline">{{ saved ? 'Enregistré !' : 'Enregistrer' }}</span>
           </button>
 
+          <!-- Save as Reservation (blank mode only) -->
+          <button
+            v-if="isBlankMode"
+            @click="openSaveAsReservationModal"
+            :disabled="loading"
+            class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+            title="Créer une réservation à partir de ce contrat"
+          >
+            <CalendarPlus class="h-4 w-4" />
+            <span class="hidden sm:inline">Sauvegarder comme réservation</span>
+          </button>
+
           <!-- Download PDF -->
           <button
             @click="downloadPdf"
@@ -1023,12 +1298,12 @@ onMounted(async () => {
           </button>
           <div v-show="!collapsedSections.periode" class="sb-body">
             <div class="sb-row-2">
-              <div class="sb-field"><label>Départ — Date</label><input v-model="contractData.periode.departDate" placeholder="JJ/MM/AAAA" /></div>
-              <div class="sb-field"><label>Départ — Heure</label><input v-model="contractData.periode.departHeure" placeholder="HH:MM" /></div>
+              <div class="sb-field"><label>Départ — Date</label><input v-model="periodeDepartDateInput" type="date" /></div>
+              <div class="sb-field"><label>Départ — Heure</label><input v-model="contractData.periode.departHeure" type="time" /></div>
             </div>
             <div class="sb-row-2">
-              <div class="sb-field"><label>Retour prévu — Date</label><input v-model="contractData.periode.retourDate" placeholder="JJ/MM/AAAA" /></div>
-              <div class="sb-field"><label>Retour prévu — Heure</label><input v-model="contractData.periode.retourHeure" placeholder="HH:MM" /></div>
+              <div class="sb-field"><label>Retour prévu — Date</label><input v-model="periodeRetourDateInput" type="date" /></div>
+              <div class="sb-field"><label>Retour prévu — Heure</label><input v-model="contractData.periode.retourHeure" type="time" /></div>
             </div>
             <div class="sb-field"><label>KM de départ</label><input v-model="contractData.periode.kmDepart" placeholder="89 813" /></div>
             <div class="sb-field"><label>KM de retour</label><input v-model="contractData.periode.kmRetour" /></div>
@@ -1174,6 +1449,155 @@ onMounted(async () => {
         </div>
       </section>
     </main>
+
+    <!-- Save-as-reservation confirmation modal -->
+    <Teleport to="body">
+      <Transition name="cb-modal">
+        <div v-if="showSaveAsReservationModal" class="cb-modal-root">
+          <div class="cb-modal-backdrop" @click="closeSaveAsReservationModal"></div>
+          <div class="cb-modal-card">
+            <header class="cb-modal-header">
+              <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-md shadow-emerald-200">
+                  <CalendarPlus class="w-4.5 h-4.5 text-white" />
+                </div>
+                <div>
+                  <h3 class="text-base font-bold text-slate-900">
+                    {{ saveAsReservationSuccess ? 'Réservation créée' : 'Sauvegarder comme réservation' }}
+                  </h3>
+                  <p class="text-xs text-slate-500">
+                    {{ saveAsReservationSuccess
+                      ? 'La réservation a été créée à partir de ce contrat.'
+                      : 'Confirmez pour transformer ce contrat en réservation.' }}
+                  </p>
+                </div>
+              </div>
+              <button @click="closeSaveAsReservationModal" class="cb-modal-close" :disabled="saveAsReservationLoading">
+                <X class="h-4 w-4" />
+              </button>
+            </header>
+
+            <div class="cb-modal-body">
+              <!-- Success state -->
+              <template v-if="saveAsReservationSuccess">
+                <div class="cb-success">
+                  <div class="cb-success-icon">
+                    <Check class="h-6 w-6" />
+                  </div>
+                  <div class="cb-success-text">
+                    <p class="text-sm font-semibold text-slate-900">
+                      Réservation
+                      <span class="cb-res-number">{{ saveAsReservationSuccess.reservation_number }}</span>
+                    </p>
+                    <p class="text-xs text-slate-500 mt-1">
+                      Les données du contrat ont été reportées dans la nouvelle réservation. Le contrat est lié et accessible depuis la fiche de réservation.
+                    </p>
+                  </div>
+                </div>
+              </template>
+
+              <!-- Validation errors -->
+              <template v-else-if="reservationValidationErrors.length > 0">
+                <p class="text-xs text-slate-500 mb-3">
+                  Pour créer la réservation, complétez d'abord les informations suivantes :
+                </p>
+                <ul class="cb-error-list">
+                  <li v-for="(err, idx) in reservationValidationErrors" :key="idx">
+                    <AlertCircle class="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" />
+                    <span>{{ err }}</span>
+                  </li>
+                </ul>
+              </template>
+
+              <!-- Preview state -->
+              <template v-else>
+                <div class="cb-preview-grid">
+                  <div class="cb-preview-row">
+                    <div class="cb-preview-label">Locataire</div>
+                    <div class="cb-preview-value">
+                      <div class="font-semibold text-slate-900">{{ reservationPreview.clientName }}</div>
+                      <div class="text-[11px] text-slate-500 font-mono">{{ reservationPreview.clientCin }}<span v-if="reservationPreview.clientPhone"> · {{ reservationPreview.clientPhone }}</span></div>
+                    </div>
+                  </div>
+                  <div class="cb-preview-row">
+                    <div class="cb-preview-label">Véhicule</div>
+                    <div class="cb-preview-value">
+                      <div class="font-semibold text-slate-900">{{ reservationPreview.car?.brand }} {{ reservationPreview.car?.model }}</div>
+                      <div class="text-[11px] text-slate-500 font-mono">{{ reservationPreview.car?.plate }}</div>
+                    </div>
+                  </div>
+                  <div class="cb-preview-row">
+                    <div class="cb-preview-label">Période</div>
+                    <div class="cb-preview-value">
+                      <div class="text-sm text-slate-700">{{ contractData.periode.departDate }} {{ contractData.periode.departHeure }}</div>
+                      <div class="text-sm text-slate-700">→ {{ contractData.periode.retourDate }} {{ contractData.periode.retourHeure }}</div>
+                      <div class="text-[11px] text-slate-500 mt-0.5">{{ reservationPreview.durationDays }} jour{{ reservationPreview.durationDays > 1 ? 's' : '' }}</div>
+                    </div>
+                  </div>
+                  <div class="cb-preview-row">
+                    <div class="cb-preview-label">Total</div>
+                    <div class="cb-preview-value">
+                      <div class="font-semibold text-slate-900">{{ reservationPreview.totalPrice.toFixed(3) }} DT</div>
+                      <div v-if="reservationPreview.advancePayment > 0" class="text-[11px] text-slate-500">
+                        Avance : {{ reservationPreview.advancePayment.toFixed(3) }} DT
+                      </div>
+                    </div>
+                  </div>
+                  <div v-if="reservationPreview.contractNumber" class="cb-preview-row">
+                    <div class="cb-preview-label">Contrat N°</div>
+                    <div class="cb-preview-value font-mono text-sm text-slate-700">{{ reservationPreview.contractNumber }}</div>
+                  </div>
+                  <div v-if="reservationPreview.secondDriverName" class="cb-preview-row">
+                    <div class="cb-preview-label">2ᵉ conducteur</div>
+                    <div class="cb-preview-value">
+                      <div class="text-sm font-medium text-slate-700">{{ reservationPreview.secondDriverName }}</div>
+                      <div v-if="reservationPreview.secondDriverCin" class="text-[11px] text-slate-500 font-mono">{{ reservationPreview.secondDriverCin }}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="cb-notice">
+                  <Sparkles class="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                  <span>
+                    La voiture sera marquée <strong>louée</strong> si la période couvre maintenant.
+                    Le contrat sera également lié à la réservation et restera accessible depuis sa fiche.
+                  </span>
+                </div>
+
+                <div v-if="saveAsReservationError" class="cb-error-banner">
+                  <AlertCircle class="w-4 h-4 text-red-500 shrink-0" />
+                  <span>{{ saveAsReservationError }}</span>
+                </div>
+              </template>
+            </div>
+
+            <footer class="cb-modal-footer">
+              <template v-if="saveAsReservationSuccess">
+                <button @click="closeSaveAsReservationModal" class="cb-btn cb-btn-ghost">Fermer</button>
+                <button @click="goToCreatedReservation" class="cb-btn cb-btn-primary">
+                  <ExternalLink class="h-4 w-4" />
+                  Voir la réservation
+                </button>
+              </template>
+              <template v-else>
+                <button @click="closeSaveAsReservationModal" :disabled="saveAsReservationLoading" class="cb-btn cb-btn-ghost">
+                  Annuler
+                </button>
+                <button
+                  @click="confirmSaveAsReservation"
+                  :disabled="!canSaveAsReservation || saveAsReservationLoading"
+                  class="cb-btn cb-btn-confirm"
+                >
+                  <Loader2 v-if="saveAsReservationLoading" class="h-4 w-4 animate-spin" />
+                  <Check v-else class="h-4 w-4" />
+                  Confirmer & créer
+                </button>
+              </template>
+            </footer>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -1403,5 +1827,253 @@ onMounted(async () => {
   border-radius: 6px;
   color: #475569;
   font-weight: 600;
+}
+
+/* ─── Save-as-reservation modal ──────────────────────────────── */
+.cb-modal-root {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.cb-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+.cb-modal-card {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  background: white;
+  border-radius: 1.25rem;
+  box-shadow:
+    0 30px 60px -20px rgba(15, 23, 42, 0.35),
+    0 10px 30px -10px rgba(15, 23, 42, 0.18);
+  overflow: hidden;
+}
+
+.cb-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.cb-modal-close {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.cb-modal-close:hover { background: #f1f5f9; color: #475569; }
+.cb-modal-close:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.cb-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.25rem;
+}
+
+.cb-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  padding: 0.85rem 1.25rem;
+  border-top: 1px solid #f1f5f9;
+  background: #fafbfc;
+}
+
+.cb-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 1rem;
+  border-radius: 0.65rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+}
+.cb-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.cb-btn-ghost {
+  background: #f1f5f9;
+  color: #475569;
+}
+.cb-btn-ghost:hover:not(:disabled) { background: #e2e8f0; }
+
+.cb-btn-confirm {
+  background: linear-gradient(180deg, #059669, #047857);
+  color: white;
+  box-shadow: 0 4px 10px -4px rgba(5, 150, 105, 0.4);
+}
+.cb-btn-confirm:hover:not(:disabled) {
+  box-shadow: 0 6px 14px -4px rgba(5, 150, 105, 0.55);
+  transform: translateY(-1px);
+}
+
+.cb-btn-primary {
+  background: linear-gradient(180deg, #4f46e5, #4338ca);
+  color: white;
+  box-shadow: 0 4px 10px -4px rgba(79, 70, 229, 0.4);
+}
+.cb-btn-primary:hover:not(:disabled) {
+  box-shadow: 0 6px 14px -4px rgba(79, 70, 229, 0.55);
+  transform: translateY(-1px);
+}
+
+.cb-preview-grid {
+  display: grid;
+  gap: 0.6rem;
+  margin-bottom: 0.85rem;
+}
+
+.cb-preview-row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 0.75rem;
+  padding: 0.6rem 0.85rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  align-items: start;
+}
+
+.cb-preview-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  padding-top: 2px;
+}
+
+.cb-preview-value {
+  font-size: 13px;
+  color: #1e293b;
+  min-width: 0;
+}
+
+.cb-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  padding: 0.65rem 0.85rem;
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.06), rgba(139, 92, 246, 0.04));
+  border: 1px dashed rgba(99, 102, 241, 0.25);
+  border-radius: 0.75rem;
+  color: #4338ca;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.cb-error-list {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.75rem 0.85rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 0.75rem;
+  list-style: none;
+  margin: 0;
+}
+.cb-error-list li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  font-size: 12px;
+  color: #991b1b;
+  line-height: 1.4;
+}
+
+.cb-error-banner {
+  margin-top: 0.85rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.65rem 0.85rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 0.75rem;
+  color: #991b1b;
+  font-size: 12px;
+}
+
+.cb-success {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 1rem;
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.08), rgba(16, 185, 129, 0.02));
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 0.85rem;
+}
+
+.cb-success-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+  background: linear-gradient(180deg, #10b981, #059669);
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 10px -4px rgba(16, 185, 129, 0.5);
+}
+
+.cb-success-text { min-width: 0; }
+
+.cb-res-number {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+  padding: 1px 8px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 0.4rem;
+  color: #047857;
+  margin-left: 0.4rem;
+  font-weight: 700;
+}
+
+/* Modal enter/leave transition */
+.cb-modal-enter-active,
+.cb-modal-leave-active {
+  transition: opacity 0.2s ease;
+}
+.cb-modal-enter-active .cb-modal-card,
+.cb-modal-leave-active .cb-modal-card {
+  transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.2s ease;
+}
+.cb-modal-enter-from,
+.cb-modal-leave-to {
+  opacity: 0;
+}
+.cb-modal-enter-from .cb-modal-card {
+  opacity: 0;
+  transform: scale(0.95) translateY(8px);
+}
+.cb-modal-leave-to .cb-modal-card {
+  opacity: 0;
+  transform: scale(0.97) translateY(6px);
 }
 </style>
