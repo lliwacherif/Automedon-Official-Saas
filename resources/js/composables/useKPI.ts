@@ -421,10 +421,17 @@ export function useKPI() {
         const occupancyRate = fleetDays > 0 ? Math.min((rentalDays / fleetDays) * 100, 100) : 0;
         const averageBookingDuration = reservationsCount > 0 ? totalDuration / reservationsCount : 0;
 
-        // Outstanding balance — only on reservations that are confirmed/active (not just any)
+        // Outstanding balance — only on reservations that are still in play
+        // (confirmed/active). Completed reservations are treated as paid in
+        // full for KPI purposes, regardless of advance_payment, so contracts
+        // that were saved as past-period reservations from the blank contract
+        // builder don't get counted as "Encours impayé" forever.
         let outstandingBalance = 0;
         let outstandingCount = 0;
         for (const r of p.reservations) {
+            const status = String(r.status || '').toLowerCase();
+            if (status !== 'confirmed' && status !== 'active') continue;
+
             const remaining = Number(r.total_price || 0) - Number(r.advance_payment || 0);
             if (remaining > 0) {
                 outstandingBalance += remaining;
