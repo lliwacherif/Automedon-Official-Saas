@@ -12,7 +12,7 @@ import { useI18n } from 'vue-i18n';
 import { useFaithfulClients, type FaithfulClient } from '@/composables/useFaithfulClients';
 
 const { t } = useI18n();
-const { searchFaithfulClients } = useFaithfulClients();
+const { searchFaithfulClients, isFaithfulClientCinRegistered, createFaithfulClient } = useFaithfulClients();
 const { getReservation, createReservation, updateReservation, checkAvailability } = useReservations();
 
 // Autocomplete State
@@ -87,6 +87,7 @@ const closeSuggestionsWithDelay = () => {
         showClientSuggestions.value = false;
     }, 200);
 };
+
 const { documents, loading: docsLoading, fetchDocuments, uploadDocument, deleteDocument } = useReservationDocuments();
 const { cars, fetchCars, updateCar, fetchCarById } = useCars();
 const { tenantPath } = useTenantLink();
@@ -218,6 +219,125 @@ const reservation = ref<Partial<Reservation>>({
 });
 
 const showSecondDriver = ref(false);
+
+// ──────────────────────────────────────────────────────────────────
+// "Save as Client Fidèle?" proposal — when the admin types a client
+// name + CIN that doesn't match any registered Client Fidèle, propose
+// to register them. Only fires when creating a new reservation (not
+// editing) and never for agency clients.
+// Declared AFTER `reservation` because the watcher reads from it at
+// setup time (Vue evaluates the source function once to track deps).
+// ──────────────────────────────────────────────────────────────────
+const showSuggestRegisterModal = ref(false);
+const suggestRegisterPayload = ref<{
+    full_name: string;
+    cin: string;
+    phone?: string;
+    email?: string;
+    permit_number?: string;
+    cin_date?: string;
+    permit_date?: string;
+    address?: string;
+} | null>(null);
+const suggestRegisterLoading = ref(false);
+const suggestRegisterError = ref<string | null>(null);
+const suggestRegisterSuccess = ref<string | null>(null);
+const suggestRegisterDismissedCins = ref<Set<string>>(new Set());
+const suggestRegisterKnownCins = ref<Set<string>>(new Set());
+let suggestRegisterDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function checkClientForNewFaithfulClient() {
+    if (isEditMode.value) return;
+    if (clientMode.value === 'agency') return;
+    if (showSuggestRegisterModal.value) return;
+
+    const fullName = (reservation.value.client_name || '').trim();
+    const cin = (reservation.value.client_cin || '').trim();
+    if (!fullName || !cin || cin.length < 4) return;
+    if (suggestRegisterDismissedCins.value.has(cin)) return;
+    if (suggestRegisterKnownCins.value.has(cin)) return;
+
+    const registered = await isFaithfulClientCinRegistered(cin);
+    if (registered === null) return;
+    if (registered === true) {
+        suggestRegisterKnownCins.value.add(cin);
+        return;
+    }
+
+    // Race guard — fields might have changed during the await.
+    if (
+        (reservation.value.client_name || '').trim() === fullName &&
+        (reservation.value.client_cin || '').trim() === cin
+    ) {
+        suggestRegisterPayload.value = {
+            full_name: fullName,
+            cin,
+            phone: (reservation.value.client_phone || '').trim() || undefined,
+            email: (reservation.value.client_email || '').trim() || undefined,
+            permit_number: (reservation.value.client_permit_number || '').trim() || undefined,
+            cin_date: (reservation.value.client_cin_date || '').trim() || undefined,
+            permit_date: (reservation.value.client_permit_date || '').trim() || undefined,
+            address: (reservation.value.client_address || '').trim() || undefined,
+        };
+        suggestRegisterError.value = null;
+        suggestRegisterSuccess.value = null;
+        showSuggestRegisterModal.value = true;
+    }
+}
+
+watch(
+    () => [reservation.value.client_name, reservation.value.client_cin],
+    () => {
+        if (suggestRegisterDebounceTimer) clearTimeout(suggestRegisterDebounceTimer);
+        suggestRegisterDebounceTimer = setTimeout(checkClientForNewFaithfulClient, 800);
+    },
+);
+
+function dismissSuggestRegister() {
+    if (suggestRegisterPayload.value) {
+        suggestRegisterDismissedCins.value.add(suggestRegisterPayload.value.cin);
+    }
+    showSuggestRegisterModal.value = false;
+    suggestRegisterError.value = null;
+}
+
+async function confirmSuggestRegister() {
+    if (!suggestRegisterPayload.value || suggestRegisterLoading.value) return;
+    suggestRegisterLoading.value = true;
+    suggestRegisterError.value = null;
+
+    const p = suggestRegisterPayload.value;
+    // Naive split of full_name → first/last for the search index, matching how
+    // the existing Clients Fidèles form does it on creation.
+    const parts = p.full_name.split(/\s+/).filter(Boolean);
+    const firstName = parts[0] || undefined;
+    const lastName = parts.length > 1 ? parts.slice(1).join(' ') : undefined;
+
+    try {
+        await createFaithfulClient({
+            full_name: p.full_name,
+            first_name: firstName,
+            last_name: lastName,
+            cin: p.cin,
+            phone: p.phone,
+            email: p.email,
+            permit_number: p.permit_number,
+            cin_date: p.cin_date,
+            permit_date: p.permit_date,
+            address: p.address,
+        });
+        suggestRegisterKnownCins.value.add(p.cin);
+        suggestRegisterSuccess.value = p.full_name;
+        setTimeout(() => {
+            showSuggestRegisterModal.value = false;
+            suggestRegisterSuccess.value = null;
+        }, 1600);
+    } catch (e: any) {
+        suggestRegisterError.value = e?.message || "Erreur lors de l'enregistrement du client fidèle.";
+    } finally {
+        suggestRegisterLoading.value = false;
+    }
+}
 
 // Helper function to format ISO date to datetime-local format
 function formatDateForInput(isoDate: string): string {
@@ -482,6 +602,7 @@ import {
     DollarSign, Wallet, MapPin, FileText, Plus, Minus, Loader2, CircleCheck, 
     AlertTriangle, X, Eye, Trash2, Upload, Image,
     Users, ChevronDown, Sparkles, ScanLine, CheckCircle2, RotateCcw, Building2,
+    BookmarkPlus, UserPlus, AlertCircle, Check,
 } from 'lucide-vue-next';
 
 const { clients: b2bClients, fetchClients: fetchB2BClients } = useB2BClients();
@@ -1226,6 +1347,128 @@ function clearAgency() {
                                             {{ t('reports.confirm_anyway') }}
                                         </button>
                                     </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </Transition>
+            </Teleport>
+
+            <!-- "Save as Client Fidèle?" proposal modal -->
+            <Teleport to="body">
+                <Transition name="modal">
+                    <div v-if="showSuggestRegisterModal" class="fixed inset-0 z-[60] overflow-y-auto">
+                        <div class="fixed inset-0 bg-black/55 backdrop-blur-sm" @click="dismissSuggestRegister"></div>
+                        <div class="flex min-h-full items-center justify-center p-4">
+                            <div class="modal-container relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+                                <!-- Header -->
+                                <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                                    <div class="flex items-center gap-2.5">
+                                        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-md shadow-indigo-200">
+                                            <BookmarkPlus class="w-4 h-4 text-white" />
+                                        </div>
+                                        <div>
+                                            <h3 class="text-base font-bold text-gray-900">
+                                                {{ suggestRegisterSuccess ? 'Ajouté à vos Clients Fidèles' : 'Nouveau client détecté' }}
+                                            </h3>
+                                            <p class="text-xs text-gray-500">
+                                                {{ suggestRegisterSuccess
+                                                    ? 'Ce client est désormais disponible en autocomplétion.'
+                                                    : "Ce CIN n'existe pas encore dans vos Clients Fidèles." }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        @click="dismissSuggestRegister"
+                                        :disabled="suggestRegisterLoading"
+                                        class="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                                    >
+                                        <X class="w-5 h-5" />
+                                    </button>
+                                </div>
+
+                                <!-- Body -->
+                                <div class="px-5 py-4">
+                                    <template v-if="suggestRegisterSuccess">
+                                        <div class="flex items-start gap-3 bg-emerald-50/70 ring-1 ring-emerald-200 rounded-xl p-4">
+                                            <div class="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-200">
+                                                <Check class="w-5 h-5" />
+                                            </div>
+                                            <div class="min-w-0">
+                                                <p class="text-sm font-semibold text-gray-900">
+                                                    <span class="inline-block px-2 py-0.5 mr-1 rounded-md bg-emerald-100 ring-1 ring-emerald-200 text-emerald-700 font-bold tracking-wide">
+                                                        {{ suggestRegisterSuccess }}
+                                                    </span>
+                                                    est enregistré
+                                                </p>
+                                                <p class="text-xs text-gray-500 mt-1">
+                                                    Vous le retrouverez en autocomplétion dans la réservation, le contrat et la facture.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    <template v-else>
+                                        <p class="text-sm text-gray-600 leading-relaxed">
+                                            Souhaitez-vous l'enregistrer dans <strong>Clients Fidèles</strong> ?
+                                            Les champs déjà remplis (téléphone, email, adresse, permis, dates) seront également sauvegardés.
+                                        </p>
+
+                                        <div class="mt-3 space-y-2">
+                                            <div class="grid grid-cols-[110px_minmax(0,1fr)] gap-2 items-start bg-gray-50 ring-1 ring-gray-100 rounded-xl px-3 py-2.5">
+                                                <span class="text-[10.5px] font-bold uppercase tracking-wider text-gray-500 pt-0.5">Nom complet</span>
+                                                <span class="text-sm font-semibold text-gray-900 truncate" :title="suggestRegisterPayload?.full_name">{{ suggestRegisterPayload?.full_name }}</span>
+                                            </div>
+                                            <div class="grid grid-cols-[110px_minmax(0,1fr)] gap-2 items-start bg-gray-50 ring-1 ring-gray-100 rounded-xl px-3 py-2.5">
+                                                <span class="text-[10.5px] font-bold uppercase tracking-wider text-gray-500 pt-0.5">CIN</span>
+                                                <span class="text-sm font-mono tracking-wide text-gray-700">{{ suggestRegisterPayload?.cin }}</span>
+                                            </div>
+                                            <div v-if="suggestRegisterPayload?.phone" class="grid grid-cols-[110px_minmax(0,1fr)] gap-2 items-start bg-gray-50 ring-1 ring-gray-100 rounded-xl px-3 py-2.5">
+                                                <span class="text-[10.5px] font-bold uppercase tracking-wider text-gray-500 pt-0.5">Téléphone</span>
+                                                <span class="text-sm text-gray-700">{{ suggestRegisterPayload.phone }}</span>
+                                            </div>
+                                            <div v-if="suggestRegisterPayload?.address" class="grid grid-cols-[110px_minmax(0,1fr)] gap-2 items-start bg-gray-50 ring-1 ring-gray-100 rounded-xl px-3 py-2.5">
+                                                <span class="text-[10.5px] font-bold uppercase tracking-wider text-gray-500 pt-0.5">Adresse</span>
+                                                <span class="text-sm text-gray-700 truncate" :title="suggestRegisterPayload.address">{{ suggestRegisterPayload.address }}</span>
+                                            </div>
+                                        </div>
+
+                                        <div v-if="suggestRegisterError" class="mt-3 flex items-start gap-2 bg-red-50 ring-1 ring-red-200 text-red-700 px-3 py-2.5 rounded-xl text-sm">
+                                            <AlertCircle class="w-4 h-4 shrink-0 mt-0.5" />
+                                            <span>{{ suggestRegisterError }}</span>
+                                        </div>
+                                    </template>
+                                </div>
+
+                                <!-- Footer -->
+                                <div class="px-5 py-3 border-t border-gray-100 bg-gray-50/50 flex items-center justify-end gap-2">
+                                    <template v-if="suggestRegisterSuccess">
+                                        <button
+                                            @click="dismissSuggestRegister"
+                                            class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 rounded-xl shadow-md shadow-indigo-200 transition-all"
+                                        >
+                                            <Check class="w-4 h-4" />
+                                            C'est noté
+                                        </button>
+                                    </template>
+                                    <template v-else>
+                                        <button
+                                            @click="dismissSuggestRegister"
+                                            :disabled="suggestRegisterLoading"
+                                            class="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            Plus tard
+                                        </button>
+                                        <button
+                                            @click="confirmSuggestRegister"
+                                            :disabled="suggestRegisterLoading"
+                                            class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 rounded-xl shadow-md shadow-indigo-200 hover:shadow-lg hover:shadow-indigo-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                        >
+                                            <Loader2 v-if="suggestRegisterLoading" class="w-4 h-4 animate-spin" />
+                                            <UserPlus v-else class="w-4 h-4" />
+                                            Enregistrer le client
+                                        </button>
+                                    </template>
                                 </div>
                             </div>
                         </div>

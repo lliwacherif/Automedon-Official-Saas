@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ArrowLeft, FileDown, Loader2, Save, Check, ChevronDown, Sparkles, Search, CalendarPlus, AlertCircle, ExternalLink, X } from 'lucide-vue-next';
+import { ArrowLeft, FileDown, Loader2, Save, Check, ChevronDown, Sparkles, Search, CalendarPlus, AlertCircle, ExternalLink, X, UserPlus, BookmarkPlus } from 'lucide-vue-next';
 import ContractTemplate from '@/components/Contracts/ContractTemplate.vue';
 import ContractTemplateV2 from '@/components/Contracts/ContractTemplateV2.vue';
 import type { ContractData } from '@/components/Contracts/ContractTemplate.vue';
@@ -376,7 +376,7 @@ function goToCreatedReservation() {
 // Premier conducteur (V2) section. Typing in Nom or Prénom triggers
 // a fuzzy search; picking a result auto-fills every Locataire field.
 // ──────────────────────────────────────────────────────────────────
-const { searchFaithfulClients } = useFaithfulClients();
+const { searchFaithfulClients, isFaithfulClientCinRegistered, createFaithfulClient } = useFaithfulClients();
 const locataireSuggestions = ref<FaithfulClient[]>([]);
 const showLocataireSuggestions = ref(false);
 const isSearchingLocataire = ref(false);
@@ -457,6 +457,107 @@ function splitFaithfulClient(client: FaithfulClient) {
   }
 
   return { nom, prenom, dob };
+}
+
+// ──────────────────────────────────────────────────────────────────
+// "Save as Client Fidèle?" proposal — when the admin fills nom +
+// prénom + CIN for the Locataire and the CIN doesn't match any
+// existing Client Fidèle in this tenant, propose to register them.
+// Only active in blank-contract mode so we don't bother the admin
+// when the Locataire is already loaded from a reservation.
+// ──────────────────────────────────────────────────────────────────
+const showSuggestRegisterModal = ref(false);
+const suggestRegisterPayload = ref<{ nom: string; prenom: string; cin: string } | null>(null);
+const suggestRegisterLoading = ref(false);
+const suggestRegisterError = ref<string | null>(null);
+const suggestRegisterSuccess = ref<string | null>(null);
+// CINs the admin already dismissed for this session, so the modal
+// doesn't pop up again for them.
+const suggestRegisterDismissedCins = ref<Set<string>>(new Set());
+// CINs for which we already detected an existing client → no need
+// to re-query the DB on every keystroke.
+const suggestRegisterKnownCins = ref<Set<string>>(new Set());
+let suggestRegisterDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function checkLocataireForNewFaithfulClient() {
+  if (!isBlankMode.value) return;
+  if (showSuggestRegisterModal.value) return;
+
+  const nom = (contractData.value.locataire.nom || '').trim();
+  const prenom = (contractData.value.locataire.prenom || '').trim();
+  const cin = (contractData.value.locataire.ci || '').trim();
+
+  if (!nom || !prenom || !cin || cin.length < 4) return;
+  if (suggestRegisterDismissedCins.value.has(cin)) return;
+  if (suggestRegisterKnownCins.value.has(cin)) return;
+
+  const registered = await isFaithfulClientCinRegistered(cin);
+  if (registered === null) return; // unknown — stay silent
+  if (registered === true) {
+    suggestRegisterKnownCins.value.add(cin);
+    return;
+  }
+
+  // Make sure the inputs haven't changed during the await.
+  if (
+    (contractData.value.locataire.nom || '').trim() === nom &&
+    (contractData.value.locataire.prenom || '').trim() === prenom &&
+    (contractData.value.locataire.ci || '').trim() === cin
+  ) {
+    suggestRegisterPayload.value = { nom, prenom, cin };
+    suggestRegisterError.value = null;
+    suggestRegisterSuccess.value = null;
+    showSuggestRegisterModal.value = true;
+  }
+}
+
+watch(
+  () => [
+    contractData.value.locataire.nom,
+    contractData.value.locataire.prenom,
+    contractData.value.locataire.ci,
+  ],
+  () => {
+    if (suggestRegisterDebounceTimer) clearTimeout(suggestRegisterDebounceTimer);
+    suggestRegisterDebounceTimer = setTimeout(checkLocataireForNewFaithfulClient, 800);
+  },
+);
+
+function dismissSuggestRegister() {
+  if (suggestRegisterPayload.value) {
+    suggestRegisterDismissedCins.value.add(suggestRegisterPayload.value.cin);
+  }
+  showSuggestRegisterModal.value = false;
+  suggestRegisterError.value = null;
+}
+
+async function confirmSuggestRegister() {
+  if (!suggestRegisterPayload.value || suggestRegisterLoading.value) return;
+  suggestRegisterLoading.value = true;
+  suggestRegisterError.value = null;
+
+  const { nom, prenom, cin } = suggestRegisterPayload.value;
+  const fullName = `${prenom} ${nom}`.trim();
+
+  try {
+    await createFaithfulClient({
+      full_name: fullName,
+      first_name: prenom,
+      last_name: nom,
+      cin,
+    });
+    suggestRegisterKnownCins.value.add(cin);
+    suggestRegisterSuccess.value = fullName;
+    // Auto-close shortly after success so the admin can keep working.
+    setTimeout(() => {
+      showSuggestRegisterModal.value = false;
+      suggestRegisterSuccess.value = null;
+    }, 1600);
+  } catch (e: any) {
+    suggestRegisterError.value = e?.message || "Erreur lors de l'enregistrement du client fidèle.";
+  } finally {
+    suggestRegisterLoading.value = false;
+  }
 }
 
 function selectLocataireClient(client: FaithfulClient) {
@@ -1605,6 +1706,108 @@ onMounted(async () => {
       </section>
     </main>
 
+    <!-- "Save as Client Fidèle?" proposal modal -->
+    <Teleport to="body">
+      <Transition name="cb-modal">
+        <div v-if="showSuggestRegisterModal" class="cb-modal-root">
+          <div class="cb-modal-backdrop" @click="dismissSuggestRegister"></div>
+          <div class="cb-modal-card cb-modal-card--narrow">
+            <header class="cb-modal-header">
+              <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-md shadow-indigo-200">
+                  <BookmarkPlus class="w-4.5 h-4.5 text-white" />
+                </div>
+                <div>
+                  <h3 class="text-base font-bold text-slate-900">
+                    {{ suggestRegisterSuccess ? 'Ajouté à vos Clients Fidèles' : 'Nouveau client détecté' }}
+                  </h3>
+                  <p class="text-xs text-slate-500">
+                    {{ suggestRegisterSuccess
+                      ? 'Ce client est désormais disponible en autocomplétion.'
+                      : "Ce CIN n'existe pas encore dans vos Clients Fidèles." }}
+                  </p>
+                </div>
+              </div>
+              <button @click="dismissSuggestRegister" class="cb-modal-close" :disabled="suggestRegisterLoading">
+                <X class="h-4 w-4" />
+              </button>
+            </header>
+
+            <div class="cb-modal-body">
+              <template v-if="suggestRegisterSuccess">
+                <div class="cb-success">
+                  <div class="cb-success-icon">
+                    <Check class="h-6 w-6" />
+                  </div>
+                  <div class="cb-success-text">
+                    <p class="text-sm font-semibold text-slate-900">
+                      <span class="cb-res-number">{{ suggestRegisterSuccess }}</span>
+                      est enregistré
+                    </p>
+                    <p class="text-xs text-slate-500 mt-1">
+                      Vous le retrouverez en autocomplétion dans le contrat, la réservation et la facture.
+                    </p>
+                  </div>
+                </div>
+              </template>
+
+              <template v-else>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                  Souhaitez-vous l'enregistrer dans <strong>Clients Fidèles</strong> ?
+                  Seuls le <strong>nom</strong>, le <strong>prénom</strong> et le
+                  <strong>CIN</strong> seront sauvegardés pour l'instant. Vous pourrez compléter
+                  son adresse, téléphone, permis, etc. depuis la page Clients Fidèles.
+                </p>
+
+                <div class="cb-preview-grid mt-3">
+                  <div class="cb-preview-row">
+                    <div class="cb-preview-label">Nom</div>
+                    <div class="cb-preview-value font-semibold text-slate-900">{{ suggestRegisterPayload?.nom }}</div>
+                  </div>
+                  <div class="cb-preview-row">
+                    <div class="cb-preview-label">Prénom</div>
+                    <div class="cb-preview-value font-semibold text-slate-900">{{ suggestRegisterPayload?.prenom }}</div>
+                  </div>
+                  <div class="cb-preview-row">
+                    <div class="cb-preview-label">CIN</div>
+                    <div class="cb-preview-value font-mono text-sm tracking-wide text-slate-700">{{ suggestRegisterPayload?.cin }}</div>
+                  </div>
+                </div>
+
+                <div v-if="suggestRegisterError" class="cb-error-banner">
+                  <AlertCircle class="w-4 h-4 text-red-500 shrink-0" />
+                  <span>{{ suggestRegisterError }}</span>
+                </div>
+              </template>
+            </div>
+
+            <footer class="cb-modal-footer">
+              <template v-if="suggestRegisterSuccess">
+                <button @click="dismissSuggestRegister" class="cb-btn cb-btn-primary">
+                  <Check class="h-4 w-4" />
+                  C'est noté
+                </button>
+              </template>
+              <template v-else>
+                <button @click="dismissSuggestRegister" :disabled="suggestRegisterLoading" class="cb-btn cb-btn-ghost">
+                  Plus tard
+                </button>
+                <button
+                  @click="confirmSuggestRegister"
+                  :disabled="suggestRegisterLoading"
+                  class="cb-btn cb-btn-primary"
+                >
+                  <Loader2 v-if="suggestRegisterLoading" class="h-4 w-4 animate-spin" />
+                  <UserPlus v-else class="h-4 w-4" />
+                  Enregistrer le client
+                </button>
+              </template>
+            </footer>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
     <!-- Save-as-reservation confirmation modal -->
     <Teleport to="body">
       <Transition name="cb-modal">
@@ -2015,6 +2218,10 @@ onMounted(async () => {
     0 30px 60px -20px rgba(15, 23, 42, 0.35),
     0 10px 30px -10px rgba(15, 23, 42, 0.18);
   overflow: hidden;
+}
+
+.cb-modal-card--narrow {
+  max-width: 460px;
 }
 
 .cb-modal-header {

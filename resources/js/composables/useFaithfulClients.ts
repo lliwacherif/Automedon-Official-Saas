@@ -61,6 +61,38 @@ export function useFaithfulClients() {
         }
     }
 
+    /**
+     * Checks whether a faithful client already exists for the given CIN (case-
+     * sensitive exact match) in the current tenant. Returns:
+     *   - true  → CIN is already registered
+     *   - false → CIN is NOT registered
+     *   - null  → check failed (tenant missing or RPC error) — caller should
+     *             treat as "unknown" and skip any prompts.
+     */
+    async function isFaithfulClientCinRegistered(cin: string): Promise<boolean | null> {
+        if (!cin) return null;
+        const tenantId = tenantStore.currentTenant?.id;
+        if (!tenantId) return null;
+
+        try {
+            const { data, error: supabaseError } = await (supabase
+                .from('faithful_clients') as any)
+                .select('id')
+                .eq('tenant_id', tenantId)
+                .eq('cin', cin)
+                .limit(1);
+
+            if (supabaseError) {
+                console.error('Faithful client CIN check failed:', supabaseError);
+                return null;
+            }
+            return Boolean(data && data.length > 0);
+        } catch (e: any) {
+            console.error('Faithful client CIN check failed:', e);
+            return null;
+        }
+    }
+
     async function searchFaithfulClients(query: string) {
         if (!query || query.length < 2) return [];
 
@@ -223,6 +255,7 @@ export function useFaithfulClients() {
         error,
         fetchFaithfulClients,
         searchFaithfulClients,
+        isFaithfulClientCinRegistered,
         createFaithfulClient,
         updateFaithfulClient,
         deleteFaithfulClient,
