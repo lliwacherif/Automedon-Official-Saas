@@ -185,7 +185,11 @@ function buildItemFromService(svc: any, mode: 'HT' | 'TTC') {
   let unitPriceHT: number;
   const qte = days;
 
-  if (mode === 'HT') {
+  // TTC mode → stored price is H.T, add VAT on top (Total TTC > stored).
+  // HT mode → stored price is already TTC, back-derive H.T (Total TTC ≈ stored).
+  // This matches the user-facing intuition: "TTC = toutes taxes comprises"
+  // produces the bigger total, "HT = hors taxes" the smaller.
+  if (mode === 'TTC') {
     totalHT = price;
     unitPriceHT = Number((price / qte).toFixed(3));
   } else {

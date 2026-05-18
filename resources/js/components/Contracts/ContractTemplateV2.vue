@@ -18,15 +18,18 @@ const billing = computed(() => {
   let tva: number;
   let totalFacture: number;
 
+  // TTC mode → stored total is H.T, add VAT on top (bigger Total T.T.C).
+  // HT mode  → stored total is already TTC, back-derive H.T from it
+  //            (smaller Total T.T.C ≈ stored value).
   if (mode === 'TTC') {
+    sub = input;
+    tva = sub * tvaRate;
+    totalFacture = sub + tva + timbre;
+  } else {
     totalFacture = input;
     const exclStamp = Math.max(0, input - timbre);
     sub = exclStamp / (1 + tvaRate);
     tva = exclStamp - sub;
-  } else {
-    sub = input;
-    tva = sub * tvaRate;
-    totalFacture = sub + tva + timbre;
   }
 
   const total = totalFacture + div;

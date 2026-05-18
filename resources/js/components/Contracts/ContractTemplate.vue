@@ -142,15 +142,19 @@ const billing = computed(() => {
   let tva: number;
   let totalFacture: number;
 
+  // TTC mode → the stored total is H.T, add VAT on top so the displayed
+  //            Total T.T.C is the bigger number ("toutes taxes comprises").
+  // HT mode  → the stored total is already TTC, back-derive H.T from it
+  //            ("hors taxes" = smaller number, no tax added).
   if (mode === 'TTC') {
+    sub = input;
+    tva = sub * tvaRate;
+    totalFacture = sub + tva + timbre;
+  } else {
     totalFacture = input;
     const exclStamp = Math.max(0, input - timbre);
     sub = exclStamp / (1 + tvaRate);
     tva = exclStamp - sub;
-  } else {
-    sub = input;
-    tva = sub * tvaRate;
-    totalFacture = sub + tva + timbre;
   }
 
   const total = totalFacture + div;
@@ -315,6 +319,7 @@ function fmt3(v: number): string {
               <span class="ct-chk"><span class="ct-chk-box">{{ data.paiement.mode === 'cheque' ? 'X' : '' }}</span> Payé par chèque</span>
               <span class="ct-chk"><span class="ct-chk-box">{{ data.paiement.mode === 'carte' ? 'X' : '' }}</span> Carte de Crédit</span>
               <span class="ct-chk"><span class="ct-chk-box">{{ data.paiement.mode === 'especes' ? 'X' : '' }}</span> Espèces</span>
+              <span class="ct-chk"><span class="ct-chk-box">{{ data.paiement.mode === 'virement' ? 'X' : '' }}</span> Virement</span>
             </div>
             <div class="ct-pay-row"><b>Numéro :</b> <span class="ct-pay-line">{{ data.paiement.numero }}</span></div>
             <div class="ct-pay-row"><b>Nature :</b> <span class="ct-pay-line">{{ data.paiement.nature }}</span> &nbsp;<b>en date du</b> <span class="ct-pay-line">{{ data.paiement.date }}</span></div>

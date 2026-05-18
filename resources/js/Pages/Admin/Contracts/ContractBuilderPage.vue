@@ -1647,7 +1647,7 @@ onMounted(async () => {
           <div v-show="!collapsedSections.paiement" class="sb-body">
             <div class="sb-field">
               <label>Mode</label>
-              <select v-model="contractData.paiement.mode"><option value="">—</option><option value="cheque">Chèque</option><option value="carte">Carte de Crédit</option><option value="especes">Espèces</option></select>
+              <select v-model="contractData.paiement.mode"><option value="">—</option><option value="cheque">Chèque</option><option value="carte">Carte de Crédit</option><option value="especes">Espèces</option><option value="virement">Virement</option></select>
             </div>
             <div class="sb-field"><label>Numéro</label><input v-model="contractData.paiement.numero" /></div>
             <div class="sb-field"><label>Nature</label><input v-model="contractData.paiement.nature" /></div>

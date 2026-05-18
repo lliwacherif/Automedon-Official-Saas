@@ -106,7 +106,12 @@ function recalculateItems() {
     let totalHT: number;
     let unitPriceHT: number;
 
-    if (pricingMode.value === 'HT') {
+    // TTC mode → the reservation's stored price is the H.T base, add VAT on
+    // top so the displayed Total T.T.C is the bigger number (matches the user
+    // intuition: "TTC = toutes taxes comprises").
+    // HT mode → the stored price is already TTC, back-derive H.T from it so
+    // the displayed Total T.T.C equals the stored value ("HT = hors taxes").
+    if (pricingMode.value === 'TTC') {
       totalHT = meta.price;
       unitPriceHT = Number((totalHT / meta.days).toFixed(3));
     } else {
@@ -254,7 +259,9 @@ function buildLineItem(reservation: any, mode: 'TTC' | 'HT') {
   let totalHT: number;
   let unitPriceHT: number;
 
-  if (mode === 'HT') {
+  // See recalculateItems() for the rationale: TTC adds tax on top, HT
+  // back-derives H.T from the stored TTC value.
+  if (mode === 'TTC') {
     totalHT = price;
     unitPriceHT = Number((price / nbDays).toFixed(3));
   } else {
