@@ -19,6 +19,8 @@ const { getReservation, createReservation, updateReservation, checkAvailability 
 const clientSuggestions = ref<FaithfulClient[]>([]);
 const showClientSuggestions = ref(false);
 const isSearchingClients = ref(false);
+// Which field opened the dropdown — controls which input it sits under.
+const clientAutocompleteAnchor = ref<'name' | 'ci' | null>(null);
 
 const handleClientNameInput = async () => {
     const query = reservation.value.client_name;
@@ -33,8 +35,30 @@ const handleClientNameInput = async () => {
         const results = await searchFaithfulClients(query);
         clientSuggestions.value = results;
         showClientSuggestions.value = results.length > 0;
+        clientAutocompleteAnchor.value = 'name';
     } catch (e) {
         console.error('Error searching clients:', e);
+    } finally {
+        isSearchingClients.value = false;
+    }
+};
+
+const handleClientCinInput = async () => {
+    const query = reservation.value.client_cin;
+    if (!query || query.length < 2) {
+        clientSuggestions.value = [];
+        showClientSuggestions.value = false;
+        return;
+    }
+
+    isSearchingClients.value = true;
+    try {
+        const results = await searchFaithfulClients(query);
+        clientSuggestions.value = results;
+        showClientSuggestions.value = results.length > 0;
+        clientAutocompleteAnchor.value = 'ci';
+    } catch (e) {
+        console.error('Error searching clients by CIN:', e);
     } finally {
         isSearchingClients.value = false;
     }
@@ -43,7 +67,9 @@ const handleClientNameInput = async () => {
 const selectClient = (client: FaithfulClient) => {
     reservation.value.client_name = client.full_name;
     reservation.value.client_cin = client.cin;
-    reservation.value.client_phone = client.phone;
+    // Only overwrite optional fields if the faithful client actually has them,
+    // so the admin doesn't lose a manually-typed value to an empty record.
+    if (client.phone) reservation.value.client_phone = client.phone;
     if (client.email) reservation.value.client_email = client.email;
     if (client.permit_number) reservation.value.client_permit_number = client.permit_number;
     if (client.cin_date) reservation.value.client_cin_date = client.cin_date;
@@ -52,6 +78,7 @@ const selectClient = (client: FaithfulClient) => {
 
     showClientSuggestions.value = false;
     clientSuggestions.value = [];
+    clientAutocompleteAnchor.value = null;
 };
 
 // Close suggestions when clicking outside (simple version relies on blur with delay)
@@ -278,9 +305,9 @@ const restToPay = computed(() => {
 async function handleSubmit() {
     loading.value = true;
     try {
-        // Validation
-        if (!reservation.value.client_name || !reservation.value.client_cin || 
-            !reservation.value.client_phone || !reservation.value.car_id ||
+        // Validation — client_phone is optional now.
+        if (!reservation.value.client_name || !reservation.value.client_cin ||
+            !reservation.value.car_id ||
             !reservation.value.start_date || !reservation.value.end_date) {
             alert(t('admin.reservations.validation_error'));
             loading.value = false;
@@ -307,7 +334,7 @@ async function handleSubmit() {
         const data = {
             client_name: reservation.value.client_name!,
             client_cin: reservation.value.client_cin!,
-            client_phone: reservation.value.client_phone!,
+            client_phone: (reservation.value.client_phone || '').trim() || null,
             client_email: reservation.value.client_email || null,
             client_permit_number: reservation.value.client_permit_number || null,
             client_cin_date: reservation.value.client_cin_date || null,
@@ -593,8 +620,8 @@ function clearAgency() {
                                         :placeholder="clientMode === 'agency' ? 'Nom de l\'agence' : 'Nom complet'"
                                     >
                                 </div>
-                                <!-- Autocomplete Dropdown (only for regular clients) -->
-                                <div v-if="showClientSuggestions && clientMode !== 'agency'" class="absolute z-10 w-full bg-white mt-1 rounded-xl ring-1 ring-gray-200 shadow-xl max-h-60 overflow-auto">
+                                <!-- Autocomplete Dropdown anchored under the Name field -->
+                                <div v-if="showClientSuggestions && clientMode !== 'agency' && clientAutocompleteAnchor === 'name'" class="absolute z-10 w-full bg-white mt-1 rounded-xl ring-1 ring-gray-200 shadow-xl max-h-60 overflow-auto">
                                     <ul>
                                         <li 
                                             v-for="client in clientSuggestions" 
@@ -615,17 +642,46 @@ function clearAgency() {
 
                         <div>
                             <label class="form-label">{{ clientMode === 'agency' ? 'MF / Référence *' : t('admin.reservations.client_cin') + ' *' }}</label>
-                            <div class="form-input-wrapper">
-                                <CreditCard class="form-input-icon" />
-                                <input v-model="reservation.client_cin" type="text" required class="form-input" :placeholder="clientMode === 'agency' ? 'Matricule Fiscale' : 'CIN'">
+                            <div class="relative">
+                                <div class="form-input-wrapper">
+                                    <CreditCard class="form-input-icon" />
+                                    <input
+                                        v-model="reservation.client_cin"
+                                        type="text"
+                                        required
+                                        @input="clientMode !== 'agency' ? handleClientCinInput() : undefined"
+                                        @focus="clientMode !== 'agency' ? handleClientCinInput() : undefined"
+                                        @blur="closeSuggestionsWithDelay"
+                                        class="form-input"
+                                        autocomplete="off"
+                                        :placeholder="clientMode === 'agency' ? 'Matricule Fiscale' : 'CIN'"
+                                    >
+                                </div>
+                                <!-- Autocomplete Dropdown anchored under the CIN field -->
+                                <div v-if="showClientSuggestions && clientMode !== 'agency' && clientAutocompleteAnchor === 'ci'" class="absolute z-10 w-full bg-white mt-1 rounded-xl ring-1 ring-gray-200 shadow-xl max-h-60 overflow-auto">
+                                    <ul>
+                                        <li
+                                            v-for="client in clientSuggestions"
+                                            :key="client.id"
+                                            @mousedown="selectClient(client)"
+                                            class="px-4 py-2.5 hover:bg-indigo-50 cursor-pointer border-b border-gray-50 last:border-0 transition-colors"
+                                        >
+                                            <div class="text-sm font-semibold text-gray-900">{{ client.full_name }}</div>
+                                            <div class="text-xs text-gray-400 flex justify-between mt-0.5">
+                                                <span>{{ client.cin }}</span>
+                                                <span>{{ client.phone }}</span>
+                                            </div>
+                                        </li>
+                                    </ul>
+                                </div>
                             </div>
                         </div>
 
                         <div>
-                            <label class="form-label">{{ t('admin.reservations.client_phone') }} *</label>
+                            <label class="form-label">{{ t('admin.reservations.client_phone') }} <span class="text-[10px] font-medium text-gray-400 normal-case ml-1">(optionnel)</span></label>
                             <div class="form-input-wrapper">
                                 <Phone class="form-input-icon" />
-                                <input v-model="reservation.client_phone" type="tel" required class="form-input" placeholder="Téléphone">
+                                <input v-model="reservation.client_phone" type="tel" class="form-input" placeholder="Téléphone">
                             </div>
                         </div>
 

@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, nextTick } from 'vue';
 import {
     Loader2, UserPlus, Users, Trash2, User, CreditCard, Phone, Mail,
     IdCard, Calendar, AlertCircle, CircleCheck, Paperclip, Search, X,
-    UserRound, Sparkles, Plus, MapPin, Cake,
+    UserRound, Sparkles, Plus, MapPin, Cake, Edit, Save, PencilLine,
 } from 'lucide-vue-next';
 import { useFaithfulClients, type FaithfulClient } from '@/composables/useFaithfulClients';
 import FaithfulClientDocumentsModal from '@/components/FaithfulClientDocumentsModal.vue';
@@ -13,6 +13,7 @@ const {
     loading,
     fetchFaithfulClients,
     createFaithfulClient,
+    updateFaithfulClient,
     deleteFaithfulClient,
 } = useFaithfulClients();
 
@@ -46,6 +47,10 @@ const formError = ref('');
 const formSuccess = ref('');
 const showAddForm = ref(false);
 
+// When non-null, the form is in "edit" mode for that client id.
+const editingClientId = ref<number | null>(null);
+const isEditMode = computed(() => editingClientId.value !== null);
+
 const searchQuery = ref('');
 const filteredClients = computed(() => {
     const q = searchQuery.value.trim().toLowerCase();
@@ -66,41 +71,126 @@ onMounted(() => {
     fetchFaithfulClients();
 });
 
-const handleCreate = async () => {
+function resetFormFields() {
+    form.value = {
+        first_name: '',
+        last_name: '',
+        cin: '',
+        phone: '',
+        email: '',
+        permit_number: '',
+        cin_date: '',
+        permit_date: '',
+        address: '',
+        date_of_birth: '',
+    };
+}
+
+/** Loads a client into the form for editing and scrolls the form into view. */
+function openEditForm(client: FaithfulClient) {
+    editingClientId.value = client.id;
+
+    // Resolve nom/prénom from the split fields, falling back to a naive
+    // split of full_name for legacy rows that only have full_name set.
+    let firstName = client.first_name || '';
+    let lastName = client.last_name || '';
+    if (!firstName && !lastName && client.full_name) {
+        const parts = client.full_name.trim().split(/\s+/);
+        firstName = parts[0] || '';
+        lastName = parts.slice(1).join(' ');
+    }
+
+    form.value = {
+        first_name: firstName,
+        last_name: lastName,
+        cin: client.cin || '',
+        phone: client.phone || '',
+        email: client.email || '',
+        permit_number: client.permit_number || '',
+        cin_date: client.cin_date || '',
+        permit_date: client.permit_date || '',
+        address: client.address || '',
+        date_of_birth: client.date_of_birth || '',
+    };
+    formError.value = '';
+    formSuccess.value = '';
+    showAddForm.value = true;
+
+    nextTick(() => {
+        document.getElementById('faithful-client-form')
+            ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+}
+
+function cancelEdit() {
+    editingClientId.value = null;
+    resetFormFields();
+    formError.value = '';
+    formSuccess.value = '';
+}
+
+/** Toggles the form open/closed. Closing also exits edit mode. */
+function toggleAddForm() {
+    if (showAddForm.value) {
+        showAddForm.value = false;
+        cancelEdit();
+    } else {
+        cancelEdit();
+        showAddForm.value = true;
+    }
+}
+
+const handleSubmit = async () => {
     formError.value = '';
     formSuccess.value = '';
     formLoading.value = true;
     try {
         const fullName = composedFullName();
-        await createFaithfulClient({
-            full_name: fullName,
-            first_name: form.value.first_name.trim() || undefined,
-            last_name: form.value.last_name.trim() || undefined,
-            cin: form.value.cin,
-            phone: form.value.phone.trim() || undefined,
-            email: form.value.email || undefined,
-            permit_number: form.value.permit_number || undefined,
-            cin_date: form.value.cin_date || undefined,
-            permit_date: form.value.permit_date || undefined,
-            address: form.value.address.trim() || undefined,
-            date_of_birth: form.value.date_of_birth || undefined,
-        });
-        formSuccess.value = 'Client fidèle ajouté avec succès';
-        form.value = {
-            first_name: '',
-            last_name: '',
-            cin: '',
-            phone: '',
-            email: '',
-            permit_number: '',
-            cin_date: '',
-            permit_date: '',
-            address: '',
-            date_of_birth: '',
-        };
-        setTimeout(() => { formSuccess.value = ''; }, 2500);
+
+        if (isEditMode.value && editingClientId.value !== null) {
+            // ─── Update ─────────────────────────────────────────────
+            // Empty strings collapse to null so the admin can actively
+            // clear an existing value (phone, email, address...).
+            await updateFaithfulClient(editingClientId.value, {
+                full_name: fullName,
+                first_name: form.value.first_name.trim() || null as any,
+                last_name: form.value.last_name.trim() || null as any,
+                cin: form.value.cin,
+                phone: form.value.phone.trim() || null as any,
+                email: form.value.email || null as any,
+                permit_number: form.value.permit_number || null as any,
+                cin_date: form.value.cin_date || null as any,
+                permit_date: form.value.permit_date || null as any,
+                address: form.value.address.trim() || null as any,
+                date_of_birth: form.value.date_of_birth || null as any,
+            });
+            formSuccess.value = 'Client fidèle mis à jour avec succès';
+            editingClientId.value = null;
+            resetFormFields();
+            setTimeout(() => { formSuccess.value = ''; }, 2500);
+        } else {
+            // ─── Create ─────────────────────────────────────────────
+            await createFaithfulClient({
+                full_name: fullName,
+                first_name: form.value.first_name.trim() || undefined,
+                last_name: form.value.last_name.trim() || undefined,
+                cin: form.value.cin,
+                phone: form.value.phone.trim() || undefined,
+                email: form.value.email || undefined,
+                permit_number: form.value.permit_number || undefined,
+                cin_date: form.value.cin_date || undefined,
+                permit_date: form.value.permit_date || undefined,
+                address: form.value.address.trim() || undefined,
+                date_of_birth: form.value.date_of_birth || undefined,
+            });
+            formSuccess.value = 'Client fidèle ajouté avec succès';
+            resetFormFields();
+            setTimeout(() => { formSuccess.value = ''; }, 2500);
+        }
     } catch (e: any) {
-        formError.value = e.message || "Erreur lors de l'ajout du client";
+        formError.value = e.message || (isEditMode.value
+            ? "Erreur lors de la mise à jour du client"
+            : "Erreur lors de l'ajout du client");
     } finally {
         formLoading.value = false;
     }
@@ -201,30 +291,66 @@ function onDocsUpdated(updated: FaithfulClient) {
 
                 <button
                     type="button"
-                    @click="showAddForm = !showAddForm"
-                    class="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 rounded-2xl shadow-md shadow-indigo-200 hover:shadow-lg hover:shadow-indigo-300 transition-all shrink-0"
+                    @click="toggleAddForm"
+                    class="inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-white rounded-2xl shadow-md hover:shadow-lg transition-all shrink-0"
+                    :class="isEditMode
+                        ? 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 shadow-amber-200 hover:shadow-amber-300'
+                        : 'bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 shadow-indigo-200 hover:shadow-indigo-300'"
                 >
                     <Plus class="w-4 h-4 transition-transform" :class="{ 'rotate-45': showAddForm }" />
-                    {{ showAddForm ? 'Fermer le formulaire' : 'Ajouter un client' }}
+                    {{ isEditMode
+                        ? 'Annuler la modification'
+                        : (showAddForm ? 'Fermer le formulaire' : 'Ajouter un client') }}
                 </button>
             </div>
 
             <!-- Main grid: form (when open) + list -->
             <div class="grid grid-cols-1 gap-5" :class="showAddForm ? 'lg:grid-cols-[400px_minmax(0,1fr)]' : ''">
 
-                <!-- Add Form (collapsible) -->
+                <!-- Add/Edit Form (collapsible) -->
                 <Transition name="slide-fade">
-                    <div v-if="showAddForm" class="h-fit bg-white rounded-2xl ring-1 ring-gray-100 shadow-sm overflow-hidden">
-                        <div class="px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-indigo-50/40 to-violet-50/40">
-                            <div class="flex items-center gap-2.5">
-                                <div class="w-8 h-8 rounded-lg bg-white ring-1 ring-indigo-100 flex items-center justify-center shadow-sm">
-                                    <UserPlus class="w-4 h-4 text-indigo-600" />
+                    <div
+                        v-if="showAddForm"
+                        id="faithful-client-form"
+                        class="h-fit bg-white rounded-2xl ring-1 ring-gray-100 shadow-sm overflow-hidden"
+                        :class="isEditMode ? 'ring-amber-200 ring-2' : ''"
+                    >
+                        <div
+                            class="px-5 py-4 border-b border-gray-100"
+                            :class="isEditMode
+                                ? 'bg-gradient-to-r from-amber-50/60 to-orange-50/50'
+                                : 'bg-gradient-to-r from-indigo-50/40 to-violet-50/40'"
+                        >
+                            <div class="flex items-center justify-between gap-2.5">
+                                <div class="flex items-center gap-2.5">
+                                    <div
+                                        class="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm"
+                                        :class="isEditMode ? 'ring-1 ring-amber-200' : 'ring-1 ring-indigo-100'"
+                                    >
+                                        <PencilLine v-if="isEditMode" class="w-4 h-4 text-amber-600" />
+                                        <UserPlus v-else class="w-4 h-4 text-indigo-600" />
+                                    </div>
+                                    <div>
+                                        <h2 class="text-sm font-bold text-gray-900">
+                                            {{ isEditMode ? 'Modifier le client fidèle' : 'Nouveau client fidèle' }}
+                                        </h2>
+                                        <p v-if="isEditMode" class="text-[11px] text-amber-700 font-medium mt-0.5">
+                                            Toutes les modifications seront appliquées au client existant.
+                                        </p>
+                                    </div>
                                 </div>
-                                <h2 class="text-sm font-bold text-gray-900">Nouveau client fidèle</h2>
+                                <button
+                                    v-if="isEditMode"
+                                    type="button"
+                                    @click="cancelEdit"
+                                    class="text-[11px] font-semibold text-amber-700 hover:text-amber-800 px-2.5 py-1 rounded-lg hover:bg-amber-100 transition-colors"
+                                >
+                                    Quitter l'édition
+                                </button>
                             </div>
                         </div>
 
-                        <form @submit.prevent="handleCreate" class="p-5 space-y-3">
+                        <form @submit.prevent="handleSubmit" class="p-5 space-y-3">
                             <!-- Identité : Nom + Prénom -->
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
@@ -327,11 +453,15 @@ function onDocsUpdated(updated: FaithfulClient) {
                             <button
                                 type="submit"
                                 :disabled="formLoading"
-                                class="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 rounded-xl shadow-md shadow-indigo-200 hover:shadow-lg hover:shadow-indigo-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none transition-all"
+                                class="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 text-sm font-semibold text-white rounded-xl shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none transition-all"
+                                :class="isEditMode
+                                    ? 'bg-gradient-to-r from-amber-600 to-orange-500 hover:from-amber-700 hover:to-orange-600 shadow-amber-200 hover:shadow-amber-300'
+                                    : 'bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 shadow-indigo-200 hover:shadow-indigo-300'"
                             >
                                 <Loader2 v-if="formLoading" class="w-4 h-4 animate-spin" />
+                                <Save v-else-if="isEditMode" class="w-4 h-4" />
                                 <UserPlus v-else class="w-4 h-4" />
-                                Ajouter le client
+                                {{ isEditMode ? 'Mettre à jour le client' : 'Ajouter le client' }}
                             </button>
                         </form>
                     </div>
@@ -392,8 +522,20 @@ function onDocsUpdated(updated: FaithfulClient) {
                         <li
                             v-for="client in filteredClients"
                             :key="client.id"
-                            class="group relative rounded-2xl bg-white ring-1 ring-gray-100 hover:ring-indigo-200 hover:shadow-md transition-all p-4 flex flex-col gap-3"
+                            class="group relative rounded-2xl bg-white ring-1 transition-all p-4 flex flex-col gap-3"
+                            :class="editingClientId === client.id
+                                ? 'ring-amber-300 ring-2 shadow-md shadow-amber-100'
+                                : 'ring-gray-100 hover:ring-indigo-200 hover:shadow-md'"
                         >
+                            <!-- "Editing" pill — only visible on the card currently being edited -->
+                            <span
+                                v-if="editingClientId === client.id"
+                                class="absolute -top-2 left-3 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-bold uppercase tracking-wider shadow-sm shadow-amber-200"
+                            >
+                                <PencilLine class="w-2.5 h-2.5" />
+                                En modification
+                            </span>
+
                             <div class="flex items-start gap-3">
                                 <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white font-bold text-base ring-1 ring-white shadow-sm flex items-center justify-center shrink-0">
                                     {{ client.full_name.charAt(0).toUpperCase() }}
@@ -404,13 +546,24 @@ function onDocsUpdated(updated: FaithfulClient) {
                                         {{ client.cin }}
                                     </span>
                                 </div>
-                                <button
-                                    @click="handleDelete(client.id)"
-                                    class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
-                                    title="Supprimer"
-                                >
-                                    <Trash2 class="w-4 h-4" />
-                                </button>
+                                <div class="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                     :class="{ 'opacity-100': editingClientId === client.id }">
+                                    <button
+                                        @click="openEditForm(client)"
+                                        class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
+                                        :class="{ 'text-amber-600 bg-amber-50': editingClientId === client.id }"
+                                        title="Modifier"
+                                    >
+                                        <Edit class="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        @click="handleDelete(client.id)"
+                                        class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all"
+                                        title="Supprimer"
+                                    >
+                                        <Trash2 class="w-4 h-4" />
+                                    </button>
+                                </div>
                             </div>
 
                             <div class="space-y-1 text-xs">

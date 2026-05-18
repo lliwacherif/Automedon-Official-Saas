@@ -100,7 +100,7 @@ export interface Database {
                     // Client Information
                     client_name: string
                     client_cin: string
-                    client_phone: string
+                    client_phone: string | null
                     client_email: string | null
                     client_permit_number: string | null
                     client_cin_date: string | null
@@ -146,7 +146,7 @@ export interface Database {
                     // Client Information
                     client_name: string
                     client_cin: string
-                    client_phone: string
+                    client_phone?: string | null
                     client_email?: string | null
                     client_permit_number?: string | null
                     client_cin_date?: string | null
@@ -192,7 +192,7 @@ export interface Database {
                     // Client Information
                     client_name?: string
                     client_cin?: string
-                    client_phone?: string
+                    client_phone?: string | null
                     client_email?: string | null
                     client_permit_number?: string | null
                     client_cin_date?: string | null

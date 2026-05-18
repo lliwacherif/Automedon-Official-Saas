@@ -130,6 +130,44 @@ export function useFaithfulClients() {
         }
     }
 
+    /**
+     * Partial update of a faithful client. Unspecified keys are left untouched.
+     * Empty strings should be passed as `null` by the caller to clear a field.
+     */
+    async function updateFaithfulClient(
+        id: number,
+        updates: Partial<Omit<FaithfulClient, 'id' | 'created_at' | 'updated_at' | 'tenant_id'>>,
+    ): Promise<FaithfulClient | null> {
+        loading.value = true;
+        error.value = null;
+        try {
+            const payload: Record<string, unknown> = {
+                ...updates,
+                updated_at: new Date().toISOString(),
+            };
+
+            const { data, error: supabaseError } = await (supabase
+                .from('faithful_clients') as any)
+                .update(payload)
+                .eq('id', id)
+                .select()
+                .single();
+
+            if (supabaseError) throw supabaseError;
+
+            const updated = data as FaithfulClient;
+            const idx = clients.value.findIndex((c) => c.id === id);
+            if (idx !== -1) clients.value[idx] = { ...clients.value[idx], ...updated };
+            return updated;
+        } catch (e: any) {
+            console.error('Error updating faithful client:', e);
+            error.value = e.message;
+            throw e;
+        } finally {
+            loading.value = false;
+        }
+    }
+
     async function deleteFaithfulClient(id: number) {
         loading.value = true;
         try {
@@ -186,6 +224,7 @@ export function useFaithfulClients() {
         fetchFaithfulClients,
         searchFaithfulClients,
         createFaithfulClient,
+        updateFaithfulClient,
         deleteFaithfulClient,
         setClientDocuments,
     };
