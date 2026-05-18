@@ -221,12 +221,10 @@ const reservation = ref<Partial<Reservation>>({
 const showSecondDriver = ref(false);
 
 // ──────────────────────────────────────────────────────────────────
-// "Save as Client Fidèle?" proposal — when the admin types a client
-// name + CIN that doesn't match any registered Client Fidèle, propose
-// to register them. Only fires when creating a new reservation (not
-// editing) and never for agency clients.
-// Declared AFTER `reservation` because the watcher reads from it at
-// setup time (Vue evaluates the source function once to track deps).
+// "Save as Client Fidèle?" proposal — triggered from handleSubmit on
+// click of "Enregistrer", NOT on typing. Sweeps in every filled
+// client_* field so the new faithful client is fully populated.
+// Never fires in edit mode or agency mode.
 // ──────────────────────────────────────────────────────────────────
 const showSuggestRegisterModal = ref(false);
 const suggestRegisterPayload = ref<{
@@ -244,9 +242,11 @@ const suggestRegisterError = ref<string | null>(null);
 const suggestRegisterSuccess = ref<string | null>(null);
 const suggestRegisterDismissedCins = ref<Set<string>>(new Set());
 const suggestRegisterKnownCins = ref<Set<string>>(new Set());
-let suggestRegisterDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+// Resolves the maybeProposeRegisterClient() promise once the user
+// makes a decision (save, skip, dismiss). Lets handleSubmit await it.
+let suggestRegisterResolver: (() => void) | null = null;
 
-async function checkClientForNewFaithfulClient() {
+async function maybeProposeRegisterClient(): Promise<void> {
     if (isEditMode.value) return;
     if (clientMode.value === 'agency') return;
     if (showSuggestRegisterModal.value) return;
@@ -264,11 +264,8 @@ async function checkClientForNewFaithfulClient() {
         return;
     }
 
-    // Race guard — fields might have changed during the await.
-    if (
-        (reservation.value.client_name || '').trim() === fullName &&
-        (reservation.value.client_cin || '').trim() === cin
-    ) {
+    // Show the modal and wait for the user's choice before resolving.
+    return new Promise<void>((resolve) => {
         suggestRegisterPayload.value = {
             full_name: fullName,
             cin,
@@ -281,17 +278,10 @@ async function checkClientForNewFaithfulClient() {
         };
         suggestRegisterError.value = null;
         suggestRegisterSuccess.value = null;
+        suggestRegisterResolver = resolve;
         showSuggestRegisterModal.value = true;
-    }
+    });
 }
-
-watch(
-    () => [reservation.value.client_name, reservation.value.client_cin],
-    () => {
-        if (suggestRegisterDebounceTimer) clearTimeout(suggestRegisterDebounceTimer);
-        suggestRegisterDebounceTimer = setTimeout(checkClientForNewFaithfulClient, 800);
-    },
-);
 
 function dismissSuggestRegister() {
     if (suggestRegisterPayload.value) {
@@ -299,6 +289,10 @@ function dismissSuggestRegister() {
     }
     showSuggestRegisterModal.value = false;
     suggestRegisterError.value = null;
+    // Let handleSubmit continue with the actual reservation save.
+    const r = suggestRegisterResolver;
+    suggestRegisterResolver = null;
+    if (r) r();
 }
 
 async function confirmSuggestRegister() {
@@ -331,7 +325,11 @@ async function confirmSuggestRegister() {
         setTimeout(() => {
             showSuggestRegisterModal.value = false;
             suggestRegisterSuccess.value = null;
-        }, 1600);
+            // Continue the outer handleSubmit flow after the brief success state.
+            const r = suggestRegisterResolver;
+            suggestRegisterResolver = null;
+            if (r) r();
+        }, 1400);
     } catch (e: any) {
         suggestRegisterError.value = e?.message || "Erreur lors de l'enregistrement du client fidèle.";
     } finally {
@@ -444,6 +442,11 @@ async function handleSubmit() {
                  return;
              }
         }
+
+        // Propose registering this client as a Client Fidèle if their CIN
+        // isn't already on file. The user can save them or skip — either
+        // way the reservation save flow continues right after.
+        await maybeProposeRegisterClient();
 
         if ((reservation.value.duration_days || 0) <= 0) {
             alert(t('admin.reservations.invalid_dates'));

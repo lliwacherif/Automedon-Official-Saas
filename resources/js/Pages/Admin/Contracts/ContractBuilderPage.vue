@@ -256,9 +256,35 @@ const reservationValidationErrors = computed<string[]>(() => {
 
 const canSaveAsReservation = computed(() => reservationValidationErrors.value.length === 0);
 
-function openSaveAsReservationModal() {
+async function openSaveAsReservationModal() {
   saveAsReservationError.value = null;
   saveAsReservationSuccess.value = null;
+
+  // Before opening the preview modal, propose registering the Locataire
+  // as a Client Fidèle if their CIN isn't already known.
+  const payload = buildSuggestPayloadFromContract();
+  if (
+    payload &&
+    !suggestRegisterDismissedCins.value.has(payload.cin) &&
+    !suggestRegisterKnownCins.value.has(payload.cin)
+  ) {
+    const registered = await isFaithfulClientCinRegistered(payload.cin);
+    if (registered === true) {
+      suggestRegisterKnownCins.value.add(payload.cin);
+    } else if (registered === false) {
+      suggestRegisterPayload.value = payload;
+      suggestRegisterError.value = null;
+      suggestRegisterSuccess.value = null;
+      // After the user decides (save / skip), open the save-as-reservation modal.
+      pendingActionAfterRegister = () => {
+        showSaveAsReservationModal.value = true;
+      };
+      showSuggestRegisterModal.value = true;
+      return;
+    }
+    // registered === null → DB unreachable, just continue.
+  }
+
   showSaveAsReservationModal.value = true;
 }
 
@@ -460,68 +486,68 @@ function splitFaithfulClient(client: FaithfulClient) {
 }
 
 // ──────────────────────────────────────────────────────────────────
-// "Save as Client Fidèle?" proposal — when the admin fills nom +
-// prénom + CIN for the Locataire and the CIN doesn't match any
-// existing Client Fidèle in this tenant, propose to register them.
-// Only active in blank-contract mode so we don't bother the admin
-// when the Locataire is already loaded from a reservation.
+// "Save as Client Fidèle?" proposal — triggered on click of
+// "Sauvegarder comme réservation" in blank mode, NOT on typing.
+// Captures every Locataire field the admin filled in so the new
+// faithful client is as complete as possible.
 // ──────────────────────────────────────────────────────────────────
+interface SuggestRegisterPayload {
+  nom: string;
+  prenom: string;
+  cin: string;
+  cin_date?: string;
+  permit_number?: string;
+  permit_date?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  /** ISO YYYY-MM-DD parsed from the locataire's dob field. */
+  date_of_birth?: string;
+}
+
 const showSuggestRegisterModal = ref(false);
-const suggestRegisterPayload = ref<{ nom: string; prenom: string; cin: string } | null>(null);
+const suggestRegisterPayload = ref<SuggestRegisterPayload | null>(null);
 const suggestRegisterLoading = ref(false);
 const suggestRegisterError = ref<string | null>(null);
 const suggestRegisterSuccess = ref<string | null>(null);
 // CINs the admin already dismissed for this session, so the modal
 // doesn't pop up again for them.
 const suggestRegisterDismissedCins = ref<Set<string>>(new Set());
-// CINs for which we already detected an existing client → no need
-// to re-query the DB on every keystroke.
+// CINs for which we already detected an existing client → skip the
+// re-query on subsequent clicks of the same flow.
 const suggestRegisterKnownCins = ref<Set<string>>(new Set());
-let suggestRegisterDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+// Action to run once the propose-register modal is dismissed/confirmed.
+// Used to chain back into "Sauvegarder comme réservation".
+let pendingActionAfterRegister: (() => void) | null = null;
 
-async function checkLocataireForNewFaithfulClient() {
-  if (!isBlankMode.value) return;
-  if (showSuggestRegisterModal.value) return;
-
-  const nom = (contractData.value.locataire.nom || '').trim();
-  const prenom = (contractData.value.locataire.prenom || '').trim();
-  const cin = (contractData.value.locataire.ci || '').trim();
-
-  if (!nom || !prenom || !cin || cin.length < 4) return;
-  if (suggestRegisterDismissedCins.value.has(cin)) return;
-  if (suggestRegisterKnownCins.value.has(cin)) return;
-
-  const registered = await isFaithfulClientCinRegistered(cin);
-  if (registered === null) return; // unknown — stay silent
-  if (registered === true) {
-    suggestRegisterKnownCins.value.add(cin);
-    return;
-  }
-
-  // Make sure the inputs haven't changed during the await.
-  if (
-    (contractData.value.locataire.nom || '').trim() === nom &&
-    (contractData.value.locataire.prenom || '').trim() === prenom &&
-    (contractData.value.locataire.ci || '').trim() === cin
-  ) {
-    suggestRegisterPayload.value = { nom, prenom, cin };
-    suggestRegisterError.value = null;
-    suggestRegisterSuccess.value = null;
-    showSuggestRegisterModal.value = true;
-  }
+/** Try to extract an ISO date (YYYY-MM-DD) from the locataire's free-text dob. */
+function extractIsoDob(dob: string): string | undefined {
+  if (!dob) return undefined;
+  const m = dob.match(/(\d{1,2})\s*[/\-.]\s*(\d{1,2})\s*[/\-.]\s*(\d{4})/);
+  if (!m) return undefined;
+  const [, dd, mm, yyyy] = m;
+  return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
 }
 
-watch(
-  () => [
-    contractData.value.locataire.nom,
-    contractData.value.locataire.prenom,
-    contractData.value.locataire.ci,
-  ],
-  () => {
-    if (suggestRegisterDebounceTimer) clearTimeout(suggestRegisterDebounceTimer);
-    suggestRegisterDebounceTimer = setTimeout(checkLocataireForNewFaithfulClient, 800);
-  },
-);
+function buildSuggestPayloadFromContract(): SuggestRegisterPayload | null {
+  const d = contractData.value.locataire;
+  const nom = (d.nom || '').trim();
+  const prenom = (d.prenom || '').trim();
+  const cin = (d.ci || '').trim();
+  if (!nom || !prenom || !cin || cin.length < 4) return null;
+
+  return {
+    nom,
+    prenom,
+    cin,
+    cin_date: (d.ciDate || '').trim() || undefined,
+    permit_number: (d.permis || '').trim() || undefined,
+    permit_date: (d.permisDate || '').trim() || undefined,
+    address: (d.adresse || '').trim() || undefined,
+    phone: (d.telephone || '').trim() || undefined,
+    date_of_birth: extractIsoDob(d.dob || ''),
+  };
+}
 
 function dismissSuggestRegister() {
   if (suggestRegisterPayload.value) {
@@ -529,6 +555,10 @@ function dismissSuggestRegister() {
   }
   showSuggestRegisterModal.value = false;
   suggestRegisterError.value = null;
+  // Continue to whatever flow the admin started (save-as-reservation, etc.)
+  const next = pendingActionAfterRegister;
+  pendingActionAfterRegister = null;
+  if (next) next();
 }
 
 async function confirmSuggestRegister() {
@@ -536,23 +566,33 @@ async function confirmSuggestRegister() {
   suggestRegisterLoading.value = true;
   suggestRegisterError.value = null;
 
-  const { nom, prenom, cin } = suggestRegisterPayload.value;
-  const fullName = `${prenom} ${nom}`.trim();
+  const p = suggestRegisterPayload.value;
+  const fullName = `${p.prenom} ${p.nom}`.trim();
 
   try {
     await createFaithfulClient({
       full_name: fullName,
-      first_name: prenom,
-      last_name: nom,
-      cin,
+      first_name: p.prenom,
+      last_name: p.nom,
+      cin: p.cin,
+      cin_date: p.cin_date,
+      permit_number: p.permit_number,
+      permit_date: p.permit_date,
+      address: p.address,
+      phone: p.phone,
+      email: p.email,
+      date_of_birth: p.date_of_birth,
     });
-    suggestRegisterKnownCins.value.add(cin);
+    suggestRegisterKnownCins.value.add(p.cin);
     suggestRegisterSuccess.value = fullName;
-    // Auto-close shortly after success so the admin can keep working.
+    // Auto-close + continue the pending action after a brief success state.
     setTimeout(() => {
       showSuggestRegisterModal.value = false;
       suggestRegisterSuccess.value = null;
-    }, 1600);
+      const next = pendingActionAfterRegister;
+      pendingActionAfterRegister = null;
+      if (next) next();
+    }, 1400);
   } catch (e: any) {
     suggestRegisterError.value = e?.message || "Erreur lors de l'enregistrement du client fidèle.";
   } finally {
@@ -1754,9 +1794,7 @@ onMounted(async () => {
               <template v-else>
                 <p class="text-sm text-slate-600 leading-relaxed">
                   Souhaitez-vous l'enregistrer dans <strong>Clients Fidèles</strong> ?
-                  Seuls le <strong>nom</strong>, le <strong>prénom</strong> et le
-                  <strong>CIN</strong> seront sauvegardés pour l'instant. Vous pourrez compléter
-                  son adresse, téléphone, permis, etc. depuis la page Clients Fidèles.
+                  Tous les champs déjà saisis pour le locataire seront sauvegardés.
                 </p>
 
                 <div class="cb-preview-grid mt-3">
@@ -1771,6 +1809,30 @@ onMounted(async () => {
                   <div class="cb-preview-row">
                     <div class="cb-preview-label">CIN</div>
                     <div class="cb-preview-value font-mono text-sm tracking-wide text-slate-700">{{ suggestRegisterPayload?.cin }}</div>
+                  </div>
+                  <div v-if="suggestRegisterPayload?.cin_date" class="cb-preview-row">
+                    <div class="cb-preview-label">Délivrance CIN</div>
+                    <div class="cb-preview-value text-sm text-slate-700">{{ suggestRegisterPayload.cin_date }}</div>
+                  </div>
+                  <div v-if="suggestRegisterPayload?.permit_number" class="cb-preview-row">
+                    <div class="cb-preview-label">N° Permis</div>
+                    <div class="cb-preview-value font-mono text-sm text-slate-700">{{ suggestRegisterPayload.permit_number }}</div>
+                  </div>
+                  <div v-if="suggestRegisterPayload?.permit_date" class="cb-preview-row">
+                    <div class="cb-preview-label">Délivrance Permis</div>
+                    <div class="cb-preview-value text-sm text-slate-700">{{ suggestRegisterPayload.permit_date }}</div>
+                  </div>
+                  <div v-if="suggestRegisterPayload?.date_of_birth" class="cb-preview-row">
+                    <div class="cb-preview-label">Date de naissance</div>
+                    <div class="cb-preview-value text-sm text-slate-700">{{ suggestRegisterPayload.date_of_birth }}</div>
+                  </div>
+                  <div v-if="suggestRegisterPayload?.address" class="cb-preview-row">
+                    <div class="cb-preview-label">Adresse</div>
+                    <div class="cb-preview-value text-sm text-slate-700 truncate" :title="suggestRegisterPayload.address">{{ suggestRegisterPayload.address }}</div>
+                  </div>
+                  <div v-if="suggestRegisterPayload?.phone" class="cb-preview-row">
+                    <div class="cb-preview-label">Téléphone</div>
+                    <div class="cb-preview-value text-sm text-slate-700">{{ suggestRegisterPayload.phone }}</div>
                   </div>
                 </div>
 
