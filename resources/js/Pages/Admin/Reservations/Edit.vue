@@ -385,16 +385,25 @@ onMounted(async () => {
     initialLoading.value = false;
 });
 
+// Hours of grace allowed past a full day before counting an extra day.
+// E.g. picking up at 09:00 and returning at 11:30 the next day = 1 day.
+// Returning at 12:30 the next day (>3h overrun) = 2 days.
+const RETURN_HOURS_GRACE = 3;
+
 // Auto-calculate duration when dates change (skip during initial load)
 watch([() => reservation.value.start_date, () => reservation.value.end_date], () => {
     if (initialLoading.value) return;
-    
+
     if (reservation.value.start_date && reservation.value.end_date) {
         const start = new Date(reservation.value.start_date);
         const end = new Date(reservation.value.end_date);
-        const diff = end.getTime() - start.getTime();
-        const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-        reservation.value.duration_days = days > 0 ? days : 0;
+        const diffHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+        // Any positive duration counts as at least 1 day. After that, only
+        // overruns strictly greater than RETURN_HOURS_GRACE roll into +1 day.
+        const days = diffHours > 0
+            ? Math.max(1, Math.ceil((diffHours - RETURN_HOURS_GRACE) / 24))
+            : 0;
+        reservation.value.duration_days = days;
         calculateTotal();
     }
 });
