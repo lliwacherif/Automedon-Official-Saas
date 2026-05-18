@@ -1667,7 +1667,11 @@ onMounted(async () => {
           </button>
           <div v-show="!collapsedSections.encaissement" class="sb-body">
             <div class="sb-field">
-              <label>{{ contractData.pricingMode === 'TTC' ? 'Total Facture TTC (DT)' : 'Total Partiel HT (DT)' }}</label>
+              <!-- After the TTC/HT fix: TTC mode treats the input as H.T (VAT is
+                   added on top), HT mode treats the input as T.T.C (H.T is
+                   back-derived). The label below reflects what the user is
+                   actually typing in each mode. -->
+              <label>{{ contractData.pricingMode === 'TTC' ? 'Total Partiel HT (DT)' : 'Total Facture TTC (DT)' }}</label>
               <input v-model.number="contractData.encaissement.totalPartiel" type="number" step="0.001" placeholder="0.000" />
             </div>
             <div class="sb-field">
