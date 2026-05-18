@@ -189,7 +189,10 @@ const routes = [
                 path: 'admin/kpi',
                 component: () => import('../Pages/Admin/KPI/Index.vue'),
                 name: 'admin.dashboard', // Renamed from admin.kpi.index for clarity as dashboard
-                meta: { requiresAuth: true, requiresAdmin: true, requiresSuperAdmin: true }
+                // Access is gated by the per-user allowed_pages allow-list in
+                // the beforeEach guard (or admin role bypass) — no more hard
+                // admin-only flag so users granted "kpi" can actually reach it.
+                meta: { requiresAuth: true, requiresAdmin: true }
             },
             {
                 path: 'admin/settings',
@@ -201,7 +204,9 @@ const routes = [
                 path: 'admin/history',
                 component: () => import('../Pages/Admin/History/Index.vue'),
                 name: 'admin.history.index',
-                meta: { requiresAuth: true, requiresAdmin: true, requiresSuperAdmin: true }
+                // Same as KPI: access controlled by allowed_pages allow-list
+                // + admin role bypass — no hard admin-only flag.
+                meta: { requiresAuth: true, requiresAdmin: true }
             },
             {
                 path: 'admin/reports',
@@ -213,7 +218,10 @@ const routes = [
                 path: 'admin/history/:id',
                 component: () => import('../Pages/Admin/History/Show.vue'),
                 name: 'admin.history.show',
-                meta: { requiresAuth: true, requiresAdmin: true, requiresSuperAdmin: true }
+                // Inherits the same access rule as admin/history (via the
+                // allowed_pages allow-list — its routePrefixes include
+                // '/admin/history' so /admin/history/:id matches too).
+                meta: { requiresAuth: true, requiresAdmin: true }
             },
             {
                 path: 'admin/store',
