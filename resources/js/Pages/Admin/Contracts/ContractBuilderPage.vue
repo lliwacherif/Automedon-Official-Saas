@@ -260,30 +260,12 @@ async function openSaveAsReservationModal() {
   saveAsReservationError.value = null;
   saveAsReservationSuccess.value = null;
 
-  // Before opening the preview modal, propose registering the Locataire
-  // as a Client Fidèle if their CIN isn't already known.
-  const payload = buildSuggestPayloadFromContract();
-  if (
-    payload &&
-    !suggestRegisterDismissedCins.value.has(payload.cin) &&
-    !suggestRegisterKnownCins.value.has(payload.cin)
-  ) {
-    const registered = await isFaithfulClientCinRegistered(payload.cin);
-    if (registered === true) {
-      suggestRegisterKnownCins.value.add(payload.cin);
-    } else if (registered === false) {
-      suggestRegisterPayload.value = payload;
-      suggestRegisterError.value = null;
-      suggestRegisterSuccess.value = null;
-      // After the user decides (save / skip), open the save-as-reservation modal.
-      pendingActionAfterRegister = () => {
-        showSaveAsReservationModal.value = true;
-      };
-      showSuggestRegisterModal.value = true;
-      return;
-    }
-    // registered === null → DB unreachable, just continue.
-  }
+  // Before opening the preview, propose registering each unknown person
+  // (Locataire first, then Conducteur) as a Client Fidèle. Each await
+  // resolves immediately when there's nothing to propose, or once the
+  // admin closes the proposal modal.
+  await maybeProposeRegister('locataire');
+  await maybeProposeRegister('conducteur');
 
   showSaveAsReservationModal.value = true;
 }
@@ -492,6 +474,8 @@ function splitFaithfulClient(client: FaithfulClient) {
 // faithful client is as complete as possible.
 // ──────────────────────────────────────────────────────────────────
 interface SuggestRegisterPayload {
+  /** Indicates which person of the contract this proposal applies to. */
+  personLabel: 'Locataire' | 'Conducteur';
   nom: string;
   prenom: string;
   cin: string;
@@ -501,7 +485,7 @@ interface SuggestRegisterPayload {
   address?: string;
   phone?: string;
   email?: string;
-  /** ISO YYYY-MM-DD parsed from the locataire's dob field. */
+  /** ISO YYYY-MM-DD parsed from the person's dob field. */
   date_of_birth?: string;
 }
 
@@ -516,11 +500,12 @@ const suggestRegisterDismissedCins = ref<Set<string>>(new Set());
 // CINs for which we already detected an existing client → skip the
 // re-query on subsequent clicks of the same flow.
 const suggestRegisterKnownCins = ref<Set<string>>(new Set());
-// Action to run once the propose-register modal is dismissed/confirmed.
-// Used to chain back into "Sauvegarder comme réservation".
-let pendingActionAfterRegister: (() => void) | null = null;
+// Resolves the maybeProposeRegister*() promise once the modal closes
+// (whether the user confirmed or skipped). Lets openSaveAsReservationModal
+// await both proposals sequentially before opening the preview modal.
+let suggestRegisterResolver: (() => void) | null = null;
 
-/** Try to extract an ISO date (YYYY-MM-DD) from the locataire's free-text dob. */
+/** Try to extract an ISO date (YYYY-MM-DD) from a free-text dob field. */
 function extractIsoDob(dob: string): string | undefined {
   if (!dob) return undefined;
   const m = dob.match(/(\d{1,2})\s*[/\-.]\s*(\d{1,2})\s*[/\-.]\s*(\d{4})/);
@@ -529,14 +514,22 @@ function extractIsoDob(dob: string): string | undefined {
   return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
 }
 
-function buildSuggestPayloadFromContract(): SuggestRegisterPayload | null {
-  const d = contractData.value.locataire;
+/**
+ * Build a propose-register payload from either the Locataire or the
+ * Conducteur block of the contract. Returns null when the minimum
+ * fields (nom, prenom, CIN ≥ 4 chars) aren't filled.
+ */
+function buildSuggestPayloadFromContract(person: 'locataire' | 'conducteur'): SuggestRegisterPayload | null {
+  const d = person === 'locataire'
+    ? contractData.value.locataire
+    : contractData.value.conducteur;
   const nom = (d.nom || '').trim();
   const prenom = (d.prenom || '').trim();
   const cin = (d.ci || '').trim();
   if (!nom || !prenom || !cin || cin.length < 4) return null;
 
   return {
+    personLabel: person === 'locataire' ? 'Locataire' : 'Conducteur',
     nom,
     prenom,
     cin,
@@ -549,16 +542,46 @@ function buildSuggestPayloadFromContract(): SuggestRegisterPayload | null {
   };
 }
 
+/**
+ * If the given contract person's CIN isn't yet in faithful_clients,
+ * show the propose-register modal and resolve only once the admin
+ * decides. Returns immediately when there's nothing to propose.
+ */
+async function maybeProposeRegister(person: 'locataire' | 'conducteur'): Promise<void> {
+  if (!isBlankMode.value) return;
+  if (showSuggestRegisterModal.value) return;
+
+  const payload = buildSuggestPayloadFromContract(person);
+  if (!payload) return;
+  if (suggestRegisterDismissedCins.value.has(payload.cin)) return;
+  if (suggestRegisterKnownCins.value.has(payload.cin)) return;
+
+  const registered = await isFaithfulClientCinRegistered(payload.cin);
+  if (registered === null) return;
+  if (registered === true) {
+    suggestRegisterKnownCins.value.add(payload.cin);
+    return;
+  }
+
+  return new Promise<void>((resolve) => {
+    suggestRegisterPayload.value = payload;
+    suggestRegisterError.value = null;
+    suggestRegisterSuccess.value = null;
+    suggestRegisterResolver = resolve;
+    showSuggestRegisterModal.value = true;
+  });
+}
+
 function dismissSuggestRegister() {
   if (suggestRegisterPayload.value) {
     suggestRegisterDismissedCins.value.add(suggestRegisterPayload.value.cin);
   }
   showSuggestRegisterModal.value = false;
   suggestRegisterError.value = null;
-  // Continue to whatever flow the admin started (save-as-reservation, etc.)
-  const next = pendingActionAfterRegister;
-  pendingActionAfterRegister = null;
-  if (next) next();
+  // Unblock whatever async flow is awaiting this modal.
+  const r = suggestRegisterResolver;
+  suggestRegisterResolver = null;
+  if (r) r();
 }
 
 async function confirmSuggestRegister() {
@@ -585,13 +608,13 @@ async function confirmSuggestRegister() {
     });
     suggestRegisterKnownCins.value.add(p.cin);
     suggestRegisterSuccess.value = fullName;
-    // Auto-close + continue the pending action after a brief success state.
+    // Auto-close + continue the awaited promise after a brief success state.
     setTimeout(() => {
       showSuggestRegisterModal.value = false;
       suggestRegisterSuccess.value = null;
-      const next = pendingActionAfterRegister;
-      pendingActionAfterRegister = null;
-      if (next) next();
+      const r = suggestRegisterResolver;
+      suggestRegisterResolver = null;
+      if (r) r();
     }, 1400);
   } catch (e: any) {
     suggestRegisterError.value = e?.message || "Erreur lors de l'enregistrement du client fidèle.";
@@ -1765,7 +1788,13 @@ onMounted(async () => {
                   <h3 class="text-base font-bold text-slate-900">
                     {{ suggestRegisterSuccess ? 'Ajouté à vos Clients Fidèles' : 'Nouveau client détecté' }}
                   </h3>
-                  <p class="text-xs text-slate-500">
+                  <p class="text-xs text-slate-500 flex items-center gap-1 flex-wrap">
+                    <span
+                      v-if="!suggestRegisterSuccess && suggestRegisterPayload?.personLabel"
+                      class="inline-block px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 font-bold uppercase tracking-wider text-[9px]"
+                    >
+                      {{ suggestRegisterPayload.personLabel }}
+                    </span>
                     {{ suggestRegisterSuccess
                       ? 'Ce client est désormais disponible en autocomplétion.'
                       : "Ce CIN n'existe pas encore dans vos Clients Fidèles." }}

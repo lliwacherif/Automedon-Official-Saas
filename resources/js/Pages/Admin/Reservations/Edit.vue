@@ -223,11 +223,16 @@ const showSecondDriver = ref(false);
 // ──────────────────────────────────────────────────────────────────
 // "Save as Client Fidèle?" proposal — triggered from handleSubmit on
 // click of "Enregistrer", NOT on typing. Sweeps in every filled
-// client_* field so the new faithful client is fully populated.
-// Never fires in edit mode or agency mode.
+// field for the chosen person so the new faithful client is fully
+// populated. Never fires in edit mode or agency mode.
+// Runs once for the main client and once for the second driver, in
+// sequence — the modal can pop up twice, once per unknown CIN.
 // ──────────────────────────────────────────────────────────────────
-const showSuggestRegisterModal = ref(false);
-const suggestRegisterPayload = ref<{
+type SuggestPerson = 'client' | 'second_driver';
+
+interface SuggestRegisterPayload {
+    /** Used in the modal subtitle to indicate which person is being proposed. */
+    personLabel: 'Locataire' | 'Deuxième conducteur';
     full_name: string;
     cin: string;
     phone?: string;
@@ -236,37 +241,27 @@ const suggestRegisterPayload = ref<{
     cin_date?: string;
     permit_date?: string;
     address?: string;
-} | null>(null);
+}
+
+const showSuggestRegisterModal = ref(false);
+const suggestRegisterPayload = ref<SuggestRegisterPayload | null>(null);
 const suggestRegisterLoading = ref(false);
 const suggestRegisterError = ref<string | null>(null);
 const suggestRegisterSuccess = ref<string | null>(null);
 const suggestRegisterDismissedCins = ref<Set<string>>(new Set());
 const suggestRegisterKnownCins = ref<Set<string>>(new Set());
-// Resolves the maybeProposeRegisterClient() promise once the user
-// makes a decision (save, skip, dismiss). Lets handleSubmit await it.
+// Resolves the maybeProposeRegister() promise once the user makes a
+// decision (save, skip, dismiss). Lets handleSubmit await it.
 let suggestRegisterResolver: (() => void) | null = null;
 
-async function maybeProposeRegisterClient(): Promise<void> {
-    if (isEditMode.value) return;
-    if (clientMode.value === 'agency') return;
-    if (showSuggestRegisterModal.value) return;
-
-    const fullName = (reservation.value.client_name || '').trim();
-    const cin = (reservation.value.client_cin || '').trim();
-    if (!fullName || !cin || cin.length < 4) return;
-    if (suggestRegisterDismissedCins.value.has(cin)) return;
-    if (suggestRegisterKnownCins.value.has(cin)) return;
-
-    const registered = await isFaithfulClientCinRegistered(cin);
-    if (registered === null) return;
-    if (registered === true) {
-        suggestRegisterKnownCins.value.add(cin);
-        return;
-    }
-
-    // Show the modal and wait for the user's choice before resolving.
-    return new Promise<void>((resolve) => {
-        suggestRegisterPayload.value = {
+/** Build a payload from either the main client or the second-driver fields. */
+function buildSuggestPayloadFromReservation(person: SuggestPerson): SuggestRegisterPayload | null {
+    if (person === 'client') {
+        const fullName = (reservation.value.client_name || '').trim();
+        const cin = (reservation.value.client_cin || '').trim();
+        if (!fullName || !cin || cin.length < 4) return null;
+        return {
+            personLabel: 'Locataire',
             full_name: fullName,
             cin,
             phone: (reservation.value.client_phone || '').trim() || undefined,
@@ -276,6 +271,45 @@ async function maybeProposeRegisterClient(): Promise<void> {
             permit_date: (reservation.value.client_permit_date || '').trim() || undefined,
             address: (reservation.value.client_address || '').trim() || undefined,
         };
+    }
+    // second_driver — only valid when the section is shown
+    if (!showSecondDriver.value) return null;
+    const fullName = (reservation.value.second_driver_name || '').trim();
+    const cin = (reservation.value.second_driver_cin || '').trim();
+    if (!fullName || !cin || cin.length < 4) return null;
+    return {
+        personLabel: 'Deuxième conducteur',
+        full_name: fullName,
+        cin,
+        phone: (reservation.value.second_driver_phone || '').trim() || undefined,
+        email: (reservation.value.second_driver_email || '').trim() || undefined,
+        permit_number: (reservation.value.second_driver_permit_number || '').trim() || undefined,
+        cin_date: (reservation.value.second_driver_cin_date || '').trim() || undefined,
+        permit_date: (reservation.value.second_driver_permit_date || '').trim() || undefined,
+        address: (reservation.value.second_driver_address || '').trim() || undefined,
+    };
+}
+
+async function maybeProposeRegister(person: SuggestPerson): Promise<void> {
+    if (isEditMode.value) return;
+    if (clientMode.value === 'agency') return;
+    if (showSuggestRegisterModal.value) return;
+
+    const payload = buildSuggestPayloadFromReservation(person);
+    if (!payload) return;
+    if (suggestRegisterDismissedCins.value.has(payload.cin)) return;
+    if (suggestRegisterKnownCins.value.has(payload.cin)) return;
+
+    const registered = await isFaithfulClientCinRegistered(payload.cin);
+    if (registered === null) return;
+    if (registered === true) {
+        suggestRegisterKnownCins.value.add(payload.cin);
+        return;
+    }
+
+    // Show the modal and wait for the user's choice before resolving.
+    return new Promise<void>((resolve) => {
+        suggestRegisterPayload.value = payload;
         suggestRegisterError.value = null;
         suggestRegisterSuccess.value = null;
         suggestRegisterResolver = resolve;
@@ -452,10 +486,12 @@ async function handleSubmit() {
              }
         }
 
-        // Propose registering this client as a Client Fidèle if their CIN
-        // isn't already on file. The user can save them or skip — either
-        // way the reservation save flow continues right after.
-        await maybeProposeRegisterClient();
+        // Propose registering each unknown person (main client + second
+        // driver) as a Client Fidèle. The modal pops up sequentially —
+        // the user can save or skip each one, and the reservation save
+        // flow continues right after both decisions.
+        await maybeProposeRegister('client');
+        await maybeProposeRegister('second_driver');
 
         if ((reservation.value.duration_days || 0) <= 0) {
             alert(t('admin.reservations.invalid_dates'));
@@ -1383,7 +1419,13 @@ function clearAgency() {
                                             <h3 class="text-base font-bold text-gray-900">
                                                 {{ suggestRegisterSuccess ? 'Ajouté à vos Clients Fidèles' : 'Nouveau client détecté' }}
                                             </h3>
-                                            <p class="text-xs text-gray-500">
+                                            <p class="text-xs text-gray-500 flex items-center gap-1 flex-wrap">
+                                                <span
+                                                    v-if="!suggestRegisterSuccess && suggestRegisterPayload?.personLabel"
+                                                    class="inline-block px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 font-bold uppercase tracking-wider text-[9px]"
+                                                >
+                                                    {{ suggestRegisterPayload.personLabel }}
+                                                </span>
                                                 {{ suggestRegisterSuccess
                                                     ? 'Ce client est désormais disponible en autocomplétion.'
                                                     : "Ce CIN n'existe pas encore dans vos Clients Fidèles." }}
