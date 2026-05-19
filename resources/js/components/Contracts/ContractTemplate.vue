@@ -399,8 +399,8 @@ function fmt3(v: number): string {
           <div class="ct-sig-row">
             <div class="ct-sig-box">
               <div class="ct-sig-line"></div>
-              Signature précédée du "lu et approuvé" du locataire.<br>
-              <b>إمضاء و ختم الحريف</b>
+              Cachet et Signature {{ data.company.name }}<br>
+              <b>إمضاء و ختم</b>
             </div>
             <div class="ct-sig-box" style="text-align:center;">
               <div style="font-size:14px;font-weight:900;color:#c00;margin-bottom:2px;">{{ data.company.name }}</div>
@@ -410,8 +410,8 @@ function fmt3(v: number): string {
             </div>
             <div class="ct-sig-box">
               <div class="ct-sig-line"></div>
-              Cachet et Signature {{ data.company.name }}<br>
-              <b>إمضاء و ختم</b>
+              Signature précédée du "lu et approuvé" du locataire.<br>
+              <b>إمضاء و ختم الحريف</b>
             </div>
           </div>
         </div>
