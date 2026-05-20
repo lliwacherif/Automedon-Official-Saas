@@ -30,6 +30,8 @@ import {
     FileDown,
     Building2,
     ScrollText,
+    CircleCheck,
+    CreditCard,
 } from 'lucide-vue-next';
 
 const { t, locale } = useI18n();
@@ -342,7 +344,25 @@ import { formatDate, formatDateTime } from '@/utils/date';
                                         <div class="text-[11px] text-gray-400 font-medium mt-0.5">{{ res.duration_days }} {{ t('admin.reservations.days') }}</div>
                                     </td>
                                     <td class="px-3 py-3.5">
-                                        <span class="text-sm font-bold text-gray-900">{{ res.total_price.toFixed(2) }} DT</span>
+                                        <div class="flex flex-col gap-1 items-start">
+                                            <span class="text-sm font-bold text-gray-900">{{ res.total_price.toFixed(2) }} DT</span>
+                                            <span
+                                                v-if="(Number(res.total_price) - Number(res.advance_payment || 0)) <= 0"
+                                                class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 rounded-md ring-1 ring-emerald-200/60"
+                                                title="Réservation entièrement payée"
+                                            >
+                                                <CircleCheck class="w-2.5 h-2.5" />
+                                                Payé
+                                            </span>
+                                            <span
+                                                v-else
+                                                class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold text-red-700 bg-red-50 rounded-md ring-1 ring-red-200/60"
+                                                title="Reste à payer"
+                                            >
+                                                <CreditCard class="w-2.5 h-2.5" />
+                                                {{ (Number(res.total_price) - Number(res.advance_payment || 0)).toFixed(2) }} DT
+                                            </span>
+                                        </div>
                                     </td>
                                     <td class="px-3 py-3.5">
                                         <span :class="getStatusClass(res.status)" class="status-badge">
@@ -508,9 +528,25 @@ import { formatDate, formatDateTime } from '@/utils/date';
                         </div>
 
                         <!-- Card Footer -->
-                        <div class="px-4 py-3 bg-gray-50/50 border-t border-gray-100 flex justify-between items-center">
-                            <div class="text-base font-bold text-gray-900">
-                                {{ res.total_price.toFixed(2) }} DT
+                        <div class="px-4 py-3 bg-gray-50/50 border-t border-gray-100 flex justify-between items-center gap-2">
+                            <div class="flex flex-col items-start gap-1 min-w-0">
+                                <div class="text-base font-bold text-gray-900">
+                                    {{ res.total_price.toFixed(2) }} DT
+                                </div>
+                                <span
+                                    v-if="(Number(res.total_price) - Number(res.advance_payment || 0)) <= 0"
+                                    class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 rounded-md ring-1 ring-emerald-200/60"
+                                >
+                                    <CircleCheck class="w-2.5 h-2.5" />
+                                    Payé
+                                </span>
+                                <span
+                                    v-else
+                                    class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold text-red-700 bg-red-50 rounded-md ring-1 ring-red-200/60"
+                                >
+                                    <CreditCard class="w-2.5 h-2.5" />
+                                    Reste {{ (Number(res.total_price) - Number(res.advance_payment || 0)).toFixed(2) }} DT
+                                </span>
                             </div>
                             <div class="flex items-center gap-1">
                                 <button 
