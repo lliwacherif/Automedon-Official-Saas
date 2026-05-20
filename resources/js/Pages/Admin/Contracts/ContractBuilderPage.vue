@@ -110,6 +110,199 @@ function onFleetCarSelected(value: string) {
 }
 
 // ──────────────────────────────────────────────────────────────────
+// Prolongation — when the admin fills the "Prolongation / Changement"
+// Du / Au dates and the picked car has a confirmed/active reservation
+// that hasn't ended yet, offer to extend that reservation's end_date
+// directly from here. Acts as a shortcut for "modify the reservation
+// dates manually" without leaving the contract builder.
+// ──────────────────────────────────────────────────────────────────
+interface ExtendableReservation {
+  id: number;
+  reservation_number: string;
+  car_id: number;
+  start_date: string; // ISO
+  end_date: string; // ISO
+  duration_days: number;
+  price_per_day: number | null;
+  total_price: number | null;
+  status: string;
+  client_name: string | null;
+}
+
+const extendableReservation = ref<ExtendableReservation | null>(null);
+const extendableReservationLoading = ref(false);
+
+async function refreshExtendableReservation() {
+  extendableReservationLoading.value = true;
+  try {
+    if (!selectedFleetCarId.value) {
+      extendableReservation.value = null;
+      return;
+    }
+    const tenantId = tenantStore.currentTenant?.id;
+    if (!tenantId) {
+      extendableReservation.value = null;
+      return;
+    }
+
+    const nowIso = new Date().toISOString();
+    const { data, error } = await supabase
+      .from('reservations')
+      .select('id, reservation_number, car_id, start_date, end_date, duration_days, price_per_day, total_price, status, client_name')
+      .eq('car_id', selectedFleetCarId.value)
+      .eq('tenant_id', tenantId)
+      .in('status', ['confirmed', 'active'])
+      .gte('end_date', nowIso)
+      .order('end_date', { ascending: false })
+      .limit(1);
+
+    if (error || !data || data.length === 0) {
+      extendableReservation.value = null;
+      return;
+    }
+    extendableReservation.value = data[0] as ExtendableReservation;
+  } catch (e) {
+    console.error('refreshExtendableReservation failed:', e);
+    extendableReservation.value = null;
+  } finally {
+    extendableReservationLoading.value = false;
+  }
+}
+
+watch(selectedFleetCarId, () => { refreshExtendableReservation(); });
+
+/** Validation rules for applying the prolongation to the extendable reservation. */
+const prolongationValidation = computed<{ ok: boolean; errors: string[]; previewEnd: Date | null; addedDays: number }>(() => {
+  const errors: string[] = [];
+  let previewEnd: Date | null = null;
+  let addedDays = 0;
+
+  const res = extendableReservation.value;
+  if (!res) {
+    errors.push("Aucune réservation en cours pour ce véhicule.");
+    return { ok: false, errors, previewEnd, addedDays };
+  }
+
+  const duIso = frenchDateToIso(contractData.value.prolongation.du || '');
+  const auIso = frenchDateToIso(contractData.value.prolongation.au || '');
+  if (!duIso) errors.push("Date « Du » manquante ou invalide.");
+  if (!auIso) errors.push("Date « Au » manquante ou invalide.");
+  if (!duIso || !auIso) return { ok: false, errors, previewEnd, addedDays };
+
+  const duDate = new Date(duIso + 'T00:00:00');
+  const auDate = new Date(auIso + 'T00:00:00');
+  if (auDate <= duDate) {
+    errors.push("La date « Au » doit être postérieure à la date « Du ».");
+    return { ok: false, errors, previewEnd, addedDays };
+  }
+
+  const originalEnd = new Date(res.end_date);
+  // Carry over the time-of-day from the original end so the prolongation
+  // keeps the same return hour (e.g. 09:00 → 09:00 on the new day).
+  previewEnd = new Date(auDate);
+  previewEnd.setHours(originalEnd.getHours(), originalEnd.getMinutes(), originalEnd.getSeconds(), 0);
+
+  const now = new Date();
+  if (previewEnd <= now) {
+    errors.push("La nouvelle date de fin doit être dans le futur.");
+  }
+  if (previewEnd <= originalEnd) {
+    errors.push("La prolongation doit étendre la réservation, pas la raccourcir.");
+  }
+
+  // The prolongation should start at or after the current end date.
+  const originalEndDateOnly = new Date(originalEnd);
+  originalEndDateOnly.setHours(0, 0, 0, 0);
+  if (duDate < originalEndDateOnly) {
+    errors.push(`La prolongation ne peut pas commencer avant la fin actuelle de la réservation (${formatLocalDate(originalEnd)}).`);
+  }
+
+  if (errors.length === 0 && previewEnd) {
+    const originalStart = new Date(res.start_date);
+    const diffHours = (previewEnd.getTime() - originalStart.getTime()) / (1000 * 60 * 60);
+    const newDuration = diffHours > 0
+      ? Math.max(1, Math.ceil((diffHours - 3) / 24))
+      : 0;
+    addedDays = Math.max(0, newDuration - (Number(res.duration_days) || 0));
+  }
+
+  return { ok: errors.length === 0, errors, previewEnd, addedDays };
+});
+
+function formatLocalDate(d: Date | null | undefined): string {
+  if (!d) return '';
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
+}
+
+// Apply-prolongation modal state.
+const showApplyProlongationModal = ref(false);
+const applyProlongationLoading = ref(false);
+const applyProlongationError = ref<string | null>(null);
+const applyProlongationSuccess = ref<{ reservationNumber: string; newEnd: string; addedDays: number } | null>(null);
+
+function openApplyProlongationModal() {
+  if (!prolongationValidation.value.ok) return;
+  applyProlongationError.value = null;
+  applyProlongationSuccess.value = null;
+  showApplyProlongationModal.value = true;
+}
+
+function closeApplyProlongationModal() {
+  if (applyProlongationLoading.value) return;
+  showApplyProlongationModal.value = false;
+}
+
+async function confirmApplyProlongation() {
+  if (applyProlongationLoading.value) return;
+  const res = extendableReservation.value;
+  const validation = prolongationValidation.value;
+  if (!res || !validation.ok || !validation.previewEnd) return;
+
+  applyProlongationLoading.value = true;
+  applyProlongationError.value = null;
+
+  try {
+    const newEnd = validation.previewEnd;
+    const originalStart = new Date(res.start_date);
+    const diffHours = (newEnd.getTime() - originalStart.getTime()) / (1000 * 60 * 60);
+    const newDuration = diffHours > 0
+      ? Math.max(1, Math.ceil((diffHours - 3) / 24))
+      : 0;
+    const newTotal = (Number(res.price_per_day) || 0) * newDuration;
+
+    const { error } = await (supabase.from('reservations') as any)
+      .update({
+        end_date: newEnd.toISOString(),
+        duration_days: newDuration,
+        total_price: newTotal,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', res.id);
+
+    if (error) throw error;
+
+    applyProlongationSuccess.value = {
+      reservationNumber: res.reservation_number,
+      newEnd: formatLocalDate(newEnd),
+      addedDays: validation.addedDays,
+    };
+
+    // Refresh the local copy so the preview updates and a second
+    // prolongation would start from the new baseline.
+    await refreshExtendableReservation();
+  } catch (e: any) {
+    applyProlongationError.value = e?.message || "Erreur lors de la prolongation de la réservation.";
+  } finally {
+    applyProlongationLoading.value = false;
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────
 // Save-as-reservation — turns a blank contract into a fully-fledged
 // reservation in one click. Available only in blank mode (where no
 // reservation backs the contract yet).
@@ -178,6 +371,21 @@ const periodeRetourDateInput = computed({
   get: () => frenchDateToIso(contractData.value.periode.retourDate),
   set: (v: string) => {
     contractData.value.periode.retourDate = isoToFrenchDate(v);
+  },
+});
+
+// Same idea for the Prolongation / Changement section's Du and Au dates.
+const prolongationDuInput = computed({
+  get: () => frenchDateToIso(contractData.value.prolongation.du),
+  set: (v: string) => {
+    contractData.value.prolongation.du = isoToFrenchDate(v);
+  },
+});
+
+const prolongationAuInput = computed({
+  get: () => frenchDateToIso(contractData.value.prolongation.au),
+  set: (v: string) => {
+    contractData.value.prolongation.au = isoToFrenchDate(v);
   },
 });
 
@@ -1733,9 +1941,49 @@ onMounted(async () => {
           </button>
           <div v-show="!collapsedSections.prolongation" class="sb-body">
             <div class="sb-row-2">
-              <div class="sb-field"><label>Du</label><input v-model="contractData.prolongation.du" placeholder="JJ/MM/AAAA" /></div>
-              <div class="sb-field"><label>Au</label><input v-model="contractData.prolongation.au" placeholder="JJ/MM/AAAA" /></div>
+              <div class="sb-field"><label>Du</label><input v-model="prolongationDuInput" type="date" /></div>
+              <div class="sb-field"><label>Au</label><input v-model="prolongationAuInput" type="date" /></div>
             </div>
+
+            <!-- Apply-prolongation block — only shown when the picked car has a
+                 confirmed/active reservation we can actually extend. -->
+            <div v-if="extendableReservation" class="prolong-apply-block">
+              <div class="prolong-apply-info">
+                <Sparkles class="w-3 h-3 text-indigo-500 shrink-0 mt-0.5" />
+                <div class="prolong-apply-info-text">
+                  <div class="prolong-line">
+                    <span class="text-slate-500">Réservation&nbsp;</span>
+                    <span class="prolong-res-pill" :title="extendableReservation.reservation_number">{{ extendableReservation.reservation_number }}</span>
+                  </div>
+                  <div v-if="extendableReservation.client_name" class="prolong-line text-slate-600 truncate" :title="extendableReservation.client_name">
+                    {{ extendableReservation.client_name }}
+                  </div>
+                  <div class="prolong-line">
+                    <span class="text-slate-500">Fin actuelle&nbsp;:</span>
+                    <span class="text-slate-700 font-semibold">{{ formatLocalDate(new Date(extendableReservation.end_date)) }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <ul v-if="!prolongationValidation.ok && (contractData.prolongation.du || contractData.prolongation.au)" class="prolong-errors">
+                <li v-for="(err, idx) in prolongationValidation.errors" :key="idx">{{ err }}</li>
+              </ul>
+
+              <button
+                type="button"
+                :disabled="!prolongationValidation.ok"
+                @click="openApplyProlongationModal"
+                class="prolong-apply-btn"
+                title="Appliquer la prolongation à la réservation du véhicule"
+              >
+                <CalendarPlus class="w-3.5 h-3.5 shrink-0" />
+                <span>Appliquer la prolongation</span>
+              </button>
+              <p v-if="prolongationValidation.ok" class="text-[10.5px] text-emerald-600 pl-1 leading-snug">
+                +{{ prolongationValidation.addedDays }} jour{{ prolongationValidation.addedDays > 1 ? 's' : '' }} détecté{{ prolongationValidation.addedDays > 1 ? 's' : '' }}.
+              </p>
+            </div>
+
             <div class="sb-field"><label>Changement de voiture</label><input v-model="contractData.prolongation.changement" /></div>
             <div class="sb-field"><label>Date et horaire</label><input v-model="contractData.prolongation.dateHoraire" placeholder="JJ/MM/AAAA HH:MM" /></div>
           </div>
@@ -1772,6 +2020,124 @@ onMounted(async () => {
         </div>
       </section>
     </main>
+
+    <!-- Apply-prolongation confirmation modal -->
+    <Teleport to="body">
+      <Transition name="cb-modal">
+        <div v-if="showApplyProlongationModal" class="cb-modal-root">
+          <div class="cb-modal-backdrop" @click="closeApplyProlongationModal"></div>
+          <div class="cb-modal-card cb-modal-card--narrow">
+            <header class="cb-modal-header">
+              <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-md shadow-emerald-200">
+                  <CalendarPlus class="w-4.5 h-4.5 text-white" />
+                </div>
+                <div>
+                  <h3 class="text-base font-bold text-slate-900">
+                    {{ applyProlongationSuccess ? 'Réservation prolongée' : 'Confirmer la prolongation' }}
+                  </h3>
+                  <p class="text-xs text-slate-500">
+                    {{ applyProlongationSuccess
+                      ? 'La fin de la réservation a été repoussée.'
+                      : "Cette action modifie la date de fin de la réservation existante." }}
+                  </p>
+                </div>
+              </div>
+              <button @click="closeApplyProlongationModal" class="cb-modal-close" :disabled="applyProlongationLoading">
+                <X class="h-4 w-4" />
+              </button>
+            </header>
+
+            <div class="cb-modal-body">
+              <template v-if="applyProlongationSuccess">
+                <div class="cb-success">
+                  <div class="cb-success-icon">
+                    <Check class="h-6 w-6" />
+                  </div>
+                  <div class="cb-success-text">
+                    <p class="text-sm font-semibold text-slate-900">
+                      <span class="cb-res-number">{{ applyProlongationSuccess.reservationNumber }}</span>
+                      prolongée
+                    </p>
+                    <p class="text-xs text-slate-500 mt-1">
+                      Nouvelle date de fin&nbsp;:
+                      <span class="font-semibold text-slate-700">{{ applyProlongationSuccess.newEnd }}</span>
+                      <span class="text-emerald-600 font-bold">
+                        (+{{ applyProlongationSuccess.addedDays }} j)
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              </template>
+
+              <template v-else-if="extendableReservation">
+                <div class="cb-preview-grid">
+                  <div class="cb-preview-row">
+                    <div class="cb-preview-label">Réservation</div>
+                    <div class="cb-preview-value">
+                      <span class="cb-res-number">{{ extendableReservation.reservation_number }}</span>
+                      <span v-if="extendableReservation.client_name" class="text-[11px] text-slate-500 ml-1">· {{ extendableReservation.client_name }}</span>
+                    </div>
+                  </div>
+                  <div class="cb-preview-row">
+                    <div class="cb-preview-label">Fin actuelle</div>
+                    <div class="cb-preview-value text-sm text-slate-700">{{ formatLocalDate(new Date(extendableReservation.end_date)) }}</div>
+                  </div>
+                  <div class="cb-preview-row">
+                    <div class="cb-preview-label">Nouvelle fin</div>
+                    <div class="cb-preview-value">
+                      <div class="font-semibold text-emerald-700">{{ formatLocalDate(prolongationValidation.previewEnd) }}</div>
+                      <div class="text-[11px] text-slate-500 mt-0.5">+{{ prolongationValidation.addedDays }} jour{{ prolongationValidation.addedDays > 1 ? 's' : '' }}</div>
+                    </div>
+                  </div>
+                  <div v-if="extendableReservation.price_per_day" class="cb-preview-row">
+                    <div class="cb-preview-label">Prix / jour</div>
+                    <div class="cb-preview-value text-sm text-slate-700">{{ Number(extendableReservation.price_per_day).toFixed(3) }} DT</div>
+                  </div>
+                </div>
+
+                <div class="cb-notice">
+                  <Sparkles class="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                  <span>
+                    La durée et le total seront recalculés automatiquement à partir de la
+                    nouvelle date de fin. La date de début et le tarif journalier
+                    restent inchangés.
+                  </span>
+                </div>
+
+                <div v-if="applyProlongationError" class="cb-error-banner">
+                  <AlertCircle class="w-4 h-4 text-red-500 shrink-0" />
+                  <span>{{ applyProlongationError }}</span>
+                </div>
+              </template>
+            </div>
+
+            <footer class="cb-modal-footer">
+              <template v-if="applyProlongationSuccess">
+                <button @click="closeApplyProlongationModal" class="cb-btn cb-btn-primary">
+                  <Check class="h-4 w-4" />
+                  Fermer
+                </button>
+              </template>
+              <template v-else>
+                <button @click="closeApplyProlongationModal" :disabled="applyProlongationLoading" class="cb-btn cb-btn-ghost">
+                  Annuler
+                </button>
+                <button
+                  @click="confirmApplyProlongation"
+                  :disabled="applyProlongationLoading || !prolongationValidation.ok"
+                  class="cb-btn cb-btn-confirm"
+                >
+                  <Loader2 v-if="applyProlongationLoading" class="h-4 w-4 animate-spin" />
+                  <CalendarPlus v-else class="h-4 w-4" />
+                  Prolonger
+                </button>
+              </template>
+            </footer>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
 
     <!-- "Save as Client Fidèle?" proposal modal -->
     <Teleport to="body">
@@ -2086,6 +2452,7 @@ onMounted(async () => {
   border: 1px solid #e2e8f0;
   border-radius: 14px;
   overflow: hidden;
+  min-width: 0;
 }
 
 .sb-title {
@@ -2109,13 +2476,18 @@ onMounted(async () => {
 .sb-body {
   padding: 12px 16px 16px;
   display: grid;
+  /* Explicit minmax(0, 1fr) lets the column shrink to the 320 px sidebar
+     instead of being pushed wider by inputs / unbreakable tokens. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
+  min-width: 0;
 }
 
 .sb-field {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  min-width: 0;
 }
 .sb-field label {
   font-size: 11px;
@@ -2125,6 +2497,9 @@ onMounted(async () => {
 .sb-field input,
 .sb-field select {
   width: 100%;
+  /* Native <input type="date"> has a fairly wide intrinsic min-content;
+     min-width:0 lets it shrink inside narrow grid tracks. */
+  min-width: 0;
   padding: 7px 10px;
   font-size: 13px;
   color: #1e293b;
@@ -2144,8 +2519,10 @@ onMounted(async () => {
 
 .sb-row-2 {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* Same shrink-friendly tracks for the two-column rows. */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 10px;
+  min-width: 0;
 }
 
 .sb-divider {
@@ -2317,6 +2694,112 @@ onMounted(async () => {
 
 .cb-modal-card--narrow {
   max-width: 460px;
+}
+
+/* ─── Apply-prolongation inline block (in sidebar) ─── */
+.prolong-apply-block {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.05), rgba(139, 92, 246, 0.03));
+  border: 1px dashed rgba(99, 102, 241, 0.28);
+  /* Let the block shrink with its sidebar track instead of forcing it
+     wider via long unbreakable content (reservation numbers etc). */
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.prolong-apply-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: #475569;
+  min-width: 0;
+}
+
+.prolong-apply-info-text {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.prolong-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.prolong-res-pill {
+  display: inline-block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+  padding: 1px 6px;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 6px;
+  color: #4338ca;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: -0.02em;
+  max-width: 100%;
+  /* Long auto-generated reservation numbers can be unbreakable strings;
+     allow them to wrap mid-token rather than pushing the parent wider. */
+  word-break: break-all;
+  line-height: 1.3;
+}
+
+.prolong-errors {
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px;
+  list-style: none;
+  margin: 0;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #991b1b;
+  font-size: 11px;
+  line-height: 1.35;
+  min-width: 0;
+}
+.prolong-errors li::before { content: '• '; }
+
+.prolong-apply-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #059669, #047857);
+  color: white;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 10px -4px rgba(5, 150, 105, 0.4);
+  transition: transform 0.1s ease, box-shadow 0.15s ease;
+  /* Full-width so the label can wrap inside the sidebar without
+     overflowing it horizontally. */
+  width: 100%;
+  text-align: center;
+  white-space: normal;
+  line-height: 1.2;
+}
+.prolong-apply-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px -4px rgba(5, 150, 105, 0.55);
+}
+.prolong-apply-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .cb-modal-header {
