@@ -481,14 +481,15 @@ function adjustDuration(delta: 1 | -1) {
     calculateTotal();
 }
 
-// Auto-calculate total when price per day or duration changes (skip during initial load)
-watch([() => reservation.value.price_per_day, () => reservation.value.duration_days], () => {
+// When the auto-calculated duration changes (date pickers, ±1 buttons),
+// keep the rate constant and recompute the total. Price_per_day stays the
+// source of truth in that direction. User edits on either pricing input
+// are handled via @input on the templates below (recomputePriceTotal /
+// recomputePricePerDay) so there's no circular watcher loop.
+watch(() => reservation.value.duration_days, () => {
     if (initialLoading.value) return;
     calculateTotal();
 });
-
-// Watcher removed as per user request (check only on submit)
-
 
 function calculateTotal() {
     const days = reservation.value.duration_days || 0;
@@ -496,11 +497,39 @@ function calculateTotal() {
     reservation.value.total_price = days * pricePerDay;
 }
 
+/** User edits Prix par Jour → Prix Total follows. */
+function recomputeTotalFromPrice() {
+    const days = reservation.value.duration_days || 0;
+    const ppd = Number(reservation.value.price_per_day) || 0;
+    reservation.value.total_price = Number((days * ppd).toFixed(4));
+}
+
+/** User edits Prix Total → Prix par Jour is back-derived. */
+function recomputePricePerDay() {
+    const days = reservation.value.duration_days || 0;
+    const total = Number(reservation.value.total_price) || 0;
+    if (days > 0) {
+        reservation.value.price_per_day = Number((total / days).toFixed(4));
+    }
+}
+
 const restToPay = computed(() => {
     const total = reservation.value.total_price || 0;
     const advance = reservation.value.advance_payment || 0;
     return Math.max(0, total - advance);
 });
+
+/**
+ * One-click "mark as fully paid": pushes whatever is still owed
+ * (restToPay) into Acompte / Avance so advance_payment === total_price
+ * and the Reste à Payer card flips to its emerald "Payé en totalité" state.
+ */
+function confirmFullPayment() {
+    const total = Number(reservation.value.total_price) || 0;
+    if (total <= 0) return;
+    if (restToPay.value <= 0) return;
+    reservation.value.advance_payment = total;
+}
 
 async function handleSubmit() {
     loading.value = true;
@@ -1151,16 +1180,31 @@ function clearAgency() {
                             <label class="form-label">{{ t('admin.reservations.price_per_day') }} * (DT)</label>
                             <div class="form-input-wrapper">
                                 <DollarSign class="form-input-icon" />
-                                <input v-model.number="reservation.price_per_day" type="number" step="0.0001" required class="form-input">
+                                <input
+                                    v-model.number="reservation.price_per_day"
+                                    @input="recomputeTotalFromPrice"
+                                    type="number"
+                                    step="0.0001"
+                                    required
+                                    class="form-input"
+                                >
                             </div>
                         </div>
                         <div>
                             <label class="form-label">{{ t('admin.reservations.total_price') }} (DT)</label>
-                            <div class="form-input-wrapper bg-gray-50">
+                            <div class="form-input-wrapper">
                                 <Wallet class="form-input-icon" />
-                                <input v-model="reservation.total_price" type="number" step="0.0001" readonly class="form-input bg-transparent text-lg font-bold">
+                                <input
+                                    v-model.number="reservation.total_price"
+                                    @input="recomputePricePerDay"
+                                    type="number"
+                                    step="0.0001"
+                                    class="form-input text-lg font-bold"
+                                >
                             </div>
-                            <p class="text-[11px] text-gray-400 mt-1 pl-1">{{ t('admin.reservations.auto_calculated') }}</p>
+                            <p class="text-[11px] text-gray-400 mt-1 pl-1">
+                                Auto-calculé · modifiable (le Prix par Jour s'ajuste automatiquement).
+                            </p>
                         </div>
                     </div>
 
@@ -1193,6 +1237,32 @@ function clearAgency() {
                                 </p>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- One-click "Confirmer paiement" — pushes Reste à Payer into Acompte -->
+                    <div v-if="(reservation.total_price || 0) > 0" class="mt-4">
+                        <button
+                            type="button"
+                            @click="confirmFullPayment"
+                            :disabled="restToPay <= 0"
+                            class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-xl transition-all"
+                            :class="restToPay > 0
+                                ? 'text-white bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-700 hover:to-emerald-600 shadow-md shadow-emerald-200 hover:shadow-lg hover:shadow-emerald-300'
+                                : 'text-emerald-700 bg-emerald-50 ring-1 ring-emerald-200 cursor-not-allowed'"
+                        >
+                            <CircleCheck class="w-4 h-4" />
+                            <template v-if="restToPay > 0">
+                                Confirmer le paiement
+                                <span class="opacity-90">·</span>
+                                <span>Encaisser {{ restToPay.toFixed(2) }} DT</span>
+                            </template>
+                            <template v-else>
+                                Paiement déjà confirmé
+                            </template>
+                        </button>
+                        <p v-if="restToPay > 0" class="text-[11px] text-gray-400 mt-1.5 pl-1">
+                            Bascule le reste à payer dans <span class="font-semibold text-gray-600">Acompte / Avance</span> et marque la réservation comme entièrement payée.
+                        </p>
                     </div>
 
                     <!-- Caution / Security Deposit -->
