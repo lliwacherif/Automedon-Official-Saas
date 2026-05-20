@@ -814,15 +814,17 @@ onMounted(async () => {
                                                 </button>
                                             </div>
 
-                                            <!-- Oil brand (always required for both subtypes) -->
+                                            <!-- Oil brand (optional for both subtypes) -->
                                             <div>
-                                                <label class="form-label">Huile moteur *</label>
+                                                <label class="form-label flex items-center gap-1">
+                                                    Huile moteur
+                                                    <span class="text-[10px] font-medium text-gray-400 normal-case">(optionnel)</span>
+                                                </label>
                                                 <div class="form-input-wrapper">
                                                     <Droplet class="form-input-icon" />
                                                     <input
                                                         v-model="formData.oil_brand"
                                                         type="text"
-                                                        required
                                                         class="form-input"
                                                         placeholder="Ex: Mobil 1 5W30, Total Quartz 10W40..."
                                                     />
