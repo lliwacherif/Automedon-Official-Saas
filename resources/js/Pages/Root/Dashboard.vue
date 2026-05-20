@@ -132,12 +132,42 @@ const handleDelete = async (id: string) => {
     }
 };
 
-const handleToggleAlert = async (tenant: Tenant) => {
+// ── Payment alert picker (Off / Banner / Banner + modal popup) ──
+type PaymentAlertChoice = 'off' | 'banner' | 'modal';
+const showAlertModal = ref(false);
+const alertTenant = ref<Tenant | null>(null);
+const alertChoice = ref<PaymentAlertChoice>('off');
+const alertSaving = ref(false);
+
+const openAlertModal = (tenant: Tenant) => {
+    alertTenant.value = tenant;
+    if (!tenant.payment_alert) {
+        alertChoice.value = 'off';
+    } else {
+        alertChoice.value = (tenant.payment_alert_type as PaymentAlertChoice) === 'modal' ? 'modal' : 'banner';
+    }
+    showAlertModal.value = true;
+};
+
+const closeAlertModal = () => {
+    if (alertSaving.value) return;
+    showAlertModal.value = false;
+};
+
+const saveAlertChoice = async () => {
+    if (!alertTenant.value || alertSaving.value) return;
+    alertSaving.value = true;
     try {
-        const newVal = await tenantStore.togglePaymentAlert(tenant.id, tenant.payment_alert);
-        tenant.payment_alert = newVal;
+        const enabled = alertChoice.value !== 'off';
+        const type = alertChoice.value === 'modal' ? 'modal' : 'banner';
+        await tenantStore.setPaymentAlertSettings(alertTenant.value.id, enabled, type);
+        alertTenant.value.payment_alert = enabled;
+        (alertTenant.value as any).payment_alert_type = type;
+        showAlertModal.value = false;
     } catch (e: any) {
-        alert('Error toggling alert: ' + e.message);
+        alert('Erreur: ' + e.message);
+    } finally {
+        alertSaving.value = false;
     }
 };
 
@@ -494,16 +524,26 @@ onMounted(() => {
                                 <ExternalLink class="w-3.5 h-3.5" />
                                 Access
                             </a>
-                            <button 
-                                @click="handleToggleAlert(tenant)"
-                                class="flex items-center justify-center w-9 h-9 rounded-lg transition-all"
-                                :class="tenant.payment_alert 
-                                    ? 'text-amber-400 bg-amber-500/10 hover:bg-amber-500/20' 
+                            <button
+                                @click="openAlertModal(tenant)"
+                                class="relative flex items-center justify-center w-9 h-9 rounded-lg transition-all"
+                                :class="tenant.payment_alert
+                                    ? 'text-amber-400 bg-amber-500/10 hover:bg-amber-500/20'
                                     : 'text-white/20 hover:text-amber-400 hover:bg-amber-500/10'"
-                                :title="tenant.payment_alert ? 'Désactiver alerte paiement' : 'Activer alerte paiement'"
+                                :title="tenant.payment_alert
+                                    ? (tenant.payment_alert_type === 'modal'
+                                        ? 'Alerte paiement (Type 2 — bandeau + popup)'
+                                        : 'Alerte paiement (Type 1 — bandeau)')
+                                    : 'Configurer l\'alerte de paiement'"
                             >
                                 <Bell v-if="!tenant.payment_alert" class="w-4 h-4" />
                                 <BellOff v-else class="w-4 h-4" />
+                                <!-- Tiny double-ring badge for Type 2 (popup mode) -->
+                                <span
+                                    v-if="tenant.payment_alert && tenant.payment_alert_type === 'modal'"
+                                    class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-orange-500 ring-2 ring-gray-900"
+                                    aria-hidden="true"
+                                ></span>
                             </button>
                             <button 
                                 @click="openSubscriptionModal(tenant)"
@@ -900,6 +940,127 @@ onMounted(() => {
                 </div>
             </div>
         </Transition>
+
+        <!-- Payment Alert Type Modal -->
+        <Teleport to="body">
+            <div v-if="showAlertModal && alertTenant" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="closeAlertModal"></div>
+                <div class="relative w-full max-w-md rounded-2xl bg-gray-900 ring-1 ring-white/10 shadow-2xl overflow-hidden">
+                    <!-- Header -->
+                    <div class="px-5 py-4 border-b border-white/[0.06] bg-gradient-to-r from-amber-500/10 to-orange-500/10 flex items-center justify-between">
+                        <div class="flex items-center gap-2.5">
+                            <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-md shadow-amber-500/30">
+                                <AlertTriangle class="w-4 h-4 text-white" />
+                            </div>
+                            <div>
+                                <h3 class="text-sm font-bold text-white">Alerte de paiement</h3>
+                                <p class="text-[11px] text-white/60 truncate max-w-[240px]">{{ alertTenant.name }}</p>
+                            </div>
+                        </div>
+                        <button @click="closeAlertModal" :disabled="alertSaving" class="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/[0.06] transition disabled:opacity-40">
+                            <X class="w-4 h-4" />
+                        </button>
+                    </div>
+
+                    <!-- Body — three picker cards -->
+                    <div class="p-5 space-y-2.5">
+                        <button
+                            type="button"
+                            @click="alertChoice = 'off'"
+                            class="w-full text-left rounded-xl p-3 ring-1 transition-all"
+                            :class="alertChoice === 'off'
+                                ? 'bg-white/[0.06] ring-white/30 shadow-inner'
+                                : 'bg-white/[0.02] ring-white/10 hover:bg-white/[0.04] hover:ring-white/20'"
+                        >
+                            <div class="flex items-start gap-3">
+                                <div class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                                     :class="alertChoice === 'off' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-white/[0.05] text-white/40'">
+                                    <BellOff class="w-4 h-4" />
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-sm font-bold text-white">Aucune alerte</span>
+                                        <Check v-if="alertChoice === 'off'" class="w-3.5 h-3.5 text-emerald-400" />
+                                    </div>
+                                    <p class="text-[11px] text-white/50 mt-0.5">Le tenant ne voit aucune notification de paiement.</p>
+                                </div>
+                            </div>
+                        </button>
+
+                        <button
+                            type="button"
+                            @click="alertChoice = 'banner'"
+                            class="w-full text-left rounded-xl p-3 ring-1 transition-all"
+                            :class="alertChoice === 'banner'
+                                ? 'bg-amber-500/10 ring-amber-400/40 shadow-inner'
+                                : 'bg-white/[0.02] ring-white/10 hover:bg-white/[0.04] hover:ring-white/20'"
+                        >
+                            <div class="flex items-start gap-3">
+                                <div class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                                     :class="alertChoice === 'banner' ? 'bg-amber-500/20 text-amber-300' : 'bg-white/[0.05] text-white/40'">
+                                    <AlertTriangle class="w-4 h-4" />
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <span class="text-sm font-bold text-white">Type 1 · Bandeau</span>
+                                        <span class="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/10 text-white/60">Discret</span>
+                                        <Check v-if="alertChoice === 'banner'" class="w-3.5 h-3.5 text-amber-300" />
+                                    </div>
+                                    <p class="text-[11px] text-white/50 mt-0.5">Bandeau orange sous la navbar, dismissable par session.</p>
+                                </div>
+                            </div>
+                        </button>
+
+                        <button
+                            type="button"
+                            @click="alertChoice = 'modal'"
+                            class="w-full text-left rounded-xl p-3 ring-1 transition-all"
+                            :class="alertChoice === 'modal'
+                                ? 'bg-orange-500/10 ring-orange-400/50 shadow-inner'
+                                : 'bg-white/[0.02] ring-white/10 hover:bg-white/[0.04] hover:ring-white/20'"
+                        >
+                            <div class="flex items-start gap-3">
+                                <div class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 relative"
+                                     :class="alertChoice === 'modal' ? 'bg-orange-500/20 text-orange-300' : 'bg-white/[0.05] text-white/40'">
+                                    <AlertTriangle class="w-4 h-4" />
+                                    <span class="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-orange-500 ring-2 ring-gray-900"></span>
+                                </div>
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <span class="text-sm font-bold text-white">Type 2 · Bandeau + Popup</span>
+                                        <span class="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300">Insistant</span>
+                                        <Check v-if="alertChoice === 'modal'" class="w-3.5 h-3.5 text-orange-300" />
+                                    </div>
+                                    <p class="text-[11px] text-white/50 mt-0.5">Popup central à la connexion <span class="text-white/70">+</span> bandeau sous la navbar. Le tenant peut fermer le popup.</p>
+                                </div>
+                            </div>
+                        </button>
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="px-5 py-3.5 border-t border-white/[0.06] bg-white/[0.02] flex items-center justify-end gap-2">
+                        <button
+                            type="button"
+                            @click="closeAlertModal"
+                            :disabled="alertSaving"
+                            class="text-sm text-white/50 hover:text-white px-4 py-2 rounded-lg hover:bg-white/[0.06] transition disabled:opacity-40"
+                        >
+                            Annuler
+                        </button>
+                        <button
+                            type="button"
+                            @click="saveAlertChoice"
+                            :disabled="alertSaving"
+                            class="inline-flex items-center gap-1.5 text-sm font-semibold text-white px-4 py-2 rounded-lg bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 shadow-md shadow-amber-500/20 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <Loader2 v-if="alertSaving" class="w-4 h-4 animate-spin" />
+                            <Check v-else class="w-4 h-4" />
+                            Enregistrer
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
 
         <!-- Contract Template Modal -->
         <Transition name="modal">

@@ -2,6 +2,8 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { supabase } from '@/lib/supabase';
 
+export type PaymentAlertType = 'banner' | 'modal';
+
 export interface Tenant {
     id: string;
     name: string;
@@ -9,6 +11,8 @@ export interface Tenant {
     logo_url: string;
     status: 'active' | 'inactive';
     payment_alert: boolean;
+    /** How the alert is rendered when payment_alert = true. */
+    payment_alert_type?: PaymentAlertType;
     membership_type: 'monthly' | 'yearly' | null;
     membership_months: number | null;
     membership_paid: boolean;
@@ -158,6 +162,32 @@ export const useTenantStore = defineStore('tenant', () => {
         }
     }
 
+    /**
+     * Update both the on/off flag and the alert rendering mode in one call.
+     * Use this for the new "alert type" picker in the root dashboard.
+     */
+    async function setPaymentAlertSettings(
+        id: string,
+        enabled: boolean,
+        type: PaymentAlertType = 'banner',
+    ) {
+        try {
+            const { error: updateError } = await (supabase
+                .from('tenants') as any)
+                .update({
+                    payment_alert: enabled,
+                    payment_alert_type: type,
+                })
+                .eq('id', id);
+
+            if (updateError) throw updateError;
+            return { payment_alert: enabled, payment_alert_type: type };
+        } catch (e: any) {
+            console.error('Error updating payment alert settings:', e);
+            throw e;
+        }
+    }
+
     async function updateContractTemplate(id: string, template: 'default' | 'v2') {
         try {
             const { error: updateError } = await (supabase
@@ -282,6 +312,7 @@ export const useTenantStore = defineStore('tenant', () => {
         createTenant,
         toggleTenantStatus,
         togglePaymentAlert,
+        setPaymentAlertSettings,
         updateTenantLogo,
         updateContractTemplate,
         updateSubscription,
