@@ -415,7 +415,13 @@ onMounted(async () => {
             reservation.value.car_id = Number(preselectedCarId);
         }
     }
-    
+
+    // Seed the auto-calculated baseline from whatever loaded (DB for edit
+    // mode, defaults for create mode) so the ± buttons have something to
+    // anchor on even if the admin never touches the date fields.
+    autoCalculatedDays.value = Number(reservation.value.duration_days) || 0;
+    manualDurationOffset.value = 0;
+
     initialLoading.value = false;
 });
 
@@ -424,23 +430,56 @@ onMounted(async () => {
 // Returning at 12:30 the next day (>3h overrun) = 2 days.
 const RETURN_HOURS_GRACE = 3;
 
+// Auto-calculated duration (based on dates) acts as the baseline.
+// The admin can tweak the actual duration_days by ±1 via the buttons
+// next to the field — useful for compensating for late returns or
+// negotiated discounts without having to fudge the dates themselves.
+const autoCalculatedDays = ref(0);
+const manualDurationOffset = ref<-1 | 0 | 1>(0);
+
+function recomputeDurationFromDates() {
+    if (!reservation.value.start_date || !reservation.value.end_date) return;
+    const start = new Date(reservation.value.start_date);
+    const end = new Date(reservation.value.end_date);
+    const diffHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+    // Any positive duration counts as at least 1 day. After that, only
+    // overruns strictly greater than RETURN_HOURS_GRACE roll into +1 day.
+    const days = diffHours > 0
+        ? Math.max(1, Math.ceil((diffHours - RETURN_HOURS_GRACE) / 24))
+        : 0;
+    autoCalculatedDays.value = days;
+    // Re-applying the offset on top of the new baseline preserves the
+    // admin's manual ±1 choice across small date tweaks (e.g. fixing the
+    // return time). The clamp below keeps the total at 1 day minimum.
+    manualDurationOffset.value = 0;
+    reservation.value.duration_days = days;
+    calculateTotal();
+}
+
 // Auto-calculate duration when dates change (skip during initial load)
 watch([() => reservation.value.start_date, () => reservation.value.end_date], () => {
     if (initialLoading.value) return;
-
-    if (reservation.value.start_date && reservation.value.end_date) {
-        const start = new Date(reservation.value.start_date);
-        const end = new Date(reservation.value.end_date);
-        const diffHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-        // Any positive duration counts as at least 1 day. After that, only
-        // overruns strictly greater than RETURN_HOURS_GRACE roll into +1 day.
-        const days = diffHours > 0
-            ? Math.max(1, Math.ceil((diffHours - RETURN_HOURS_GRACE) / 24))
-            : 0;
-        reservation.value.duration_days = days;
-        calculateTotal();
-    }
+    recomputeDurationFromDates();
 });
+
+const canDecrementDuration = computed(() =>
+    manualDurationOffset.value > -1
+    && (autoCalculatedDays.value + manualDurationOffset.value - 1) >= 1
+);
+const canIncrementDuration = computed(() =>
+    manualDurationOffset.value < 1
+    && autoCalculatedDays.value > 0
+);
+
+function adjustDuration(delta: 1 | -1) {
+    const next = manualDurationOffset.value + delta;
+    if (next > 1 || next < -1) return;
+    const newDuration = autoCalculatedDays.value + next;
+    if (newDuration < 1) return;
+    manualDurationOffset.value = next as -1 | 0 | 1;
+    reservation.value.duration_days = newDuration;
+    calculateTotal();
+}
 
 // Auto-calculate total when price per day or duration changes (skip during initial load)
 watch([() => reservation.value.price_per_day, () => reservation.value.duration_days], () => {
@@ -1062,11 +1101,39 @@ function clearAgency() {
                         </div>
                         <div>
                             <label class="form-label">{{ t('admin.reservations.duration') }}</label>
-                            <div class="form-input-wrapper bg-gray-50">
+                            <div class="form-input-wrapper bg-gray-50 pr-1">
                                 <Clock class="form-input-icon" />
                                 <input v-model="reservation.duration_days" type="number" readonly class="form-input bg-transparent">
+                                <div class="flex items-center gap-1 shrink-0">
+                                    <button
+                                        type="button"
+                                        @click="adjustDuration(-1)"
+                                        :disabled="!canDecrementDuration"
+                                        title="Retirer un jour"
+                                        class="w-7 h-7 rounded-lg flex items-center justify-center text-red-500 bg-white hover:bg-red-50 ring-1 ring-red-200 hover:ring-red-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:ring-red-200"
+                                    >
+                                        <Minus class="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        @click="adjustDuration(1)"
+                                        :disabled="!canIncrementDuration"
+                                        title="Ajouter un jour"
+                                        class="w-7 h-7 rounded-lg flex items-center justify-center text-emerald-600 bg-white hover:bg-emerald-50 ring-1 ring-emerald-200 hover:ring-emerald-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:ring-emerald-200"
+                                    >
+                                        <Plus class="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
                             </div>
-                            <p class="text-[11px] text-gray-400 mt-1 pl-1">{{ t('admin.reservations.auto_calculated') }}</p>
+                            <p class="text-[11px] mt-1 pl-1 flex items-center gap-1 flex-wrap">
+                                <span class="text-gray-400">{{ t('admin.reservations.auto_calculated') }}</span>
+                                <span
+                                    v-if="manualDurationOffset !== 0"
+                                    class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-50 ring-1 ring-amber-200 text-amber-700 font-bold text-[10px]"
+                                >
+                                    Ajusté {{ manualDurationOffset > 0 ? '+1' : '-1' }} j
+                                </span>
+                            </p>
                         </div>
                     </div>
                 </div>
