@@ -389,6 +389,30 @@ const prolongationAuInput = computed({
   },
 });
 
+// Payé / Non Payé toggle for the save-as-reservation flow. When 'paid',
+// the new reservation gets advance_payment = total_price (mirrors the
+// "Confirmer le paiement" button on the reservation form).
+const contractPaymentStatus = ref<'paid' | 'unpaid'>('unpaid');
+
+/**
+ * Mirrors the billing computed inside ContractTemplate.vue so the
+ * save-as-reservation flow uses the SAME "Total Facture T.T.C" the
+ * admin sees on the contract preview — not the raw totalPartiel input,
+ * which is HT in TTC mode and TTC in HT mode (per the TTC/HT toggle fix).
+ */
+function computeContractTotalFacture(): number {
+  const mode = contractData.value.pricingMode || 'HT';
+  const input = Number(contractData.value.encaissement.totalPartiel) || 0;
+  const tvaRate = 0.19;
+  const timbre = 1.0;
+  if (mode === 'TTC') {
+    // Stored value is the H.T base, add VAT on top.
+    return Number((input + input * tvaRate + timbre).toFixed(3));
+  }
+  // HT mode → stored value is already the final TTC.
+  return Number(input.toFixed(3));
+}
+
 /** Live preview of the reservation that would be created from the current contract. */
 const reservationPreview = computed(() => {
   const d = contractData.value;
@@ -418,8 +442,16 @@ const reservationPreview = computed(() => {
   const clientName = `${d.locataire.prenom || ''} ${d.locataire.nom || ''}`.trim();
   const secondDriverName = `${d.conducteur.prenom || ''} ${d.conducteur.nom || ''}`.trim();
 
-  const totalPrice = Number(d.encaissement.totalPartiel) || 0;
-  const advancePayment = Number(d.v2?.reglement?.avance) || 0;
+  // Use the same Total Facture T.T.C the contract preview displays, not
+  // the raw totalPartiel input — keeps the reservation total in sync with
+  // what the client actually sees on the printed contract.
+  const totalPrice = computeContractTotalFacture();
+  // Payé toggle pushes the full amount into Acompte / Avance (matches the
+  // "Confirmer le paiement" button on the reservation form). When Non Payé,
+  // we still surface the contract's own V2 reglement.avance if filled.
+  const advancePayment = contractPaymentStatus.value === 'paid'
+    ? totalPrice
+    : (Number(d.v2?.reglement?.avance) || 0);
 
   return {
     car,
@@ -1910,6 +1942,38 @@ onMounted(async () => {
               <select v-model="contractData.encaissement.carburant"><option value="">—</option><option value="R">R (Remise)</option><option value="F">F (Full)</option><option value="E">E (Empty)</option></select>
             </div>
             <div class="sb-field"><label>Franchise ou Divers (DT)</label><input v-model.number="contractData.encaissement.divers" type="number" step="0.001" placeholder="0.000" /></div>
+
+            <!-- Payé / Non Payé toggle — applied when the admin clicks
+                 "Sauvegarder comme réservation". If "Payé", the new
+                 reservation's advance_payment is auto-set to total_price,
+                 just like the "Confirmer le paiement" button on the
+                 reservation form. -->
+            <div class="sb-field">
+              <label>Statut du paiement</label>
+              <div class="payment-toggle">
+                <button
+                  type="button"
+                  class="payment-toggle-btn"
+                  :class="{ 'payment-toggle-btn--paid': contractPaymentStatus === 'paid' }"
+                  @click="contractPaymentStatus = 'paid'"
+                >
+                  <CircleCheck v-if="contractPaymentStatus === 'paid'" class="w-3.5 h-3.5" />
+                  Payé
+                </button>
+                <button
+                  type="button"
+                  class="payment-toggle-btn"
+                  :class="{ 'payment-toggle-btn--unpaid': contractPaymentStatus === 'unpaid' }"
+                  @click="contractPaymentStatus = 'unpaid'"
+                >
+                  <CreditCard v-if="contractPaymentStatus === 'unpaid'" class="w-3.5 h-3.5" />
+                  Non payé
+                </button>
+              </div>
+              <p class="sb-hint">
+                Appliqué à la création de la réservation. <span v-if="contractPaymentStatus === 'paid'" class="font-semibold text-emerald-600">Acompte = Total Facture TTC.</span><span v-else>Aucun acompte enregistré.</span>
+              </p>
+            </div>
           </div>
         </div>
 
@@ -2357,8 +2421,23 @@ onMounted(async () => {
                     <div class="cb-preview-label">Total</div>
                     <div class="cb-preview-value">
                       <div class="font-semibold text-slate-900">{{ reservationPreview.totalPrice.toFixed(3) }} DT</div>
-                      <div v-if="reservationPreview.advancePayment > 0" class="text-[11px] text-slate-500">
-                        Avance : {{ reservationPreview.advancePayment.toFixed(3) }} DT
+                      <div class="flex items-center gap-1.5 mt-0.5">
+                        <span
+                          v-if="contractPaymentStatus === 'paid'"
+                          class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 ring-1 ring-emerald-200 text-emerald-700 font-bold text-[10px]"
+                        >
+                          <Check class="w-2.5 h-2.5" />
+                          Payé en totalité
+                        </span>
+                        <span
+                          v-else
+                          class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-red-50 ring-1 ring-red-200 text-red-700 font-bold text-[10px]"
+                        >
+                          Non payé
+                        </span>
+                      </div>
+                      <div v-if="reservationPreview.advancePayment > 0" class="text-[11px] text-slate-500 mt-0.5">
+                        Acompte : {{ reservationPreview.advancePayment.toFixed(3) }} DT
                       </div>
                     </div>
                   </div>
@@ -2800,6 +2879,45 @@ onMounted(async () => {
 .prolong-apply-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* ─── Payé / Non payé toggle in Encaissement ──────────────── */
+.payment-toggle {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 6px;
+}
+
+.payment-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 10px;
+  font-size: 12.5px;
+  font-weight: 700;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.payment-toggle-btn:hover { background: #f1f5f9; color: #475569; }
+
+.payment-toggle-btn--paid {
+  background: linear-gradient(180deg, #ecfdf5, #d1fae5);
+  border-color: #34d399;
+  color: #047857;
+  box-shadow: inset 0 0 0 1px #34d399, 0 2px 6px -3px rgba(16, 185, 129, 0.45);
+}
+
+.payment-toggle-btn--unpaid {
+  background: linear-gradient(180deg, #fef2f2, #fee2e2);
+  border-color: #f87171;
+  color: #b91c1c;
+  box-shadow: inset 0 0 0 1px #f87171, 0 2px 6px -3px rgba(239, 68, 68, 0.4);
 }
 
 .cb-modal-header {
