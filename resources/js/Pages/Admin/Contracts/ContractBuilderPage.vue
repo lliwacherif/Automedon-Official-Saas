@@ -374,6 +374,18 @@ const periodeRetourDateInput = computed({
   },
 });
 
+// Durée de location auto-calculée à partir des dates/heures de départ &
+// retour, avec la même grace de 3 h utilisée par le formulaire de
+// réservation (1 jour minimum, +1 jour seulement quand le dépassement
+// est strictement supérieur à 3 h).
+const periodeDurationDays = computed(() => {
+  const start = parseFrenchDateTime(contractData.value.periode.departDate, contractData.value.periode.departHeure);
+  const end = parseFrenchDateTime(contractData.value.periode.retourDate, contractData.value.periode.retourHeure);
+  if (!start || !end || end <= start) return 0;
+  const diffHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+  return Math.max(1, Math.ceil((diffHours - 3) / 24));
+});
+
 // Same idea for the Prolongation / Changement section's Du and Au dates.
 const prolongationDuInput = computed({
   get: () => frenchDateToIso(contractData.value.prolongation.du),
@@ -1864,6 +1876,22 @@ onMounted(async () => {
               <div class="sb-field"><label>Retour prévu — Date</label><input v-model="periodeRetourDateInput" type="date" /></div>
               <div class="sb-field"><label>Retour prévu — Heure</label><input v-model="contractData.periode.retourHeure" type="time" /></div>
             </div>
+            <!-- Auto-calculated rental duration (read-only), with the same
+                 3 h grace formula used on the reservation form. -->
+            <div class="sb-field">
+              <label class="sb-label-flex">
+                <Sparkles class="w-3 h-3 text-indigo-500" />
+                Durée (Jours)
+              </label>
+              <input
+                :value="periodeDurationDays > 0 ? periodeDurationDays : ''"
+                type="text"
+                readonly
+                placeholder="Auto"
+                class="periode-duration-input"
+              />
+              <p class="sb-hint">Calculé automatiquement depuis les dates de départ et de retour (grâce de 3 h).</p>
+            </div>
             <div class="sb-field"><label>KM de départ</label><input v-model="contractData.periode.kmDepart" placeholder="89 813" /></div>
             <div class="sb-field"><label>KM de retour</label><input v-model="contractData.periode.kmRetour" /></div>
             <div class="sb-field"><label>KM parcouru (auto-calc)</label><input v-model="contractData.periode.kmParcouru" placeholder="auto" /></div>
@@ -2919,6 +2947,21 @@ onMounted(async () => {
   color: #b91c1c;
   box-shadow: inset 0 0 0 1px #f87171, 0 2px 6px -3px rgba(239, 68, 68, 0.4);
 }
+
+/* Auto-calculated read-only duration input in the Période section. */
+.periode-duration-input {
+  width: 100%;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.06), rgba(139, 92, 246, 0.03));
+  border: 1px dashed rgba(99, 102, 241, 0.28);
+  border-radius: 8px;
+  outline: none;
+  cursor: default;
+}
+.periode-duration-input::placeholder { color: #94a3b8; font-weight: 500; }
 
 .cb-modal-header {
   display: flex;
