@@ -534,10 +534,13 @@ function confirmFullPayment() {
 async function handleSubmit() {
     loading.value = true;
     try {
-        // Validation — client_phone is optional now.
-        if (!reservation.value.client_name || !reservation.value.client_cin ||
-            !reservation.value.car_id ||
-            !reservation.value.start_date || !reservation.value.end_date) {
+        // Validation — client_phone is optional now, and client_cin / MF
+        // is optional too when the renter is an agency.
+        const cinRequired = clientMode.value !== 'agency';
+        if (!reservation.value.client_name
+            || (cinRequired && !reservation.value.client_cin)
+            || !reservation.value.car_id
+            || !reservation.value.start_date || !reservation.value.end_date) {
             alert(t('admin.reservations.validation_error'));
             loading.value = false;
             return;
@@ -878,14 +881,17 @@ function clearAgency() {
                         </div>
 
                         <div>
-                            <label class="form-label">{{ clientMode === 'agency' ? 'MF / Référence *' : t('admin.reservations.client_cin') + ' *' }}</label>
+                            <label class="form-label">
+                                {{ clientMode === 'agency' ? 'MF / Référence' : t('admin.reservations.client_cin') + ' *' }}
+                                <span v-if="clientMode === 'agency'" class="text-[10px] font-medium text-gray-400 normal-case ml-1">(optionnel)</span>
+                            </label>
                             <div class="relative">
                                 <div class="form-input-wrapper">
                                     <CreditCard class="form-input-icon" />
                                     <input
                                         v-model="reservation.client_cin"
                                         type="text"
-                                        required
+                                        :required="clientMode !== 'agency'"
                                         @input="clientMode !== 'agency' ? handleClientCinInput() : undefined"
                                         @focus="clientMode !== 'agency' ? handleClientCinInput() : undefined"
                                         @blur="closeSuggestionsWithDelay"
@@ -972,14 +978,17 @@ function clearAgency() {
                     </div>
                 </div>
 
-                <!-- Second Driver -->
+                <!-- Second Driver — "Deuxième Conducteur" for a regular
+                     client, "Le Conducteur" when the renter is an agency
+                     (the agency is the locataire, and the actual driver
+                     is the only natural person on the contract). -->
                 <div class="form-section">
                     <div class="flex items-center justify-between">
                         <h2 class="section-title">
                             <div class="w-6 h-6 rounded-md bg-violet-100 flex items-center justify-center">
                                 <Users class="w-3.5 h-3.5 text-violet-600" />
                             </div>
-                            Deuxième Conducteur
+                            {{ clientMode === 'agency' ? 'Le Conducteur' : 'Deuxième Conducteur' }}
                         </h2>
                         <button 
                             type="button"
