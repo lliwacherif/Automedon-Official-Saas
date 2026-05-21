@@ -346,8 +346,18 @@ import { formatDate, formatDateTime } from '@/utils/date';
                                     <td class="px-3 py-3.5">
                                         <div class="flex flex-col gap-1 items-start">
                                             <span class="text-sm font-bold text-gray-900">{{ res.total_price.toFixed(2) }} DT</span>
+                                            <!-- Order matters: a 0 DT reservation is "to be invoiced",
+                                                 NOT "paid" (which would otherwise win because total-advance ≤ 0). -->
                                             <span
-                                                v-if="(Number(res.total_price) - Number(res.advance_payment || 0)) <= 0"
+                                                v-if="Number(res.total_price) <= 0"
+                                                class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 bg-amber-50 rounded-md ring-1 ring-amber-200/60"
+                                                title="Total non saisi — à facturer"
+                                            >
+                                                <FileText class="w-2.5 h-2.5" />
+                                                À facturer
+                                            </span>
+                                            <span
+                                                v-else-if="(Number(res.total_price) - Number(res.advance_payment || 0)) <= 0"
                                                 class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 rounded-md ring-1 ring-emerald-200/60"
                                                 title="Réservation entièrement payée"
                                             >
@@ -534,7 +544,14 @@ import { formatDate, formatDateTime } from '@/utils/date';
                                     {{ res.total_price.toFixed(2) }} DT
                                 </div>
                                 <span
-                                    v-if="(Number(res.total_price) - Number(res.advance_payment || 0)) <= 0"
+                                    v-if="Number(res.total_price) <= 0"
+                                    class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 bg-amber-50 rounded-md ring-1 ring-amber-200/60"
+                                >
+                                    <FileText class="w-2.5 h-2.5" />
+                                    À facturer
+                                </span>
+                                <span
+                                    v-else-if="(Number(res.total_price) - Number(res.advance_payment || 0)) <= 0"
                                     class="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 rounded-md ring-1 ring-emerald-200/60"
                                 >
                                     <CircleCheck class="w-2.5 h-2.5" />
