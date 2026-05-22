@@ -3,6 +3,8 @@ import { supabase } from '@/lib/supabase';
 import type { Database } from '@/types/supabase';
 import type { Car } from './useCars';
 import { useTenantStore } from '@/stores/tenant';
+import { useAuthStore } from '@/stores/auth';
+import { useSubOffices } from '@/composables/useSubOffices';
 
 export interface Reservation {
     id: number;
@@ -62,6 +64,8 @@ export function useReservations() {
     const error = ref<string | null>(null);
     const total = ref(0);
     const tenantStore = useTenantStore();
+    const authStore = useAuthStore();
+    const { getMyAssignedCarIds } = useSubOffices();
 
     // Helper to map DB result to Reservation interface (handling nested Car mapping)
     const mapReservation = (dbRes: any): Reservation => {
@@ -93,6 +97,13 @@ export function useReservations() {
                 .from('reservations')
                 .select('*, car:cars(*)', { count: 'exact' })
                 .eq('tenant_id', tenantId);
+
+            // Sous-bureau: only the reservations the user typed in themselves
+            // (admin keeps seeing every row). created_by_tenant_user_id is
+            // NULL on legacy rows so they remain admin-only by design.
+            if (authStore.role === 'sub_office' && authStore.currentUserId) {
+                query = query.eq('created_by_tenant_user_id', authStore.currentUserId);
+            }
 
             if (search) {
                 query = query.or(`reservation_number.ilike.%${search}%,client_name.ilike.%${search}%,client_cin.ilike.%${search}%`);
@@ -196,6 +207,10 @@ export function useReservations() {
                 query = query.eq('tenant_id', tenantId);
             }
 
+            if (authStore.role === 'sub_office' && authStore.currentUserId) {
+                query = query.eq('created_by_tenant_user_id', authStore.currentUserId);
+            }
+
             // Apply single() at the end to execute
             const { data, error: supabaseError } = await query.single();
 
@@ -219,7 +234,7 @@ export function useReservations() {
         }
 
         try {
-            const reservationWithTenant = {
+            const reservationWithTenant: Record<string, any> = {
                 ...reservation,
                 tenant_id: tenantId,
                 reservation_number: `RES-${Date.now()}`
@@ -228,7 +243,14 @@ export function useReservations() {
             // Remove user_id if it exists in the payload but not expected by DB
             // (or if it's causing issues as the error suggests)
             if ('user_id' in reservationWithTenant) {
-                delete (reservationWithTenant as any).user_id;
+                delete reservationWithTenant.user_id;
+            }
+
+            // Stamp the staff member who created the reservation so the
+            // sous-bureau visibility filter (created_by_tenant_user_id ==
+            // self) works. Admin-created rows leave it as the admin id.
+            if (authStore.currentUserId) {
+                reservationWithTenant.created_by_tenant_user_id = authStore.currentUserId;
             }
 
             if (!reservationWithTenant.reservation_number) {

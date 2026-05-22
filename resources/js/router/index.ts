@@ -201,6 +201,24 @@ const routes = [
                 meta: { requiresAuth: true, requiresAdmin: true }
             },
             {
+                path: 'admin/sub-offices',
+                component: () => import('../Pages/Admin/SubOffices/Index.vue'),
+                name: 'admin.sub_offices.index',
+                meta: { requiresAuth: true, requiresAdmin: true, requiresAdminOnly: true }
+            },
+            {
+                path: 'admin/sub-offices/create',
+                component: () => import('../Pages/Admin/SubOffices/Create.vue'),
+                name: 'admin.sub_offices.create',
+                meta: { requiresAuth: true, requiresAdmin: true, requiresAdminOnly: true }
+            },
+            {
+                path: 'admin/sub-offices/:id/edit',
+                component: () => import('../Pages/Admin/SubOffices/Edit.vue'),
+                name: 'admin.sub_offices.edit',
+                meta: { requiresAuth: true, requiresAdmin: true, requiresAdminOnly: true }
+            },
+            {
                 path: 'admin/history',
                 component: () => import('../Pages/Admin/History/Index.vue'),
                 name: 'admin.history.index',
@@ -312,13 +330,25 @@ router.beforeEach(async (to, from, next) => {
         return
     }
 
+    // requiresAdminOnly: tenant admin (or root) ONLY — blocks every other
+    // role including sub_office. Used by /admin/sub-offices/* management
+    // routes so a sous-bureau can never reach their own management UI.
+    if (to.meta.requiresAdminOnly && authStore.role !== 'admin' && authStore.role !== 'root') {
+        if (to.params.tenantSlug) {
+            next({ name: 'admin.dashboard', params: { tenantSlug: to.params.tenantSlug } })
+        } else {
+            next({ name: 'home' })
+        }
+        return
+    }
+
     // Per-user page allow-list (only enforced for non-admin tenant users)
     if (to.meta.requiresAdmin && authStore.isAdmin && authStore.role !== 'admin' && authStore.role !== 'root') {
         const pageKey = pageKeyForPath(to.path)
         if (pageKey && !userCanAccessPage(authStore.role, authStore.allowedPages, pageKey)) {
             // Fall back to a page the user can see
             const tenantSlug = to.params.tenantSlug as string | undefined
-            const fallback = pickFallbackRouteName(authStore.allowedPages)
+            const fallback = pickFallbackRouteName(authStore.allowedPages, authStore.role)
             if (tenantSlug) {
                 next({ name: fallback, params: { tenantSlug } })
             } else {
@@ -336,7 +366,13 @@ router.beforeEach(async (to, from, next) => {
     }
 })
 
-function pickFallbackRouteName(allowedPages: string[] | null | undefined): string {
+function pickFallbackRouteName(
+    allowedPages: string[] | null | undefined,
+    role: string | undefined | null = null,
+): string {
+    // Sous-bureaux see almost everything — send them to KPI dashboard.
+    if (role === 'sub_office') return 'admin.dashboard'
+
     const pageRouteMap: Record<string, string> = {
         fleet: 'admin.cars.index',
         kpi: 'admin.dashboard',

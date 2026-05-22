@@ -6,12 +6,14 @@ import InvoiceTemplate, { type InvoiceData } from '@/components/Invoices/Invoice
 import { formatDate, formatDateTime } from '@/utils/date';
 import { supabase } from '@/lib/supabase';
 import { useTenantStore } from '@/stores/tenant';
+import { useAuthStore } from '@/stores/auth';
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
 
 const route = useRoute();
 const router = useRouter();
 const tenantStore = useTenantStore();
+const authStore = useAuthStore();
 
 async function buildClientInfo(reservation: any) {
   if (reservation.agency_id) {
@@ -233,12 +235,15 @@ async function toDataUrl(url: string): Promise<string> {
 async function fetchClientReservations(cin: string) {
   loadingClientRes.value = true;
   try {
-    const { data } = await supabase
+    let q: any = supabase
       .from('reservations')
       .select('*, car:cars(brand, model, license_plate)')
       .eq('client_cin', cin)
-      .eq('tenant_id', tenantStore.currentTenant?.id || '')
-      .order('start_date', { ascending: false });
+      .eq('tenant_id', tenantStore.currentTenant?.id || '');
+    if (authStore.role === 'sub_office' && authStore.currentUserId) {
+      q = q.eq('created_by_tenant_user_id', authStore.currentUserId);
+    }
+    const { data } = await q.order('start_date', { ascending: false });
     clientReservations.value = data || [];
   } catch (e) {
     console.error('Error fetching client reservations:', e);
@@ -339,11 +344,14 @@ async function loadReservation(id: string) {
   try {
     await loadInvoiceSettings();
 
-    const { data, error } = await supabase
+    let q: any = supabase
       .from('reservations')
       .select('*, car:cars(*)')
-      .eq('id', id)
-      .single();
+      .eq('id', id);
+    if (authStore.role === 'sub_office' && authStore.currentUserId) {
+      q = q.eq('created_by_tenant_user_id', authStore.currentUserId);
+    }
+    const { data, error } = await q.single();
 
     if (error) throw error;
     if (data) {

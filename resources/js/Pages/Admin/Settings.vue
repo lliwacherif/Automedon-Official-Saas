@@ -1,17 +1,50 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useTenantStore } from '@/stores/tenant';
+import { useSubOffices } from '@/composables/useSubOffices';
+import { useTenantLink } from '@/composables/useTenantLink';
 import {
     Loader2, Lock, UserPlus, KeyRound, Shield, Settings, Users,
     AlertCircle, CircleCheck, Check, LayoutGrid, Sparkles,
+    Building2, Car, ChevronRight,
 } from 'lucide-vue-next';
 import { useI18n } from 'vue-i18n';
 import { PAGE_DEFINITIONS, DEFAULT_ALLOWED_PAGES, type PageKey } from '@/utils/pagePermissions';
 
 const authStore = useAuthStore();
 const tenantStore = useTenantStore();
+const router = useRouter();
+const { tenantPath } = useTenantLink();
 const { t } = useI18n();
+
+// ─── Sub-Offices summary (admin only) ───────────────────────────
+const subOfficeCount = ref<number | null>(null);
+const subOfficeCarsCount = ref<number | null>(null);
+
+async function loadSubOfficeStats() {
+    if (authStore.role !== 'admin') return;
+    const { listSubOffices, fetchAllAssignmentsForTenant } = useSubOffices();
+    try {
+        const list = await listSubOffices();
+        subOfficeCount.value = list.length;
+        const assignments = await fetchAllAssignmentsForTenant();
+        subOfficeCarsCount.value = Object.keys(assignments).length;
+    } catch (e) {
+        // Non-blocking: the page itself still works without the stats.
+        subOfficeCount.value = subOfficeCount.value ?? 0;
+        subOfficeCarsCount.value = subOfficeCarsCount.value ?? 0;
+    }
+}
+
+onMounted(() => {
+    loadSubOfficeStats();
+});
+
+function goToSubOffices() {
+    router.push(tenantPath('/admin/sub-offices'));
+}
 
 // ─── Change Password ────────────────────────────────────────────
 const currentPassword = ref('');
@@ -140,6 +173,63 @@ const handleCreateUser = async () => {
                 <div>
                     <h1 class="text-xl font-bold text-gray-900 tracking-tight">{{ $t('admin.settings.title') }}</h1>
                     <p class="text-sm text-gray-500">Gérez vos paramètres de sécurité et vos préférences.</p>
+                </div>
+            </div>
+
+            <!-- Sous-Bureaux row (admin only) -->
+            <div v-if="authStore.role === 'admin'" class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                <div class="lg:col-span-3 bg-gradient-to-br from-indigo-50 via-white to-violet-50 rounded-2xl ring-1 ring-indigo-100 shadow-sm overflow-hidden">
+                    <div class="p-5 flex flex-col md:flex-row md:items-center gap-5">
+                        <!-- Icon + title -->
+                        <div class="flex items-center gap-3 md:flex-1">
+                            <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shadow-md shadow-indigo-300/60 shrink-0">
+                                <Building2 class="w-6 h-6 text-white" />
+                            </div>
+                            <div class="min-w-0">
+                                <h2 class="text-base font-bold text-gray-900 truncate">{{ $t('admin.settings.sub_offices.title') }}</h2>
+                                <p class="text-[12.5px] text-gray-500 leading-snug">{{ $t('admin.settings.sub_offices.subtitle') }}</p>
+                            </div>
+                        </div>
+
+                        <!-- Stats -->
+                        <div class="grid grid-cols-2 gap-3 md:gap-4 md:shrink-0">
+                            <div class="bg-white/70 backdrop-blur-sm rounded-xl px-3.5 py-2 ring-1 ring-indigo-100/80 flex items-center gap-2.5">
+                                <div class="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
+                                    <Users class="w-4 h-4 text-indigo-600" />
+                                </div>
+                                <div class="leading-tight">
+                                    <div class="text-base font-bold text-gray-900">
+                                        <span v-if="subOfficeCount === null" class="inline-block w-6 h-3.5 bg-gray-200 rounded animate-pulse"></span>
+                                        <span v-else>{{ subOfficeCount }}</span>
+                                    </div>
+                                    <div class="text-[10.5px] uppercase tracking-wide text-gray-500 font-semibold">{{ $t('admin.settings.sub_offices.stat_offices') }}</div>
+                                </div>
+                            </div>
+                            <div class="bg-white/70 backdrop-blur-sm rounded-xl px-3.5 py-2 ring-1 ring-indigo-100/80 flex items-center gap-2.5">
+                                <div class="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center">
+                                    <Car class="w-4 h-4 text-violet-600" />
+                                </div>
+                                <div class="leading-tight">
+                                    <div class="text-base font-bold text-gray-900">
+                                        <span v-if="subOfficeCarsCount === null" class="inline-block w-6 h-3.5 bg-gray-200 rounded animate-pulse"></span>
+                                        <span v-else>{{ subOfficeCarsCount }}</span>
+                                    </div>
+                                    <div class="text-[10.5px] uppercase tracking-wide text-gray-500 font-semibold">{{ $t('admin.settings.sub_offices.stat_cars') }}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- CTA -->
+                        <button
+                            type="button"
+                            @click="goToSubOffices"
+                            class="md:shrink-0 inline-flex items-center justify-center gap-2 py-2.5 px-5 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 rounded-xl shadow-md shadow-indigo-200 hover:shadow-lg hover:shadow-indigo-300 transition-all"
+                        >
+                            <Building2 class="w-4 h-4" />
+                            {{ $t('admin.settings.sub_offices.cta') }}
+                            <ChevronRight class="w-4 h-4" />
+                        </button>
+                    </div>
                 </div>
             </div>
 

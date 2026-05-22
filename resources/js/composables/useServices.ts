@@ -2,6 +2,8 @@ import { ref } from 'vue';
 import { supabase } from '@/lib/supabase';
 import type { Database } from '@/types/supabase';
 import { useTenantStore } from '@/stores/tenant';
+import { useAuthStore } from '@/stores/auth';
+import { useSubOffices } from '@/composables/useSubOffices';
 import { useCars } from './useCars';
 import type { Car } from './useCars';
 
@@ -33,6 +35,8 @@ export function useServices() {
     const loading = ref(false);
     const error = ref<string | null>(null);
     const tenantStore = useTenantStore();
+    const authStore = useAuthStore();
+    const { getMyAssignedCarIds } = useSubOffices();
     const { updateCar } = useCars();
 
     async function fetchServices() {
@@ -42,10 +46,23 @@ export function useServices() {
         if (!tenantId) { services.value = []; loading.value = false; return; }
 
         try {
-            const { data, error: err } = await supabase
+            // Sous-bureau: only services on the cars they own.
+            let assignedIds: number[] | null = null;
+            if (authStore.role === 'sub_office') {
+                assignedIds = await getMyAssignedCarIds();
+                if (assignedIds.length === 0) {
+                    services.value = [];
+                    return;
+                }
+            }
+
+            let q = supabase
                 .from('services')
                 .select('*, car:cars(*)')
-                .eq('tenant_id', tenantId)
+                .eq('tenant_id', tenantId);
+            if (assignedIds) q = q.in('car_id', assignedIds);
+
+            const { data, error: err } = await q
                 .order('created_at', { ascending: false })
                 .limit(1000);
 

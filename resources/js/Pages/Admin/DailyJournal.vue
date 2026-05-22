@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n';
 import { formatDateTime } from '@/utils/date';
 import { supabase } from '@/lib/supabase';
 import { useTenantStore } from '@/stores/tenant';
+import { useAuthStore } from '@/stores/auth';
 import {
     addDays,
     differenceInDays,
@@ -40,6 +41,7 @@ import {
 const { t } = useI18n();
 const { cars, loading, fetchCars } = useCars();
 const tenantStore = useTenantStore();
+const authStore = useAuthStore();
 
 // ───────────────────────────────────────────────
 // View Mode
@@ -114,13 +116,22 @@ async function fetchTimelineReservations() {
         const startIso = startDate.value.toISOString();
         const endExclusiveIso = addDays(startDate.value, visibleDaysCount.value).toISOString();
 
-        const { data, error } = await supabase
+        let q: any = supabase
             .from('reservations')
             .select('id, car_id, start_date, end_date, client_name, status')
             .eq('tenant_id', tenantId)
             .in('status', ['confirmed', 'active', 'completed'])
             .lt('start_date', endExclusiveIso)
             .gt('end_date', startIso);
+
+        // Sous-bureau: show only the reservations they created themselves
+        // (the car-row list is already filtered to their assigned fleet
+        // through useCars()).
+        if (authStore.role === 'sub_office' && authStore.currentUserId) {
+            q = q.eq('created_by_tenant_user_id', authStore.currentUserId);
+        }
+
+        const { data, error } = await q;
 
         if (error) throw error;
         allReservations.value = data || [];

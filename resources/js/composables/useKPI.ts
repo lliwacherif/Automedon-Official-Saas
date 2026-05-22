@@ -1,6 +1,8 @@
 import { ref } from 'vue';
 import { supabase } from '@/lib/supabase';
 import { useTenantStore } from '@/stores/tenant';
+import { useAuthStore } from '@/stores/auth';
+import { useSubOffices } from '@/composables/useSubOffices';
 import {
     startOfMonth,
     endOfMonth,
@@ -128,6 +130,11 @@ export function useKPI() {
     const loading = ref(false);
     const error = ref<string | null>(null);
     const tenantStore = useTenantStore();
+    const authStore = useAuthStore();
+    const { getMyAssignedCarIds } = useSubOffices();
+
+    // Resolved once per fetchData(). null = no scope (admin), [] = empty fleet.
+    let scopedCarIds: number[] | null = null;
 
     // Date range + period
     const dateRange = ref<{ start: Date; end: Date }>({
@@ -209,6 +216,18 @@ export function useKPI() {
                 return;
             }
 
+            // Resolve the sous-bureau scope once for this run. Empty fleet
+            // (sub_office with no cars) → zero out everything immediately.
+            if (authStore.role === 'sub_office') {
+                scopedCarIds = await getMyAssignedCarIds();
+                if (scopedCarIds.length === 0) {
+                    resetAll();
+                    return;
+                }
+            } else {
+                scopedCarIds = null;
+            }
+
             const start = dateRange.value.start;
             const end = dateRange.value.end;
             const periodMs = differenceInMilliseconds(end, start);
@@ -256,10 +275,12 @@ export function useKPI() {
     // Low-level fetchers
     // ───────────────────────────────────────────────
     async function fetchCars(tenantId: string) {
-        const { data, error: err } = await supabase
+        let q = supabase
             .from('cars')
             .select('id, brand, model, license_plate, status')
             .eq('tenant_id', tenantId);
+        if (scopedCarIds) q = q.in('id', scopedCarIds);
+        const { data, error: err } = await q;
         if (err) throw err;
         return (data || []) as any[];
     }
@@ -278,6 +299,11 @@ export function useKPI() {
             .lt('start_date', endIso)
             .gt('end_date', startIso);
 
+        // Sous-bureau KPI: only the reservations the user typed in themselves.
+        if (authStore.role === 'sub_office' && authStore.currentUserId) {
+            q = q.eq('created_by_tenant_user_id', authStore.currentUserId);
+        }
+
         if (cancelledOnly) {
             q = q.eq('status', 'cancelled');
         } else {
@@ -292,12 +318,14 @@ export function useKPI() {
     async function fetchServices(tenantId: string, start: Date, end: Date) {
         const startIso = start.toISOString();
         const endIso = end.toISOString();
-        const { data, error: err } = await supabase
+        let q = supabase
             .from('services')
             .select('id, car_id, service_type, chauffeur_name, price, start_date, end_date, created_at')
             .eq('tenant_id', tenantId)
             .lt('start_date', endIso)
             .gt('end_date', startIso);
+        if (scopedCarIds) q = q.in('car_id', scopedCarIds);
+        const { data, error: err } = await q;
         if (err) throw err;
         return (data || []) as any[];
     }
@@ -305,12 +333,14 @@ export function useKPI() {
     async function fetchMaintenance(tenantId: string, start: Date, end: Date) {
         const startStr = format(start, 'yyyy-MM-dd');
         const endStr = format(end, 'yyyy-MM-dd');
-        const { data, error: err } = await supabase
+        let q = supabase
             .from('maintenance_records')
             .select('id, car_id, cost, maintenance_type, maintenance_date')
             .eq('tenant_id', tenantId)
             .gte('maintenance_date', startStr)
             .lte('maintenance_date', endStr);
+        if (scopedCarIds) q = q.in('car_id', scopedCarIds);
+        const { data, error: err } = await q;
         if (err) throw err;
         return (data || []) as any[];
     }
@@ -319,15 +349,26 @@ export function useKPI() {
         const nowIso = new Date().toISOString();
         const todayDate = format(new Date(), 'yyyy-MM-dd');
 
+        let resQ = supabase.from('reservations').select('car_id')
+            .eq('tenant_id', tenantId).neq('status', 'cancelled')
+            .lte('start_date', nowIso).gte('end_date', nowIso);
+        let svcQ = supabase.from('services').select('car_id')
+            .eq('tenant_id', tenantId)
+            .lte('start_date', nowIso).gte('end_date', nowIso);
+        let maintQ = supabase.from('maintenance_records').select('car_id')
+            .eq('tenant_id', tenantId).eq('maintenance_date', todayDate);
+
+        if (scopedCarIds) {
+            resQ = resQ.in('car_id', scopedCarIds);
+            svcQ = svcQ.in('car_id', scopedCarIds);
+            maintQ = maintQ.in('car_id', scopedCarIds);
+        }
+        if (authStore.role === 'sub_office' && authStore.currentUserId) {
+            resQ = resQ.eq('created_by_tenant_user_id', authStore.currentUserId);
+        }
+
         const [{ data: activeRes }, { data: activeSvc }, { data: activeMaint }] = await Promise.all([
-            supabase.from('reservations').select('car_id')
-                .eq('tenant_id', tenantId).neq('status', 'cancelled')
-                .lte('start_date', nowIso).gte('end_date', nowIso),
-            supabase.from('services').select('car_id')
-                .eq('tenant_id', tenantId)
-                .lte('start_date', nowIso).gte('end_date', nowIso),
-            supabase.from('maintenance_records').select('car_id')
-                .eq('tenant_id', tenantId).eq('maintenance_date', todayDate),
+            resQ, svcQ, maintQ,
         ]);
 
         return {

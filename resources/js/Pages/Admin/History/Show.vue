@@ -3,6 +3,8 @@ import { ref, onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { supabase } from '@/lib/supabase';
 import { useTenantStore } from '@/stores/tenant';
+import { useAuthStore } from '@/stores/auth';
+import { useSubOffices } from '@/composables/useSubOffices';
 import { useTenantLink } from '@/composables/useTenantLink';
 import type { Database } from '@/types/supabase';
 import { 
@@ -53,7 +55,20 @@ async function fetchData() {
     loading.value = true;
     try {
         const tenantStore = useTenantStore();
-        
+        const authStore = useAuthStore();
+        const { getMyAssignedCarIds } = useSubOffices();
+
+        // Sub-office: block access to any car they were not assigned.
+        if (authStore.role === 'sub_office') {
+            const ids = await getMyAssignedCarIds();
+            if (!ids.includes(Number(carId))) {
+                car.value = null;
+                reservations.value = [];
+                maintenanceRecords.value = [];
+                return;
+            }
+        }
+
         // Fetch Car Details
         let carQuery = supabase
             .from('cars')
@@ -70,10 +85,14 @@ async function fetchData() {
         car.value = carData;
 
         // Fetch Reservations
-        const { data: resData, error: resError } = await supabase
+        let resQ: any = supabase
             .from('reservations')
             .select('*')
-            .eq('car_id', carId)
+            .eq('car_id', carId);
+        if (authStore.role === 'sub_office' && authStore.currentUserId) {
+            resQ = resQ.eq('created_by_tenant_user_id', authStore.currentUserId);
+        }
+        const { data: resData, error: resError } = await resQ
             .order('start_date', { ascending: false });
         
         if (resError) throw resError;

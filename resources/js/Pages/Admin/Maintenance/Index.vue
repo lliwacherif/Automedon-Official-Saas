@@ -5,6 +5,7 @@ import { useMaintenanceRecords, MAINTENANCE_TYPE_LABELS, type MaintenanceType } 
 import { useFileUpload } from '@/composables/useFileUpload';
 import { supabase } from '@/lib/supabase';
 import { useTenantStore } from '@/stores/tenant';
+import { useAuthStore } from '@/stores/auth';
 import type { Database } from '@/types/supabase';
 import { 
     Wrench, Calendar, Gauge, DollarSign, MapPin, Edit, Trash2, Plus, Car, X, ChevronDown, Loader2, FileText, Hash, CircleCheck,
@@ -19,6 +20,7 @@ const {
 } = useMaintenanceRecords();
 const { uploadFile, uploading: uploadingImage } = useFileUpload();
 const tenantStore = useTenantStore();
+const authStore = useAuthStore();
 
 const selectedCarId = ref<number | null>(null);
 const selectedCar = ref<any>(null);
@@ -116,12 +118,15 @@ const maintenanceTypeOptions = computed(() => {
 async function fetchCarReservations(carId: number) {
     loadingReservations.value = true;
     try {
-        const { data } = await supabase
+        let q: any = supabase
             .from('reservations')
             .select('id, reservation_number, client_name, client_cin, start_date, end_date, status')
             .eq('car_id', carId)
-            .eq('tenant_id', tenantStore.currentTenant?.id || '')
-            .order('start_date', { ascending: false });
+            .eq('tenant_id', tenantStore.currentTenant?.id || '');
+        if (authStore.role === 'sub_office' && authStore.currentUserId) {
+            q = q.eq('created_by_tenant_user_id', authStore.currentUserId);
+        }
+        const { data } = await q.order('start_date', { ascending: false });
         carReservations.value = data || [];
     } catch (e) {
         console.error('Error fetching car reservations:', e);

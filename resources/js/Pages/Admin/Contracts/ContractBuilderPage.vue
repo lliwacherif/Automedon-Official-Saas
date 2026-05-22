@@ -7,6 +7,7 @@ import ContractTemplateV2 from '@/components/Contracts/ContractTemplateV2.vue';
 import type { ContractData } from '@/components/Contracts/ContractTemplate.vue';
 import { supabase } from '@/lib/supabase';
 import { useTenantStore } from '@/stores/tenant';
+import { useAuthStore } from '@/stores/auth';
 import { useCars } from '@/composables/useCars';
 import { useFaithfulClients, type FaithfulClient } from '@/composables/useFaithfulClients';
 import { useReservations } from '@/composables/useReservations';
@@ -21,6 +22,7 @@ import { jsPDF } from 'jspdf';
 const route = useRoute();
 const router = useRouter();
 const tenantStore = useTenantStore();
+const authStore = useAuthStore();
 
 const loading = ref(true);
 const generating = ref(false);
@@ -146,13 +148,17 @@ async function refreshExtendableReservation() {
     }
 
     const nowIso = new Date().toISOString();
-    const { data, error } = await supabase
+    let q: any = supabase
       .from('reservations')
       .select('id, reservation_number, car_id, start_date, end_date, duration_days, price_per_day, total_price, status, client_name')
       .eq('car_id', selectedFleetCarId.value)
       .eq('tenant_id', tenantId)
       .in('status', ['confirmed', 'active'])
-      .gte('end_date', nowIso)
+      .gte('end_date', nowIso);
+    if (authStore.role === 'sub_office' && authStore.currentUserId) {
+      q = q.eq('created_by_tenant_user_id', authStore.currentUserId);
+    }
+    const { data, error } = await q
       .order('end_date', { ascending: false })
       .limit(1);
 
@@ -1154,11 +1160,14 @@ async function loadReservation(id: string) {
   try {
     await loadInvoiceSettings();
 
-    const { data: reservation, error } = await supabase
+    let resQ: any = supabase
       .from('reservations')
       .select('*, car:cars(*)')
-      .eq('id', id)
-      .single();
+      .eq('id', id);
+    if (authStore.role === 'sub_office' && authStore.currentUserId) {
+      resQ = resQ.eq('created_by_tenant_user_id', authStore.currentUserId);
+    }
+    const { data: reservation, error } = await resQ.single();
 
     if (error) throw error;
     if (!reservation) throw new Error('Reservation not found');

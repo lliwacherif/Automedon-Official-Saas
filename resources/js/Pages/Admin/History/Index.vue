@@ -2,6 +2,8 @@
 import { ref, onMounted, computed } from 'vue';
 import { supabase } from '@/lib/supabase';
 import { useTenantStore } from '@/stores/tenant';
+import { useAuthStore } from '@/stores/auth';
+import { useSubOffices } from '@/composables/useSubOffices';
 import { useTenantLink } from '@/composables/useTenantLink';
 import { getBrandLogo } from '@/utils/carBrandLogo';
 import { RouterLink } from 'vue-router';
@@ -72,28 +74,45 @@ async function fetchAll() {
     loading.value = true;
     try {
         const tenantStore = useTenantStore();
+        const authStore = useAuthStore();
+        const { getMyAssignedCarIds } = useSubOffices();
         const tenantId = tenantStore.currentTenant?.id;
 
+        // Sub-office: only the cars assigned to them.
+        let scopedCarIds: number[] | null = null;
+        if (authStore.role === 'sub_office') {
+            scopedCarIds = await getMyAssignedCarIds();
+            if (scopedCarIds.length === 0) {
+                cars.value = [];
+                return;
+            }
+        }
+
         // 1. Cars
-        let carQuery = supabase.from('cars').select('*');
+        let carQuery: any = supabase.from('cars').select('*');
         if (tenantId) carQuery = carQuery.eq('tenant_id', tenantId);
+        if (scopedCarIds) carQuery = carQuery.in('id', scopedCarIds);
         const { data: carData } = await carQuery.order('created_at', { ascending: false });
         cars.value = (carData || []) as CarRow[];
 
         if (cars.value.length === 0) return;
 
         // 2. Bulk reservations + maintenance for the tenant (lifetime)
-        let resQuery = supabase
+        let resQuery: any = supabase
             .from('reservations')
             .select('car_id, total_price, start_date, end_date, status, client_name')
             .neq('status', 'cancelled');
         if (tenantId) resQuery = resQuery.eq('tenant_id', tenantId);
+        if (authStore.role === 'sub_office' && authStore.currentUserId) {
+            resQuery = resQuery.eq('created_by_tenant_user_id', authStore.currentUserId);
+        }
         const { data: resData } = await resQuery;
 
-        let maintQuery = supabase
+        let maintQuery: any = supabase
             .from('maintenance_records')
             .select('car_id, cost, maintenance_date');
         if (tenantId) maintQuery = maintQuery.eq('tenant_id', tenantId);
+        if (scopedCarIds) maintQuery = maintQuery.in('car_id', scopedCarIds);
         const { data: maintData } = await maintQuery;
 
         // 3. Aggregate per car

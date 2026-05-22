@@ -7,12 +7,16 @@ import InvoiceTemplate, { type InvoiceData } from '@/components/Invoices/Invoice
 import { formatDateTime } from '@/utils/date';
 import { supabase } from '@/lib/supabase';
 import { useTenantStore } from '@/stores/tenant';
+import { useAuthStore } from '@/stores/auth';
+import { useSubOffices } from '@/composables/useSubOffices';
 import { useTenantLink } from '@/composables/useTenantLink';
 // @ts-ignore
 import html2pdf from 'html2pdf.js';
 
 const router = useRouter();
 const tenantStore = useTenantStore();
+const authStore = useAuthStore();
+const { getMyAssignedCarIds } = useSubOffices();
 const { tenantPath } = useTenantLink();
 
 const loading = ref(true);
@@ -157,10 +161,21 @@ async function fetchAllServices() {
     await loadInvoiceSettings();
     const tenantId = tenantStore.currentTenant?.id;
     if (!tenantId) return;
-    const { data } = await supabase
+
+    // Sub-office: only services on their assigned cars.
+    let assignedIds: number[] | null = null;
+    if (authStore.role === 'sub_office') {
+      assignedIds = await getMyAssignedCarIds();
+      if (assignedIds.length === 0) { allServices.value = []; return; }
+    }
+
+    let q = supabase
       .from('services')
       .select('*, car:cars(brand, model, license_plate)')
-      .eq('tenant_id', tenantId)
+      .eq('tenant_id', tenantId);
+    if (assignedIds) q = q.in('car_id', assignedIds);
+
+    const { data } = await q
       .order('created_at', { ascending: false })
       .limit(500);
     allServices.value = data || [];

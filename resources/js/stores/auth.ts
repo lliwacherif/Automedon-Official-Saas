@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'vue-router';
 import type { User } from '@supabase/supabase-js';
 import { useTenantStore } from '@/stores/tenant';
+import { clearSubOfficeCarCache } from '@/composables/useSubOffices';
 
 async function hashPassword(password: string): Promise<string> {
     const msgBuffer = new TextEncoder().encode(password);
@@ -80,6 +81,7 @@ export const useAuthStore = defineStore('auth', () => {
             currentUserId.value = data.id;
             isRoot.value = data.role === 'root';
             allowedPages.value = data.allowed_pages ?? null;
+            clearSubOfficeCarCache();
 
             const sessionData = {
                 id: data.id,
@@ -113,6 +115,9 @@ export const useAuthStore = defineStore('auth', () => {
      */
     function resolveLandingRoute(userRole: string, pages: string[] | null): string {
         if (userRole === 'admin') return 'admin.dashboard';
+        // A sous-bureau is a mini-tenant: KPI dashboard is the most useful
+        // landing page since it summarizes their assigned fleet & bookings.
+        if (userRole === 'sub_office') return 'admin.dashboard';
 
         const pageRouteMap: Record<string, string> = {
             fleet: 'admin.cars.index',
@@ -172,6 +177,7 @@ export const useAuthStore = defineStore('auth', () => {
             currentUserId.value = null;
             isRoot.value = false;
             allowedPages.value = null;
+            clearSubOfficeCarCache();
 
             localStorage.removeItem('app_session');
 
@@ -220,6 +226,7 @@ export const useAuthStore = defineStore('auth', () => {
         isAdmin,
         isRoot,
         role,
+        currentUserId,
         allowedPages,
         loading,
         initializeAuth,

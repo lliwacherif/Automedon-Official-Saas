@@ -1,6 +1,8 @@
 import { ref, computed } from 'vue';
 import { supabase } from '@/lib/supabase';
 import { useTenantStore } from '@/stores/tenant';
+import { useAuthStore } from '@/stores/auth';
+import { useSubOffices } from '@/composables/useSubOffices';
 import { format } from 'date-fns';
 
 export type CarBrand = 'Renault' | 'Dacia' | 'Skoda' | 'Hyundai' | 'Seat' | 'MG' | 'Mahindra' | 'Kia' | 'Honda' | 'Peugeot' | 'Cherry' | 'Geely' | 'Volkswagen' | 'Suzuki' | 'Chevrolet' | 'Fiat' | 'Toyota' | 'Haval' | 'Citroen';
@@ -50,6 +52,8 @@ export function useCars() {
     const loading = ref(false);
     const error = ref<string | null>(null);
     const tenantStore = useTenantStore();
+    const authStore = useAuthStore();
+    const { getMyAssignedCarIds } = useSubOffices();
 
     const carsByBrand = computed(() => {
         const grouped: CarsByBrand = {
@@ -141,13 +145,28 @@ export function useCars() {
         }
 
         try {
-            // Fetch cars
-            const { data: carsData, error: carsError } = await (supabase
+            // For a sous-bureau session, restrict to the cars assigned to them.
+            // Empty assignment → empty fleet (return early to keep semantics).
+            let assignedIds: number[] | null = null;
+            if (authStore.role === 'sub_office') {
+                assignedIds = await getMyAssignedCarIds();
+                if (assignedIds.length === 0) {
+                    cars.value = [];
+                    loading.value = false;
+                    return;
+                }
+            }
+
+            let carsQuery = supabase
                 .from('cars')
                 .select('*')
                 .eq('tenant_id', tenantId)
                 .order('brand', { ascending: true })
-                .order('model', { ascending: true }) as any);
+                .order('model', { ascending: true });
+            if (assignedIds) {
+                carsQuery = carsQuery.in('id', assignedIds);
+            }
+            const { data: carsData, error: carsError } = await (carsQuery as any);
 
             if (carsError) throw carsError;
 

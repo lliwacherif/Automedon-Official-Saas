@@ -178,6 +178,8 @@ export function pageKeyForPath(path: string): PageKey | null {
 /**
  * Returns true when the given user can see the given page key.
  * - role 'admin' or 'root' → always true
+ * - role 'sub_office' → sees everything EXCEPT the fleet management
+ *   dashboard (cars are operated, not added/removed, by sous-bureaux)
  * - allowed_pages NULL → backward compatible (true for most pages, but
  *   KPI/History still require admin role through the router meta flag)
  * - otherwise → membership test on the allow-list
@@ -188,6 +190,13 @@ export function userCanAccessPage(
     pageKey: PageKey,
 ): boolean {
     if (role === 'admin' || role === 'root') return true;
+
+    if (role === 'sub_office') {
+        // A sous-bureau is a mini-tenant. They see the same pages as the
+        // admin except the fleet management dashboard (which only the
+        // admin can use to add/remove cars from the global fleet).
+        return pageKey !== 'fleet';
+    }
 
     if (allowedPages == null) {
         // Legacy users: KPI / History stay admin-only (handled by router meta)
