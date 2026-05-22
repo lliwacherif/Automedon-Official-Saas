@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ArrowLeft, FileDown, Loader2, Save, Check, ChevronDown, Sparkles, Search, CalendarPlus, AlertCircle, ExternalLink, X, UserPlus, BookmarkPlus } from 'lucide-vue-next';
+import { ArrowLeft, FileDown, Loader2, Save, Check, ChevronDown, Sparkles, Search, CalendarPlus, AlertCircle, ExternalLink, X, UserPlus, BookmarkPlus, Plus, Minus, Printer } from 'lucide-vue-next';
 import ContractTemplate from '@/components/Contracts/ContractTemplate.vue';
 import ContractTemplateV2 from '@/components/Contracts/ContractTemplateV2.vue';
 import type { ContractData } from '@/components/Contracts/ContractTemplate.vue';
@@ -378,13 +378,53 @@ const periodeRetourDateInput = computed({
 // retour, avec la même grace de 3 h utilisée par le formulaire de
 // réservation (1 jour minimum, +1 jour seulement quand le dépassement
 // est strictement supérieur à 3 h).
-const periodeDurationDays = computed(() => {
+const autoCalculatedPeriodeDays = computed(() => {
   const start = parseFrenchDateTime(contractData.value.periode.departDate, contractData.value.periode.departHeure);
   const end = parseFrenchDateTime(contractData.value.periode.retourDate, contractData.value.periode.retourHeure);
   if (!start || !end || end <= start) return 0;
   const diffHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
   return Math.max(1, Math.ceil((diffHours - 3) / 24));
 });
+
+// Manual ±1 jour adjustment on top of the auto-calculated duration, mirroring
+// the reservation form. Allows the admin to nudge the rented-day count by
+// exactly one day in either direction (e.g. for a late return or a negotiated
+// discount) without having to fudge the start/end times themselves.
+const periodeDurationOffset = ref<-1 | 0 | 1>(0);
+
+// Final duration shown in the field + used by reservationPreview. Floored
+// at 1 day whenever there's any positive duration so the minus button can't
+// drag the value below 1 day.
+const periodeDurationDays = computed(() => {
+  const base = autoCalculatedPeriodeDays.value;
+  if (base <= 0) return 0;
+  return Math.max(1, base + periodeDurationOffset.value);
+});
+
+// Reset the manual offset every time the baseline changes (admin edits a
+// date or time). Keeps the rule "±1 jour max from the current dates" intact
+// and avoids surprises where an old offset silently sticks around.
+watch(autoCalculatedPeriodeDays, () => {
+  periodeDurationOffset.value = 0;
+});
+
+const canDecrementPeriodeDuration = computed(() =>
+  autoCalculatedPeriodeDays.value > 0
+  && periodeDurationOffset.value > -1
+  && (autoCalculatedPeriodeDays.value + periodeDurationOffset.value - 1) >= 1,
+);
+
+const canIncrementPeriodeDuration = computed(() =>
+  autoCalculatedPeriodeDays.value > 0
+  && periodeDurationOffset.value < 1,
+);
+
+function adjustPeriodeDuration(delta: 1 | -1) {
+  const next = periodeDurationOffset.value + delta;
+  if (next > 1 || next < -1) return;
+  if (autoCalculatedPeriodeDays.value + next < 1) return;
+  periodeDurationOffset.value = next as -1 | 0 | 1;
+}
 
 // Same idea for the Prolongation / Changement section's Du and Au dates.
 const prolongationDuInput = computed({
@@ -446,10 +486,9 @@ const reservationPreview = computed(() => {
   const start = parseFrenchDateTime(d.periode.departDate, d.periode.departHeure);
   const end = parseFrenchDateTime(d.periode.retourDate, d.periode.retourHeure);
 
-  let durationDays = 0;
-  if (start && end && end > start) {
-    durationDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)));
-  }
+  // Use the same value the sidebar shows so the saved reservation honors the
+  // 3 h grace and the admin's manual ±1 jour adjustment.
+  const durationDays = periodeDurationDays.value;
 
   const clientName = `${d.locataire.prenom || ''} ${d.locataire.nom || ''}`.trim();
   const secondDriverName = `${d.conducteur.prenom || ''} ${d.conducteur.nom || ''}`.trim();
@@ -560,6 +599,10 @@ async function confirmSaveAsReservation() {
       advance_payment: p.advancePayment,
       caution: 0,
       caution_currency: 'DT',
+      // Round-trip the contract's Mode de paiement onto the new reservation
+      // so it shows up pre-selected in the Tarification section when the
+      // admin opens the freshly created row.
+      payment_method: contractData.value.paiement.mode || null,
       status,
       contract_number: p.contractNumber || null,
       notes: `Réservation créée depuis le Contrat Vierge${d.preparedBy ? ' par ' + d.preparedBy : ''}.`,
@@ -1222,7 +1265,13 @@ async function loadReservation(id: string) {
           carburant: '',
           divers: 0,
         },
-        paiement: { mode: '', numero: '', nature: '', date: '', montant: '' },
+        // Mode de paiement is round-tripped with reservation.payment_method
+        // — when the reservation already has a mode set on the Tarification
+        // section, pre-select it in the contract dropdown so the admin
+        // doesn't have to pick again. Cast through `any` because the
+        // multi-table select() in loadReservation degrades the inferred row
+        // type to `never` (same pattern used for every other field below).
+        paiement: { mode: (reservation as any).payment_method || '', numero: '', nature: '', date: '', montant: '' },
         prolongation: { du: '', au: '', changement: '', dateHoraire: '' },
         signature: { lieu: '', date: fmtDateForContract(new Date().toISOString()) },
         pricingMode: 'HT',
@@ -1411,6 +1460,48 @@ async function downloadPdf() {
   }
 }
 
+// Native browser print flow. Toggling the `is-printing` class on <html>
+// lets our @media print CSS hide the chrome (header, sidebar, preview
+// gradient) and show only the contract pages, full-bleed A4. The
+// `afterprint` event fires whether the admin clicks Print or Cancel in
+// the browser's print dialog, so cleanup is guaranteed in both cases.
+const printing = ref(false);
+
+async function printContract() {
+  if (printing.value || loading.value) return;
+  printing.value = true;
+
+  try {
+    // Wait for any layout/font work to settle before snapshotting — same
+    // trick downloadPdf() uses to avoid Arabic shaping flashes on first
+    // print of the session.
+    await nextTick();
+    try {
+      // @ts-ignore — older Safari doesn't expose document.fonts.
+      if (document.fonts?.ready) await document.fonts.ready;
+    } catch { /* ignore */ }
+
+    document.documentElement.classList.add('is-printing');
+
+    const handleAfterPrint = () => {
+      document.documentElement.classList.remove('is-printing');
+      printing.value = false;
+      window.removeEventListener('afterprint', handleAfterPrint);
+    };
+    window.addEventListener('afterprint', handleAfterPrint);
+
+    // Defer to next frame so the print stylesheet is applied before the
+    // dialog actually captures the page.
+    requestAnimationFrame(() => {
+      window.print();
+    });
+  } catch (error) {
+    document.documentElement.classList.remove('is-printing');
+    printing.value = false;
+    console.error('Print failed', error);
+  }
+}
+
 function resetAll() {
   if (!confirm('Réinitialiser tous les champs du contrat ?')) return;
   const company = { ...contractData.value.company };
@@ -1515,6 +1606,23 @@ onMounted(async () => {
           >
             <CalendarPlus class="h-4 w-4" />
             <span class="hidden sm:inline">Sauvegarder comme réservation</span>
+          </button>
+
+          <!--
+            Print contract — opens the browser's native print dialog directly,
+            no PDF download involved. The @media print CSS hides the rest of
+            the UI so only the contract pages reach the printer / "Save as
+            PDF" output.
+          -->
+          <button
+            @click="printContract"
+            :disabled="printing || loading"
+            class="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-white text-slate-700 ring-1 ring-slate-300 transition hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+            title="Imprimer le contrat"
+            aria-label="Imprimer le contrat"
+          >
+            <Loader2 v-if="printing" class="h-4 w-4 animate-spin" />
+            <Printer v-else class="h-4 w-4" />
           </button>
 
           <!-- Download PDF -->
@@ -1877,20 +1985,53 @@ onMounted(async () => {
               <div class="sb-field"><label>Retour prévu — Heure</label><input v-model="contractData.periode.retourHeure" type="time" /></div>
             </div>
             <!-- Auto-calculated rental duration (read-only), with the same
-                 3 h grace formula used on the reservation form. -->
+                 3 h grace formula used on the reservation form. The admin
+                 can nudge the day count by ±1 via the buttons next to it
+                 (mirrors the reservation form), useful for late returns or
+                 small negotiated discounts without touching the dates. -->
             <div class="sb-field">
               <label class="sb-label-flex">
                 <Sparkles class="w-3 h-3 text-indigo-500" />
                 Durée (Jours)
               </label>
-              <input
-                :value="periodeDurationDays > 0 ? periodeDurationDays : ''"
-                type="text"
-                readonly
-                placeholder="Auto"
-                class="periode-duration-input"
-              />
-              <p class="sb-hint">Calculé automatiquement depuis les dates de départ et de retour (grâce de 3 h).</p>
+              <div class="periode-duration-row">
+                <input
+                  :value="periodeDurationDays > 0 ? periodeDurationDays : ''"
+                  type="text"
+                  readonly
+                  placeholder="Auto"
+                  class="periode-duration-input"
+                />
+                <div class="periode-duration-actions">
+                  <button
+                    type="button"
+                    @click="adjustPeriodeDuration(-1)"
+                    :disabled="!canDecrementPeriodeDuration"
+                    title="Retirer un jour"
+                    class="periode-duration-btn periode-duration-btn--minus"
+                  >
+                    <Minus class="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    @click="adjustPeriodeDuration(1)"
+                    :disabled="!canIncrementPeriodeDuration"
+                    title="Ajouter un jour"
+                    class="periode-duration-btn periode-duration-btn--plus"
+                  >
+                    <Plus class="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+              <p class="sb-hint flex items-center gap-1 flex-wrap">
+                <span>Calculé automatiquement (grâce de 3 h). Ajustable de ±1 jour.</span>
+                <span
+                  v-if="periodeDurationOffset !== 0"
+                  class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-50 ring-1 ring-amber-200 text-amber-700 font-bold text-[10px]"
+                >
+                  Ajusté {{ periodeDurationOffset > 0 ? '+1' : '-1' }} j
+                </span>
+              </p>
             </div>
             <div class="sb-field"><label>KM de départ</label><input v-model="contractData.periode.kmDepart" placeholder="89 813" /></div>
             <div class="sb-field"><label>KM de retour</label><input v-model="contractData.periode.kmRetour" /></div>
@@ -2948,9 +3089,17 @@ onMounted(async () => {
   box-shadow: inset 0 0 0 1px #f87171, 0 2px 6px -3px rgba(239, 68, 68, 0.4);
 }
 
-/* Auto-calculated read-only duration input in the Période section. */
+/* Auto-calculated read-only duration input in the Période section. The
+   field sits inside a flex row alongside the ±1 jour buttons. */
+.periode-duration-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
+}
 .periode-duration-input {
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
   padding: 7px 10px;
   font-size: 13px;
   font-weight: 700;
@@ -2962,6 +3111,44 @@ onMounted(async () => {
   cursor: default;
 }
 .periode-duration-input::placeholder { color: #94a3b8; font-weight: 500; }
+
+.periode-duration-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.periode-duration-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #ffffff;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  cursor: pointer;
+}
+.periode-duration-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.periode-duration-btn--minus {
+  color: #ef4444;
+  box-shadow: inset 0 0 0 1px #fecaca;
+}
+.periode-duration-btn--minus:hover:not(:disabled) {
+  background: #fef2f2;
+  box-shadow: inset 0 0 0 1px #fca5a5;
+}
+.periode-duration-btn--plus {
+  color: #059669;
+  box-shadow: inset 0 0 0 1px #a7f3d0;
+}
+.periode-duration-btn--plus:hover:not(:disabled) {
+  background: #ecfdf5;
+  box-shadow: inset 0 0 0 1px #6ee7b7;
+}
 
 .cb-modal-header {
   display: flex;
@@ -3176,5 +3363,76 @@ onMounted(async () => {
 .cb-modal-leave-to .cb-modal-card {
   opacity: 0;
   transform: scale(0.97) translateY(6px);
+}
+
+/*
+  Print pipeline for the "Imprimer le contrat" button.
+  ----------------------------------------------------
+  When `printContract()` flips <html class="is-printing">, we hide the
+  builder chrome (page header, sidebar, preview-board frame) and let just
+  the contract pages reach the printer. Because the contract template
+  already targets `.ct-paper` inside its own `@media print` block (full
+  width, no shadow), the result is a clean A4 stack — works for paper
+  printers AND for "Save as PDF" from the browser dialog, so the user
+  gets a print-ready preview without going through a separate PDF
+  download.
+*/
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  html.is-printing,
+  html.is-printing body {
+    background: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  html.is-printing body * {
+    visibility: hidden !important;
+  }
+
+  html.is-printing .contract-preview-board,
+  html.is-printing .contract-preview-board * {
+    visibility: visible !important;
+  }
+
+  html.is-printing .contract-preview-board {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #fff !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+  }
+
+  html.is-printing .contract-preview-frame {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  html.is-printing .ct-paper {
+    box-shadow: none !important;
+    border: none !important;
+    width: 100% !important;
+    margin: 0 !important;
+    page-break-after: always;
+    break-after: page;
+  }
+
+  html.is-printing .ct-paper:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
 }
 </style>

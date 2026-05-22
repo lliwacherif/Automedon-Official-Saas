@@ -38,6 +38,9 @@ export interface Reservation {
     advance_payment: number;
     caution: number;
     caution_currency: string;
+    // Mode de paiement principal (cheque | carte | especes | virement | null).
+    // Mirrors paiement.mode in the contract builder for a bidirectional sync.
+    payment_method?: string | null;
     // Status
     status: string;
     // Optional

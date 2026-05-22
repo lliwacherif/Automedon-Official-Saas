@@ -209,6 +209,9 @@ const reservation = ref<Partial<Reservation>>({
     advance_payment: 0,
     caution: 0,
     caution_currency: 'DT',
+    // Mode de paiement principal — kept in sync with the contract builder's
+    // paiement.mode field. Empty string = non défini (renders as no selection).
+    payment_method: '' as '' | 'cheque' | 'carte' | 'especes' | 'virement',
     car_id: 0,
     status: 'confirmed',
     pickup_location: '',
@@ -219,6 +222,32 @@ const reservation = ref<Partial<Reservation>>({
 });
 
 const showSecondDriver = ref(false);
+
+// ──────────────────────────────────────────────────────────────────
+// Mode de paiement — 4 toggle cards in the Tarification section, round-
+// tripped with the contract builder via reservation.payment_method ⇄
+// contractData.paiement.mode. Defining the options as a static array
+// gives Tailwind's JIT a stable source for the icon-binding classes
+// and keeps the template tight (v-for instead of 4 hand-rolled buttons).
+// ──────────────────────────────────────────────────────────────────
+type PaymentMethod = 'cheque' | 'carte' | 'especes' | 'virement';
+const PAYMENT_METHOD_OPTIONS: { value: PaymentMethod; label: string; icon: any }[] = [
+    { value: 'especes', label: 'Espèces', icon: Banknote },
+    { value: 'carte', label: 'Carte', icon: CreditCard },
+    { value: 'cheque', label: 'Chèque', icon: ScrollText },
+    { value: 'virement', label: 'Virement', icon: ArrowRightLeft },
+];
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+    especes: 'Espèces',
+    carte: 'Carte de crédit',
+    cheque: 'Chèque',
+    virement: 'Virement',
+};
+
+function togglePaymentMethod(mode: PaymentMethod) {
+    // Click again to clear (= "non défini"). Otherwise switch to the new mode.
+    reservation.value.payment_method = reservation.value.payment_method === mode ? '' : mode;
+}
 
 // ──────────────────────────────────────────────────────────────────
 // "Save as Client Fidèle?" proposal — triggered from handleSubmit on
@@ -596,6 +625,9 @@ async function handleSubmit() {
             advance_payment: reservation.value.advance_payment || 0,
             caution: reservation.value.caution || 0,
             caution_currency: reservation.value.caution_currency || 'DT',
+            // Synced with the contract builder's Mode de paiement field.
+            // Empty string → null so the DB check constraint stays happy.
+            payment_method: reservation.value.payment_method || null,
             status: reservation.value.status || 'confirmed',
             pickup_location: reservation.value.pickup_location || null,
             return_location: reservation.value.return_location || null,
@@ -716,12 +748,13 @@ function cancelPreview() {
 import { formatDateTime } from '@/utils/date';
 import DateTimeInput from '@/components/DateTimeInput.vue';
 import { useB2BClients, type B2BClient } from '@/composables/useB2BClients';
-import { 
-    ClipboardList, User, CreditCard, Phone, Mail, IdCard, Car, Calendar, Clock, Hash, 
-    DollarSign, Wallet, MapPin, FileText, Plus, Minus, Loader2, CircleCheck, 
+import {
+    ClipboardList, User, CreditCard, Phone, Mail, IdCard, Car, Calendar, Clock, Hash,
+    DollarSign, Wallet, MapPin, FileText, Plus, Minus, Loader2, CircleCheck,
     AlertTriangle, X, Eye, Trash2, Upload, Image,
     Users, ChevronDown, Sparkles, ScanLine, CheckCircle2, RotateCcw, Building2,
     BookmarkPlus, UserPlus, AlertCircle, Check,
+    Banknote, ScrollText, ArrowRightLeft,
 } from 'lucide-vue-next';
 
 const { clients: b2bClients, fetchClients: fetchB2BClients } = useB2BClients();
@@ -1274,30 +1307,104 @@ function clearAgency() {
                         </p>
                     </div>
 
-                    <!-- Caution / Security Deposit -->
+                    <!--
+                      Caution + Mode de paiement.
+                      Both cards live on the same row (responsive 2-col grid),
+                      keeping the Tarification section compact while the new
+                      payment-method selector stays visually anchored next to
+                      the Caution card.
+                    -->
                     <div class="mt-4 pt-4 border-t border-gray-100">
-                        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Caution / Dépôt de Garantie</h3>
-                        <div class="p-3.5 rounded-xl bg-gradient-to-br from-amber-50 to-yellow-50 ring-1 ring-amber-200 max-w-md">
-                            <label class="text-xs font-bold text-amber-700 mb-1.5 block">Montant Caution</label>
-                            <div class="flex gap-2">
-                                <input 
-                                    v-model.number="reservation.caution"
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    class="flex-1 px-3 py-2 text-sm border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 bg-white"
-                                    placeholder="0.00"
-                                >
-                                <select 
-                                    v-model="reservation.caution_currency"
-                                    class="w-24 px-2 py-2 text-sm font-semibold border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 bg-white text-amber-800 appearance-none text-center cursor-pointer"
-                                >
-                                    <option value="DT">DT</option>
-                                    <option value="EUR">EUR €</option>
-                                    <option value="USD">USD $</option>
-                                </select>
+                        <div class="grid gap-4 md:grid-cols-2 max-w-3xl">
+                            <!-- Caution / Security Deposit -->
+                            <div>
+                                <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Caution / Dépôt de Garantie</h3>
+                                <div class="p-3.5 rounded-xl bg-gradient-to-br from-amber-50 to-yellow-50 ring-1 ring-amber-200">
+                                    <label class="text-xs font-bold text-amber-700 mb-1.5 block">Montant Caution</label>
+                                    <div class="flex gap-2">
+                                        <input
+                                            v-model.number="reservation.caution"
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            class="flex-1 px-3 py-2 text-sm border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 bg-white min-w-0"
+                                            placeholder="0.00"
+                                        >
+                                        <select
+                                            v-model="reservation.caution_currency"
+                                            class="w-24 px-2 py-2 text-sm font-semibold border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 bg-white text-amber-800 appearance-none text-center cursor-pointer shrink-0"
+                                        >
+                                            <option value="DT">DT</option>
+                                            <option value="EUR">EUR €</option>
+                                            <option value="USD">USD $</option>
+                                        </select>
+                                    </div>
+                                    <p class="text-[11px] text-amber-600 mt-1.5">Montant remboursable à la fin de la location</p>
+                                </div>
                             </div>
-                            <p class="text-[11px] text-amber-600 mt-1.5">Montant remboursable à la fin de la location</p>
+
+                            <!--
+                              Mode de paiement — 4 toggle cards (v-for over a
+                              static PAYMENT_METHOD_OPTIONS array). Selecting
+                              one pre-fills the contract builder's "Mode de
+                              paiement" dropdown; choices made on the contract
+                              round-trip back here when "Sauvegarder comme
+                              réservation" runs. The selected card flips to a
+                              solid indigo block with a Check chip overlay so
+                              the state is obvious at a glance — click it
+                              again to clear ("non défini").
+                            -->
+                            <div>
+                                <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Mode de paiement</h3>
+                                <div class="p-3.5 rounded-xl bg-gradient-to-br from-indigo-50 to-blue-50 ring-1 ring-indigo-200">
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <button
+                                            v-for="opt in PAYMENT_METHOD_OPTIONS"
+                                            :key="opt.value"
+                                            type="button"
+                                            @click="togglePaymentMethod(opt.value)"
+                                            :aria-pressed="reservation.payment_method === opt.value"
+                                            :class="[
+                                                'payment-method-btn',
+                                                reservation.payment_method === opt.value
+                                                    ? 'payment-method-btn--active'
+                                                    : 'payment-method-btn--idle',
+                                            ]"
+                                        >
+                                            <component :is="opt.icon" class="w-3.5 h-3.5 shrink-0" />
+                                            <span>{{ opt.label }}</span>
+                                            <Check
+                                                v-if="reservation.payment_method === opt.value"
+                                                class="w-3.5 h-3.5 ml-auto -mr-0.5 text-white"
+                                            />
+                                        </button>
+                                    </div>
+
+                                    <!--
+                                      Visible "currently selected" indicator
+                                      — backs up the highlighted button so
+                                      the admin sees the state even if the
+                                      visual hover lands somewhere weird.
+                                    -->
+                                    <div class="mt-2.5 flex items-center justify-between gap-2 text-[11px]">
+                                        <span class="text-indigo-600">
+                                            <template v-if="reservation.payment_method">
+                                                Synchronisé avec le contrat.
+                                            </template>
+                                            <template v-else>
+                                                Optionnel — cliquez à nouveau pour désélectionner.
+                                            </template>
+                                        </span>
+                                        <span
+                                            v-if="reservation.payment_method && PAYMENT_METHOD_LABELS[reservation.payment_method as PaymentMethod]"
+                                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-600 text-white font-semibold shadow-sm"
+                                        >
+                                            <Check class="w-3 h-3" />
+                                            {{ PAYMENT_METHOD_LABELS[reservation.payment_method as PaymentMethod] }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1961,4 +2068,59 @@ function clearAgency() {
 .modal-enter-from .modal-container { opacity: 0; transform: scale(0.95) translateY(10px); }
 .modal-leave-to { opacity: 0; }
 .modal-leave-to .modal-container { opacity: 0; transform: scale(0.97) translateY(5px); }
+
+/*
+  Payment-method toggle cards in the Tarification section.
+  --------------------------------------------------------
+  Plain CSS (instead of inline Tailwind utility ternaries) so the visual
+  states ship reliably regardless of JIT class scanning — and so the
+  selected state really pops: solid indigo block, white text + icon, a
+  subtle lift via shadow, and a translucent ring that grows on focus.
+*/
+.payment-method-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    border: 1px solid transparent;
+    box-shadow: inset 0 0 0 1px transparent;
+    transition: background-color 0.15s ease, color 0.15s ease,
+                box-shadow 0.15s ease, transform 0.12s ease;
+    cursor: pointer;
+    user-select: none;
+}
+.payment-method-btn:focus-visible {
+    outline: none;
+    box-shadow:
+        inset 0 0 0 1px rgba(99, 102, 241, 0.6),
+        0 0 0 3px rgba(99, 102, 241, 0.25);
+}
+
+.payment-method-btn--idle {
+    background: #ffffff;
+    color: #4338ca;
+    box-shadow: inset 0 0 0 1px #c7d2fe;
+}
+.payment-method-btn--idle:hover {
+    background: #eef2ff;
+    color: #3730a3;
+    box-shadow: inset 0 0 0 1px #a5b4fc;
+}
+
+.payment-method-btn--active {
+    background: linear-gradient(180deg, #6366f1, #4f46e5);
+    color: #ffffff;
+    box-shadow:
+        inset 0 0 0 1px #4338ca,
+        0 4px 10px -4px rgba(79, 70, 229, 0.55);
+    transform: translateY(-1px);
+}
+.payment-method-btn--active:hover {
+    background: linear-gradient(180deg, #4f46e5, #4338ca);
+}
 </style>

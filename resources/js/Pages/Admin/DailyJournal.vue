@@ -34,6 +34,7 @@ import {
     CalendarDays,
     Clock,
     Cog,
+    FileText,
 } from 'lucide-vue-next';
 
 const { t } = useI18n();
@@ -656,8 +657,22 @@ onMounted(async () => {
                                     </td>
                                     <td class="px-5 py-3.5">
                                         <template v-if="car.active_reservation">
+                                            <!--
+                                              Payment chip — same priority order as the reservations list:
+                                                1. total_price ≤ 0 → "À facturer" (no price yet, nothing to settle).
+                                                2. total - advance ≤ 0 (and total > 0) → "Payé".
+                                                3. Otherwise → "Reste X DT" with the outstanding amount.
+                                            -->
                                             <span
-                                                v-if="(car.active_reservation.total_price - car.active_reservation.advance_payment) <= 0"
+                                                v-if="Number(car.active_reservation.total_price) <= 0"
+                                                class="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-bold text-amber-700 bg-amber-50 rounded-lg ring-1 ring-amber-200/60"
+                                                title="Total non saisi — à facturer"
+                                            >
+                                                <FileText class="w-3 h-3" />
+                                                À facturer
+                                            </span>
+                                            <span
+                                                v-else-if="(Number(car.active_reservation.total_price) - Number(car.active_reservation.advance_payment || 0)) <= 0"
                                                 class="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-bold text-emerald-700 bg-emerald-50 rounded-lg ring-1 ring-emerald-200/50"
                                             >
                                                 <CircleCheck class="w-3 h-3" />
@@ -668,7 +683,7 @@ onMounted(async () => {
                                                 class="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-bold text-red-700 bg-red-50 rounded-lg ring-1 ring-red-200/50"
                                             >
                                                 <CreditCard class="w-3 h-3" />
-                                                {{ (car.active_reservation.total_price - car.active_reservation.advance_payment).toFixed(2) }} DT
+                                                {{ (Number(car.active_reservation.total_price) - Number(car.active_reservation.advance_payment || 0)).toFixed(2) }} DT
                                             </span>
                                         </template>
                                         <span v-else class="text-sm text-gray-300">—</span>
@@ -744,7 +759,15 @@ onMounted(async () => {
                             <span v-else></span>
 
                             <span
-                                v-if="(car.active_reservation.total_price - car.active_reservation.advance_payment) <= 0"
+                                v-if="Number(car.active_reservation.total_price) <= 0"
+                                class="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-bold text-amber-700 bg-amber-50 rounded-lg ring-1 ring-amber-200/60"
+                                title="Total non saisi — à facturer"
+                            >
+                                <FileText class="w-3 h-3" />
+                                À facturer
+                            </span>
+                            <span
+                                v-else-if="(Number(car.active_reservation.total_price) - Number(car.active_reservation.advance_payment || 0)) <= 0"
                                 class="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-bold text-emerald-700 bg-emerald-50 rounded-lg ring-1 ring-emerald-200/50"
                             >
                                 <CircleCheck class="w-3 h-3" />
@@ -754,7 +777,7 @@ onMounted(async () => {
                                 v-else
                                 class="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-bold text-red-700 bg-red-50 rounded-lg ring-1 ring-red-200/50"
                             >
-                                {{ (car.active_reservation.total_price - car.active_reservation.advance_payment).toFixed(2) }} DT
+                                {{ (Number(car.active_reservation.total_price) - Number(car.active_reservation.advance_payment || 0)).toFixed(2) }} DT
                             </span>
                         </div>
                     </div>

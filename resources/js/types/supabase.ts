@@ -126,6 +126,9 @@ export interface Database {
                     advance_payment: number
                     caution: number
                     caution_currency: string
+                    // Mode de paiement principal — synced both ways with the
+                    // contract builder's Mode de paiement field.
+                    payment_method: string | null
                     // Status
                     status: string
                     // Optional
@@ -172,6 +175,7 @@ export interface Database {
                     advance_payment?: number
                     caution?: number
                     caution_currency?: string
+                    payment_method?: string | null
                     // Status
                     status?: string
                     // Optional
@@ -218,6 +222,7 @@ export interface Database {
                     advance_payment?: number
                     caution?: number
                     caution_currency?: string
+                    payment_method?: string | null
                     // Status
                     status?: string
                     // Optional
