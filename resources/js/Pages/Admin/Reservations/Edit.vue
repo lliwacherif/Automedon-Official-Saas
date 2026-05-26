@@ -246,7 +246,156 @@ const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 
 function togglePaymentMethod(mode: PaymentMethod) {
     // Click again to clear (= "non défini"). Otherwise switch to the new mode.
-    reservation.value.payment_method = reservation.value.payment_method === mode ? '' : mode;
+    const wasSelected = reservation.value.payment_method === mode;
+    if (wasSelected) {
+        // Deselect → clear the method + remove the [Paiement: ...] line
+        // from the notes (the popup also closes).
+        reservation.value.payment_method = '';
+        resetPaymentDetails();
+        syncPaymentDetailsToNotes();
+        paymentDetailsOpen.value = false;
+        return;
+    }
+    // New (or switched) selection → start with a fresh details object,
+    // then try to recover anything previously saved in the notes so the
+    // popup pre-fills when the admin re-opens an existing reservation.
+    reservation.value.payment_method = mode;
+    resetPaymentDetails();
+    parsePaymentDetailsFromNotes(mode);
+    paymentDetailsOpen.value = true;
+}
+
+// ──────────────────────────────────────────────────────────────────
+// "Détails du paiement" popup — opens when the admin picks a mode
+// and lets them capture the per-mode metadata (chèque N°, RIB,
+// last 4 of the card, etc.). On confirm, the popup serializes the
+// fields into a single `[Paiement: <Mode>] ...` line that is
+// stored at the top of the Notes field (no schema change needed).
+// ──────────────────────────────────────────────────────────────────
+interface PaymentDetailsState {
+    /** Chèque / Carte: bank name */
+    bank: string;
+    /** Chèque: check number */
+    check_number: string;
+    /** Chèque / Carte / Virement: dated transaction (yyyy-mm-dd) */
+    date: string;
+    /** Virement: RIB / IBAN */
+    rib: string;
+    /** Carte: last 4 digits */
+    last4: string;
+    /** Espèces: who received the cash on site */
+    received_by: string;
+    /** Free-form reference (all modes) */
+    reference: string;
+}
+
+const PAYMENT_LINE_PREFIX = '[Paiement:';
+
+function emptyPaymentDetails(): PaymentDetailsState {
+    return { bank: '', check_number: '', date: '', rib: '', last4: '', received_by: '', reference: '' };
+}
+
+const paymentDetailsOpen = ref(false);
+const paymentDetails = ref<PaymentDetailsState>(emptyPaymentDetails());
+
+function resetPaymentDetails() {
+    paymentDetails.value = emptyPaymentDetails();
+}
+
+function openPaymentDetails() {
+    if (!reservation.value.payment_method) return;
+    parsePaymentDetailsFromNotes(reservation.value.payment_method as PaymentMethod);
+    paymentDetailsOpen.value = true;
+}
+
+function closePaymentDetails() {
+    paymentDetailsOpen.value = false;
+}
+
+function formatDateFr(iso: string): string {
+    if (!iso) return '';
+    const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return iso;
+    return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+function buildPaymentNotesLine(): string {
+    const method = reservation.value.payment_method;
+    if (!method) return '';
+    const d = paymentDetails.value;
+    const segs: string[] = [];
+    const label = PAYMENT_METHOD_LABELS[method as PaymentMethod];
+    segs.push(`${PAYMENT_LINE_PREFIX} ${label}]`);
+    if (method === 'cheque') {
+        if (d.check_number) segs.push(`N° ${d.check_number}`);
+        if (d.bank) segs.push(`Banque ${d.bank}`);
+        if (d.date) segs.push(formatDateFr(d.date));
+    } else if (method === 'virement') {
+        if (d.rib) segs.push(`RIB ${d.rib}`);
+        if (d.bank) segs.push(`Banque ${d.bank}`);
+        if (d.date) segs.push(formatDateFr(d.date));
+        if (d.reference) segs.push(`Réf. ${d.reference}`);
+    } else if (method === 'carte') {
+        if (d.last4) segs.push(`Carte **** ${d.last4}`);
+        if (d.bank) segs.push(`Banque ${d.bank}`);
+        if (d.reference) segs.push(`Réf. ${d.reference}`);
+    } else if (method === 'especes') {
+        if (d.received_by) segs.push(`Reçu par ${d.received_by}`);
+        if (d.reference) segs.push(`Réf. ${d.reference}`);
+    }
+    return segs.join(' — ');
+}
+
+/**
+ * Replace (or remove) the single `[Paiement: ...]` line in the
+ * Notes textarea. The line is kept on its own line at the top so
+ * the admin can still type free-form notes underneath.
+ */
+function syncPaymentDetailsToNotes() {
+    const newLine = buildPaymentNotesLine();
+    const existing = reservation.value.notes || '';
+    const otherLines = existing
+        .split('\n')
+        .filter((l) => !l.trim().startsWith(PAYMENT_LINE_PREFIX))
+        .join('\n')
+        .replace(/^\s+/, '');
+    if (!newLine) {
+        reservation.value.notes = otherLines.trimEnd();
+        return;
+    }
+    reservation.value.notes = otherLines ? `${newLine}\n${otherLines}` : newLine;
+}
+
+/** Best-effort parser: pull the per-mode fields back out of the notes line. */
+function parsePaymentDetailsFromNotes(mode: PaymentMethod) {
+    const notes = reservation.value.notes || '';
+    const line = notes.split('\n').find((l) => l.trim().startsWith(PAYMENT_LINE_PREFIX));
+    if (!line) return;
+    // Strip the leading `[Paiement: Mode] ` block.
+    const body = line.replace(/^\[Paiement:[^\]]*\]\s*/, '').trim();
+    if (!body) return;
+    const parts = body.split(' — ').map((p) => p.trim()).filter(Boolean);
+    for (const p of parts) {
+        if (/^N°\s/.test(p)) paymentDetails.value.check_number = p.replace(/^N°\s+/, '');
+        else if (/^Banque\s/.test(p)) paymentDetails.value.bank = p.replace(/^Banque\s+/, '');
+        else if (/^RIB\s/.test(p)) paymentDetails.value.rib = p.replace(/^RIB\s+/, '');
+        else if (/^Carte\s+\*+\s/.test(p)) paymentDetails.value.last4 = p.replace(/^Carte\s+\*+\s+/, '');
+        else if (/^Reçu par\s/.test(p)) paymentDetails.value.received_by = p.replace(/^Reçu par\s+/, '');
+        else if (/^Réf\.?\s/.test(p)) paymentDetails.value.reference = p.replace(/^Réf\.?\s+/, '');
+        else if (/^\d{2}\/\d{2}\/\d{4}$/.test(p)) {
+            const [dd, mm, yyyy] = p.split('/');
+            paymentDetails.value.date = `${yyyy}-${mm}-${dd}`;
+        }
+    }
+    // Keep `mode` referenced so the helper is callable without
+    // TypeScript complaining about an unused parameter. The mode is
+    // not actually needed here (the line label drives parsing).
+    void mode;
+}
+
+function confirmPaymentDetails() {
+    syncPaymentDetailsToNotes();
+    paymentDetailsOpen.value = false;
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -755,6 +904,7 @@ import {
     Users, ChevronDown, Sparkles, ScanLine, CheckCircle2, RotateCcw, Building2,
     BookmarkPlus, UserPlus, AlertCircle, Check,
     Banknote, ScrollText, ArrowRightLeft,
+    Pencil, KeyRound, Save,
 } from 'lucide-vue-next';
 
 const { clients: b2bClients, fetchClients: fetchB2BClients } = useB2BClients();
@@ -1356,7 +1506,7 @@ function clearAgency() {
                             -->
                             <div>
                                 <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Mode de paiement</h3>
-                                <div class="p-3.5 rounded-xl bg-gradient-to-br from-indigo-50 to-blue-50 ring-1 ring-indigo-200">
+                                <div class="payment-method-card p-3.5 rounded-xl bg-gradient-to-br from-indigo-50 to-blue-50 ring-1 ring-indigo-200">
                                     <div class="grid grid-cols-2 gap-2">
                                         <button
                                             v-for="opt in PAYMENT_METHOD_OPTIONS"
@@ -1395,14 +1545,168 @@ function clearAgency() {
                                                 Optionnel — cliquez à nouveau pour désélectionner.
                                             </template>
                                         </span>
-                                        <span
-                                            v-if="reservation.payment_method && PAYMENT_METHOD_LABELS[reservation.payment_method as PaymentMethod]"
-                                            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-600 text-white font-semibold shadow-sm"
-                                        >
-                                            <Check class="w-3 h-3" />
-                                            {{ PAYMENT_METHOD_LABELS[reservation.payment_method as PaymentMethod] }}
-                                        </span>
+                                        <div class="flex items-center gap-1.5">
+                                            <button
+                                                v-if="reservation.payment_method"
+                                                type="button"
+                                                @click="openPaymentDetails"
+                                                class="payment-details-edit-btn"
+                                                title="Modifier les détails du paiement"
+                                            >
+                                                <Pencil class="w-3 h-3" />
+                                                <span>Détails</span>
+                                            </button>
+                                            <span
+                                                v-if="reservation.payment_method && PAYMENT_METHOD_LABELS[reservation.payment_method as PaymentMethod]"
+                                                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-600 text-white font-semibold shadow-sm"
+                                            >
+                                                <Check class="w-3 h-3" />
+                                                {{ PAYMENT_METHOD_LABELS[reservation.payment_method as PaymentMethod] }}
+                                            </span>
+                                        </div>
                                     </div>
+
+                                    <!--
+                                      Liquid-glass details popup —
+                                      overlays the payment buttons when a
+                                      mode is freshly picked (or the admin
+                                      re-opens it via the "Détails" button).
+                                      Fields are dynamic per mode and the
+                                      confirm action serializes everything
+                                      into a single `[Paiement: ...]` line
+                                      in the Notes textarea below.
+                                    -->
+                                    <Transition name="liquid-pop">
+                                        <div
+                                            v-if="paymentDetailsOpen && reservation.payment_method"
+                                            class="payment-details-popup"
+                                            role="dialog"
+                                            aria-label="Détails du paiement"
+                                        >
+                                            <div class="payment-details-popup__inner">
+                                                <!-- Header -->
+                                                <div class="flex items-start justify-between gap-2 mb-3">
+                                                    <div class="flex items-center gap-2 min-w-0">
+                                                        <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-blue-500 text-white flex items-center justify-center shadow-sm shadow-indigo-300/50 shrink-0">
+                                                            <component
+                                                                :is="(PAYMENT_METHOD_OPTIONS.find((o) => o.value === reservation.payment_method) || {} as any).icon || ScrollText"
+                                                                class="w-3.5 h-3.5"
+                                                            />
+                                                        </div>
+                                                        <div class="min-w-0">
+                                                            <div class="text-[12.5px] font-bold text-gray-900 truncate">
+                                                                Détails — {{ PAYMENT_METHOD_LABELS[reservation.payment_method as PaymentMethod] }}
+                                                            </div>
+                                                            <div class="text-[10.5px] text-gray-500 leading-tight">Sera consigné dans les Notes</div>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        @click="closePaymentDetails"
+                                                        class="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-white/60 transition-colors"
+                                                        title="Fermer"
+                                                    >
+                                                        <X class="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+
+                                                <!-- Per-mode fields -->
+                                                <div class="space-y-2">
+                                                    <!-- Chèque -->
+                                                    <template v-if="reservation.payment_method === 'cheque'">
+                                                        <div class="payment-details-field">
+                                                            <Hash class="payment-details-field__icon" />
+                                                            <input v-model="paymentDetails.check_number" type="text" placeholder="N° de chèque" class="payment-details-field__input" />
+                                                        </div>
+                                                        <div class="payment-details-field">
+                                                            <Building2 class="payment-details-field__icon" />
+                                                            <input v-model="paymentDetails.bank" type="text" placeholder="Banque (ex. BIAT)" class="payment-details-field__input" />
+                                                        </div>
+                                                        <div class="payment-details-field">
+                                                            <Calendar class="payment-details-field__icon" />
+                                                            <input v-model="paymentDetails.date" type="date" class="payment-details-field__input" />
+                                                        </div>
+                                                    </template>
+
+                                                    <!-- Virement -->
+                                                    <template v-else-if="reservation.payment_method === 'virement'">
+                                                        <div class="payment-details-field">
+                                                            <KeyRound class="payment-details-field__icon" />
+                                                            <input v-model="paymentDetails.rib" type="text" placeholder="RIB / IBAN" class="payment-details-field__input" />
+                                                        </div>
+                                                        <div class="payment-details-field">
+                                                            <Building2 class="payment-details-field__icon" />
+                                                            <input v-model="paymentDetails.bank" type="text" placeholder="Banque (ex. BIAT)" class="payment-details-field__input" />
+                                                        </div>
+                                                        <div class="grid grid-cols-2 gap-2">
+                                                            <div class="payment-details-field">
+                                                                <Calendar class="payment-details-field__icon" />
+                                                                <input v-model="paymentDetails.date" type="date" class="payment-details-field__input" />
+                                                            </div>
+                                                            <div class="payment-details-field">
+                                                                <Hash class="payment-details-field__icon" />
+                                                                <input v-model="paymentDetails.reference" type="text" placeholder="Référence" class="payment-details-field__input" />
+                                                            </div>
+                                                        </div>
+                                                    </template>
+
+                                                    <!-- Carte -->
+                                                    <template v-else-if="reservation.payment_method === 'carte'">
+                                                        <div class="payment-details-field">
+                                                            <CreditCard class="payment-details-field__icon" />
+                                                            <input
+                                                                v-model="paymentDetails.last4"
+                                                                type="text"
+                                                                inputmode="numeric"
+                                                                maxlength="4"
+                                                                placeholder="4 derniers chiffres"
+                                                                class="payment-details-field__input"
+                                                            />
+                                                        </div>
+                                                        <div class="payment-details-field">
+                                                            <Building2 class="payment-details-field__icon" />
+                                                            <input v-model="paymentDetails.bank" type="text" placeholder="Banque émettrice" class="payment-details-field__input" />
+                                                        </div>
+                                                        <div class="payment-details-field">
+                                                            <Hash class="payment-details-field__icon" />
+                                                            <input v-model="paymentDetails.reference" type="text" placeholder="Référence transaction" class="payment-details-field__input" />
+                                                        </div>
+                                                    </template>
+
+                                                    <!-- Espèces -->
+                                                    <template v-else-if="reservation.payment_method === 'especes'">
+                                                        <div class="payment-details-field">
+                                                            <User class="payment-details-field__icon" />
+                                                            <input v-model="paymentDetails.received_by" type="text" placeholder="Reçu par (nom)" class="payment-details-field__input" />
+                                                        </div>
+                                                        <div class="payment-details-field">
+                                                            <Hash class="payment-details-field__icon" />
+                                                            <input v-model="paymentDetails.reference" type="text" placeholder="Référence (optionnel)" class="payment-details-field__input" />
+                                                        </div>
+                                                    </template>
+                                                </div>
+
+                                                <!-- Footer -->
+                                                <div class="flex items-center justify-end gap-2 mt-3 pt-3 border-t border-white/40">
+                                                    <button
+                                                        type="button"
+                                                        @click="closePaymentDetails"
+                                                        class="px-3 py-1.5 text-[12px] font-semibold text-gray-600 hover:text-gray-900 hover:bg-white/60 rounded-lg transition-colors"
+                                                    >
+                                                        Annuler
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        @click="confirmPaymentDetails"
+                                                        class="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-[12px] font-semibold text-white bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 rounded-lg shadow-md shadow-indigo-300/60 hover:shadow-lg hover:shadow-indigo-400/60 transition-all"
+                                                    >
+                                                        <Save class="w-3.5 h-3.5" />
+                                                        Enregistrer
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </Transition>
                                 </div>
                             </div>
                         </div>
@@ -2122,5 +2426,163 @@ function clearAgency() {
 }
 .payment-method-btn--active:hover {
     background: linear-gradient(180deg, #4f46e5, #4338ca);
+}
+
+/* ──────────────────────────────────────────────────────────────────
+   "Détails du paiement" popup — Apple liquid-glass aesthetic.
+   The container hosting the payment buttons becomes the anchor
+   (position: relative) so the popup overlays the grid without
+   jumping the surrounding layout. backdrop-blur + translucent
+   white surface + soft inner highlight gives it the "frosted
+   glass over a sunny background" look.
+   ────────────────────────────────────────────────────────────── */
+.payment-method-card {
+    position: relative;
+}
+
+.payment-details-popup {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
+    pointer-events: auto;
+    border-radius: 12px;
+    /* Soft mask so the frosted glass blends with the indigo gradient
+       behind it instead of cutting hard against the card edge. */
+    background: rgba(238, 242, 255, 0.4);
+}
+
+.payment-details-popup__inner {
+    width: 100%;
+    max-width: 360px;
+    padding: 14px 14px 12px 14px;
+    border-radius: 18px;
+    background: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.78) 0%,
+        rgba(255, 255, 255, 0.62) 100%
+    );
+    -webkit-backdrop-filter: saturate(180%) blur(22px);
+    backdrop-filter: saturate(180%) blur(22px);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.7),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+        0 1px 1px rgba(15, 23, 42, 0.04),
+        0 12px 28px -10px rgba(79, 70, 229, 0.35),
+        0 24px 60px -28px rgba(15, 23, 42, 0.35);
+    /* Tame the gradient seam by overlaying a soft highlight */
+    position: relative;
+    overflow: hidden;
+}
+
+.payment-details-popup__inner::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(
+            120% 80% at 20% 0%,
+            rgba(165, 180, 252, 0.22) 0%,
+            transparent 55%
+        ),
+        radial-gradient(
+            100% 70% at 100% 100%,
+            rgba(147, 197, 253, 0.18) 0%,
+            transparent 60%
+        );
+    border-radius: inherit;
+}
+
+.payment-details-field {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: rgba(255, 255, 255, 0.78);
+    border-radius: 10px;
+    box-shadow:
+        inset 0 0 0 1px rgba(199, 210, 254, 0.7),
+        0 1px 0 rgba(255, 255, 255, 0.7);
+    transition: box-shadow 160ms ease, background 160ms ease;
+}
+
+.payment-details-field:focus-within {
+    background: #ffffff;
+    box-shadow:
+        inset 0 0 0 1.5px rgba(99, 102, 241, 0.55),
+        0 0 0 3px rgba(99, 102, 241, 0.16);
+}
+
+.payment-details-field__icon {
+    width: 14px;
+    height: 14px;
+    color: rgb(99, 102, 241);
+    flex-shrink: 0;
+}
+
+.payment-details-field__input {
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+    border: none;
+    outline: none;
+    padding: 6px 0;
+    font-size: 12.5px;
+    color: rgb(17, 24, 39);
+}
+
+.payment-details-field__input::placeholder {
+    color: rgb(148, 163, 184);
+}
+
+/*
+  "Détails" pencil button — small chip next to the selected method
+  indicator. Subtle by default, indigo on hover so the admin learns
+  it's the entry point to edit per-mode metadata.
+*/
+.payment-details-edit-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #4338ca;
+    background: rgba(255, 255, 255, 0.7);
+    box-shadow: inset 0 0 0 1px rgba(199, 210, 254, 0.8);
+    transition: background 140ms ease, color 140ms ease, box-shadow 140ms ease;
+    cursor: pointer;
+}
+
+.payment-details-edit-btn:hover {
+    background: #ffffff;
+    color: #3730a3;
+    box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.7);
+}
+
+/* Spring-ish liquid pop animation for the popup. */
+.liquid-pop-enter-active,
+.liquid-pop-leave-active {
+    transition:
+        opacity 260ms cubic-bezier(0.32, 0.72, 0.4, 1.02),
+        transform 260ms cubic-bezier(0.32, 0.72, 0.4, 1.02);
+}
+
+.liquid-pop-enter-from {
+    opacity: 0;
+    transform: scale(0.92) translateY(6px);
+}
+
+.liquid-pop-leave-to {
+    opacity: 0;
+    transform: scale(0.96) translateY(2px);
 }
 </style>
