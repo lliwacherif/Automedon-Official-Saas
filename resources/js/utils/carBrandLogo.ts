@@ -15,6 +15,7 @@ const BRAND_LOGO_OVERRIDES: Record<string, string> = {
     Citroen: '/images/citroine.jpg',
     Mercedes: '/images/Mercedes-Logo.png',
     Audi: '/images/Logo_audi.jpg',
+    Opel: '/images/Opel-Logo.png',
 };
 
 export function getBrandLogo(brand: string | null | undefined): string {
