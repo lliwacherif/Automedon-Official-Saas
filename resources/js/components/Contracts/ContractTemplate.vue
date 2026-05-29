@@ -87,6 +87,17 @@ export interface ContractData {
     date: string;
   };
   pricingMode?: 'HT' | 'TTC';
+  /** B2B (agency) rental. When enabled, the renter is a company picked from
+   *  the b2b_clients table and shown as an extra "Locataire" section. */
+  b2b?: {
+    enabled?: boolean;
+    companyName?: string;
+    contactName?: string;
+    mf?: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+  };
   v2?: {
     renter?: {
       nom?: string;
@@ -229,10 +240,25 @@ function fmt3(v: number): string {
         <span class="ct-loc-type-lbl-ar">: نوع الإيجار</span>
       </div>
 
+      <!-- Locataire B2B (agence) — only shown for B2B rentals -->
+      <div v-if="data.b2b && data.b2b.enabled" class="ct-b2b-section">
+        <div class="ct-sec-hdr"><span>LOCATAIRE</span><span>المستأجر</span></div>
+        <div class="ct-b2b-grid">
+          <div class="ct-frow ct-b2b-full"><span class="ct-flbl">Société :</span><span class="ct-fline" :class="{ 'ct-empty': !data.b2b.companyName }">{{ data.b2b.companyName }}</span><span class="ct-flbl-ar">: الشركة</span></div>
+          <div class="ct-frow"><span class="ct-flbl">M.F :</span><span class="ct-fline" :class="{ 'ct-empty': !data.b2b.mf }">{{ data.b2b.mf }}</span><span class="ct-flbl-ar">: المعرف الجبائي</span></div>
+          <div class="ct-frow"><span class="ct-flbl">Responsable :</span><span class="ct-fline" :class="{ 'ct-empty': !data.b2b.contactName }">{{ data.b2b.contactName }}</span><span class="ct-flbl-ar">: المسؤول</span></div>
+          <div class="ct-frow"><span class="ct-flbl">Téléphone :</span><span class="ct-fline" :class="{ 'ct-empty': !data.b2b.phone }">{{ data.b2b.phone }}</span><span class="ct-flbl-ar">: الهاتف</span></div>
+          <div class="ct-frow"><span class="ct-flbl">Email :</span><span class="ct-fline" :class="{ 'ct-empty': !data.b2b.email }">{{ data.b2b.email }}</span><span class="ct-flbl-ar">: البريد</span></div>
+          <div class="ct-frow ct-b2b-full"><span class="ct-flbl">Adresse :</span><span class="ct-fline" :class="{ 'ct-empty': !data.b2b.address }">{{ data.b2b.address }}</span><span class="ct-flbl-ar">: العنوان</span></div>
+        </div>
+      </div>
+
       <!-- Main body grid -->
       <div class="ct-body-grid">
-        <!-- Left column -->
-        <div class="ct-left-col">
+        <!-- Drivers row: Locataire (1er conducteur) & Conducteur (2e) côte à côte -->
+        <div class="ct-drivers-row">
+          <!-- Premier conducteur / Locataire -->
+          <div class="ct-driver-col">
           <div class="ct-sec-hdr"><span>LOCATAIRE</span><span>السائق الأول</span></div>
           <div class="ct-sec-body">
             <div class="ct-frow"><span class="ct-flbl">Nom :</span><span class="ct-fline" :class="{ 'ct-empty': !data.locataire.nom }">{{ data.locataire.nom }}</span><span class="ct-flbl-ar">: الاسم</span><span class="ct-fline ct-ar" :class="{ 'ct-empty': !data.locataire.nom }">{{ data.locataire.nom }}</span></div>
@@ -247,7 +273,10 @@ function fmt3(v: number): string {
             <div class="ct-frow"><span class="ct-flbl">N° Permis :</span><span class="ct-fline" :class="{ 'ct-empty': !data.locataire.permis }">{{ data.locataire.permis }}</span><span class="ct-flbl-ar">رقم رخصة السياقة :</span></div>
             <div class="ct-frow"><span class="ct-flbl">Délivré le :</span><span class="ct-fline" :class="{ 'ct-empty': !data.locataire.permisDate }">{{ data.locataire.permisDate }}</span><span class="ct-flbl-ar">مسلمة بتاريخ :</span></div>
           </div>
+          </div>
 
+          <!-- Second conducteur -->
+          <div class="ct-driver-col">
           <div class="ct-sec-hdr ct-conductor"><span>CONDUCTEUR</span><span>السائق الثاني</span></div>
           <div class="ct-sec-body">
             <div class="ct-frow"><span class="ct-flbl">Nom :</span><span class="ct-fline" :class="{ 'ct-empty': !data.conducteur.nom }">{{ data.conducteur.nom }}</span><span class="ct-flbl-ar">: الاسم</span><span class="ct-fline ct-ar" :class="{ 'ct-empty': !data.conducteur.nom }">{{ data.conducteur.nom }}</span></div>
@@ -262,10 +291,12 @@ function fmt3(v: number): string {
             <div class="ct-frow"><span class="ct-flbl">N° Permis :</span><span class="ct-fline" :class="{ 'ct-empty': !data.conducteur.permis }">{{ data.conducteur.permis }}</span><span class="ct-flbl-ar">رقم رخصة السياقة :</span></div>
             <div class="ct-frow"><span class="ct-flbl">Délivré le :</span><span class="ct-fline" :class="{ 'ct-empty': !data.conducteur.permisDate }">{{ data.conducteur.permisDate }}</span><span class="ct-flbl-ar">مسلمة بتاريخ :</span></div>
           </div>
+          </div>
         </div>
 
-        <!-- Right column -->
-        <div class="ct-right-col">
+        <!-- Lower sections: moved below the drivers, kept in two columns -->
+        <div class="ct-lower-row">
+          <div class="ct-lower-col">
           <!-- Dates -->
           <div class="ct-dates-block">
             <div class="ct-date-cell">
@@ -300,7 +331,9 @@ function fmt3(v: number): string {
               <span class="ct-chk"><span class="ct-chk-box">{{ data.caution === 'cheque' ? 'X' : '' }}</span> <span>Chèque</span></span>
             </div>
           </div>
+          </div>
 
+          <div class="ct-lower-col">
           <!-- Encaissement -->
           <div class="ct-enc-block">
             <div class="ct-enc-title"><span>Encaissement</span><span>المقابيض</span></div>
@@ -324,6 +357,7 @@ function fmt3(v: number): string {
             <div class="ct-pay-row"><b>Numéro :</b> <span class="ct-pay-line">{{ data.paiement.numero }}</span></div>
             <div class="ct-pay-row"><b>Nature :</b> <span class="ct-pay-line">{{ data.paiement.nature }}</span> &nbsp;<b>en date du</b> <span class="ct-pay-line">{{ data.paiement.date }}</span></div>
             <div class="ct-pay-row"><b>Montant en T.T.C. :</b> <span class="ct-pay-line">{{ data.paiement.montant }}</span></div>
+          </div>
           </div>
         </div>
       </div>
@@ -547,13 +581,29 @@ function fmt3(v: number): string {
   font-weight: 900;
 }
 
-/* Body grid */
-.ct-body-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1.5px solid #000; }
-.ct-left-col { border-right: 1.5px solid #000; }
+/* Locataire B2B (agence) — extra renter section above the body grid */
+.ct-b2b-section { border: 1.5px solid #000; border-bottom: none; }
+.ct-b2b-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; padding: 5px 7px; }
+.ct-b2b-full { grid-column: 1 / -1; }
+
+/* Body grid — drivers side by side on top, remaining sections below */
+.ct-body-grid { border: 1.5px solid #000; }
+
+/* Drivers row: Locataire (1er conducteur) & Conducteur (2e) côte à côte */
+.ct-drivers-row { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1.5px solid #000; }
+.ct-driver-col { min-width: 0; }
+.ct-driver-col:first-child { border-right: 1.5px solid #000; }
+
+/* Lower sections row: moved down, kept in two columns */
+.ct-lower-row { display: grid; grid-template-columns: 1fr 1fr; }
+.ct-lower-col { min-width: 0; }
+.ct-lower-col:first-child { border-right: 1.5px solid #000; }
+.ct-lower-col > :last-child { border-bottom: none; }
+.ct-lower-col .ct-enc-title { border-top: none; }
 
 /* Section headers */
 .ct-sec-hdr { background: #e8e8ff; border-bottom: 1px solid #000; padding: 3px 7px; display: flex; justify-content: space-between; font-weight: 700; font-size: 9.5px; text-transform: uppercase; }
-.ct-sec-hdr.ct-conductor { border-top: 1px solid #000; }
+.ct-sec-hdr.ct-conductor { border-top: none; }
 .ct-sec-body { padding: 5px 7px; }
 
 /* Field rows */
