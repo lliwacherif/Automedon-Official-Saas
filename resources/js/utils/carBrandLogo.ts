@@ -13,6 +13,8 @@ const BRAND_LOGO_OVERRIDES: Record<string, string> = {
     Toyota: '/images/toyota.png',
     Haval: '/images/haval.png',
     Citroen: '/images/citroine.jpg',
+    Mercedes: '/images/Mercedes-Logo.png',
+    Audi: '/images/Logo_audi.jpg',
 };
 
 export function getBrandLogo(brand: string | null | undefined): string {
