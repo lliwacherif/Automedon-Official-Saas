@@ -106,7 +106,25 @@ export function useReservations() {
             }
 
             if (search) {
-                query = query.or(`reservation_number.ilike.%${search}%,client_name.ilike.%${search}%,client_cin.ilike.%${search}%`);
+                const term = search.trim();
+                // Columns living directly on the reservations table.
+                let orFilter = `reservation_number.ilike.%${term}%,contract_number.ilike.%${term}%,client_name.ilike.%${term}%,client_cin.ilike.%${term}%`;
+
+                // The car immatricule (license_plate) lives on the joined `cars`
+                // table, which PostgREST can't OR together with parent columns in
+                // a single query. Resolve the matching car ids first, then fold
+                // them into the OR via car_id.in.(...).
+                const { data: plateCars } = await supabase
+                    .from('cars')
+                    .select('id')
+                    .eq('tenant_id', tenantId)
+                    .ilike('license_plate', `%${term}%`);
+                const plateCarIds = (plateCars || []).map((c: any) => c.id);
+                if (plateCarIds.length > 0) {
+                    orFilter += `,car_id.in.(${plateCarIds.join(',')})`;
+                }
+
+                query = query.or(orFilter);
             }
 
             if (status && status !== 'all') {

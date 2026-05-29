@@ -44,6 +44,7 @@ const router = useRouter();
 
 const search = ref('');
 const statusFilter = ref('all');
+const paymentFilter = ref<'all' | 'paye' | 'non_paye' | 'a_facturer'>('all');
 const monthFilter = ref<string>('all');
 const expandedReservation = ref<number | null>(null);
 const showUpsell = ref(false);
@@ -62,19 +63,42 @@ const monthOptions = computed(() => {
     });
 });
 
-// Apply month filter on top of what useReservations already returns.
-// Server already handles status + search; month is purely client-side
-// because the column in DB is a timestamp and we want simple month/year matching.
+// Derive the payment state of a reservation. Mirrors the badge logic in the
+// table so the "filtre par état de paiement" stays in sync with what's shown:
+//  - total ≤ 0           → "à facturer" (total not entered yet)
+//  - total - advance ≤ 0 → "payé" (fully paid)
+//  - otherwise           → "non payé" (balance remaining)
+function getPaymentStatus(res: any): 'paye' | 'non_paye' | 'a_facturer' {
+    const total = Number(res.total_price);
+    if (total <= 0) return 'a_facturer';
+    if (total - Number(res.advance_payment || 0) <= 0) return 'paye';
+    return 'non_paye';
+}
+
+// Apply month + payment filters on top of what useReservations already returns.
+// Server already handles status + search; month and payment are client-side
+// (month: DB column is a timestamp and we want simple month/year matching;
+// payment: it's a derived value with no dedicated DB column).
 const filteredReservations = computed(() => {
-    if (monthFilter.value === 'all') return reservations.value;
-    const targetMonth = parseInt(monthFilter.value, 10);
-    if (Number.isNaN(targetMonth)) return reservations.value;
-    return reservations.value.filter(r => {
-        if (!r.start_date) return false;
-        const d = new Date(r.start_date);
-        if (Number.isNaN(d.getTime())) return false;
-        return d.getFullYear() === currentYear && (d.getMonth() + 1) === targetMonth;
-    });
+    let list = reservations.value;
+
+    if (paymentFilter.value !== 'all') {
+        list = list.filter(r => getPaymentStatus(r) === paymentFilter.value);
+    }
+
+    if (monthFilter.value !== 'all') {
+        const targetMonth = parseInt(monthFilter.value, 10);
+        if (!Number.isNaN(targetMonth)) {
+            list = list.filter(r => {
+                if (!r.start_date) return false;
+                const d = new Date(r.start_date);
+                if (Number.isNaN(d.getTime())) return false;
+                return d.getFullYear() === currentYear && (d.getMonth() + 1) === targetMonth;
+            });
+        }
+    }
+
+    return list;
 });
 
 onMounted(async () => {
@@ -192,7 +216,7 @@ import { formatDate, formatDateTime } from '@/utils/date';
 
             <!-- Filters -->
             <div class="bg-white rounded-2xl ring-1 ring-gray-100 shadow-sm p-4">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                     <div>
                         <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">
                             {{ t('admin.reservations.search') }}
@@ -225,6 +249,24 @@ import { formatDate, formatDateTime } from '@/utils/date';
                                 <option value="active">{{ t('admin.reservations.status_active') }}</option>
                                 <option value="completed">{{ t('admin.reservations.status_completed') }}</option>
                                 <option value="cancelled">{{ t('admin.reservations.status_cancelled') }}</option>
+                            </select>
+                            <ChevronDown class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">
+                            {{ t('admin.reservations.payment_filter') }}
+                        </label>
+                        <div class="relative">
+                            <CreditCard class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <select
+                                v-model="paymentFilter"
+                                class="w-full pl-10 pr-4 py-2.5 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 appearance-none cursor-pointer transition-all"
+                            >
+                                <option value="all">{{ t('admin.reservations.all_payments') }}</option>
+                                <option value="paye">{{ t('admin.reservations.payment_paid') }}</option>
+                                <option value="non_paye">{{ t('admin.reservations.payment_unpaid') }}</option>
+                                <option value="a_facturer">{{ t('admin.reservations.payment_to_invoice') }}</option>
                             </select>
                             <ChevronDown class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                         </div>
