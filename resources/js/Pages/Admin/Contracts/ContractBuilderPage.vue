@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ArrowLeft, FileDown, Loader2, Save, Check, ChevronDown, Sparkles, Search, CalendarPlus, AlertCircle, ExternalLink, X, UserPlus, BookmarkPlus, Plus, Minus, Printer } from 'lucide-vue-next';
+import { ArrowLeft, FileDown, Loader2, Save, Check, ChevronDown, Sparkles, Search, CalendarPlus, AlertCircle, ExternalLink, X, UserPlus, BookmarkPlus, Plus, Minus, Printer, Building2 } from 'lucide-vue-next';
 import ContractTemplate from '@/components/Contracts/ContractTemplate.vue';
 import ContractTemplateV2 from '@/components/Contracts/ContractTemplateV2.vue';
 import type { ContractData } from '@/components/Contracts/ContractTemplate.vue';
@@ -11,6 +11,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useCars } from '@/composables/useCars';
 import { useFaithfulClients, type FaithfulClient } from '@/composables/useFaithfulClients';
 import { useReservations } from '@/composables/useReservations';
+import { useB2BClients } from '@/composables/useB2BClients';
 // @ts-ignore
 // html-to-image captures the contract via SVG <foreignObject>, which
 // delegates rendering back to the browser's native engine. This is the
@@ -56,6 +57,7 @@ function createEmptyContractData(): ContractData {
     prolongation: { du: '', au: '', changement: '', dateHoraire: '' },
     signature: { lieu: '', date: '' },
     pricingMode: 'HT',
+    b2b: { enabled: false, companyName: '', contactName: '', mf: '', address: '', phone: '', email: '' },
     v2: {
       renter: { nom: '', prenom: '' },
       locataire: { mf: '', lieuDelivrance: '', dateEntreeTunisie: '', permisLieu: '', motifSejour: '' },
@@ -109,6 +111,44 @@ function onFleetCarSelected(value: string) {
   if (!car) return;
   contractData.value.vehicule.marque = `${car.brand} ${car.model}`.trim();
   contractData.value.vehicule.immatriculation = car.plate_number || '';
+}
+
+// ──────────────────────────────────────────────────────────────────
+// B2B (agency) rentals — the "Agences" toggle turns the contract into a
+// B2B rental: an extra "Locataire" (company) section appears on the
+// document, fed by a company picked from the b2b_clients table.
+// ──────────────────────────────────────────────────────────────────
+const { clients: b2bClients, fetchClients: fetchB2BClients } = useB2BClients();
+const selectedB2BClientId = ref<number | null>(null);
+
+function ensureB2B() {
+  if (!contractData.value.b2b) {
+    contractData.value.b2b = { enabled: false, companyName: '', contactName: '', mf: '', address: '', phone: '', email: '' };
+  }
+  return contractData.value.b2b;
+}
+
+function toggleB2BMode() {
+  const b2b = ensureB2B();
+  b2b.enabled = !b2b.enabled;
+  if (b2b.enabled && b2bClients.value.length === 0) {
+    fetchB2BClients().catch((e) => console.error('fetchB2BClients failed:', e));
+  }
+}
+
+function onB2BClientSelected(value: string) {
+  const id = value ? Number(value) : null;
+  selectedB2BClientId.value = id;
+  if (id === null) return;
+  const c = b2bClients.value.find((x) => x.id === id);
+  if (!c) return;
+  const b2b = ensureB2B();
+  b2b.companyName = c.company_name || '';
+  b2b.contactName = c.contact_name || '';
+  b2b.mf = c.mf || '';
+  b2b.address = c.address || '';
+  b2b.phone = c.phone || '';
+  b2b.email = c.email || '';
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -586,16 +626,28 @@ async function confirmSaveAsReservation() {
     const isFuture = p.start! > now;
     const status = isActiveNow ? 'active' : isFuture ? 'confirmed' : 'completed';
 
+    // B2B (agency) rental: when "Agences (B2B)" is active the company becomes
+    // the reservation's client and we stamp agency_id, so the row is saved as an
+    // "Agence" reservation — identical to enabling Agences on the new-reservation
+    // page. The actual driver (السائق الأول) is preserved as the driver record.
+    const agencyId: number | null = d.b2b?.enabled
+      ? (selectedB2BClientId.value
+          ?? b2bClients.value.find((c) => c.company_name === (d.b2b?.companyName || ''))?.id
+          ?? null)
+      : null;
+    const isB2B = Boolean(d.b2b?.enabled && (d.b2b?.companyName || agencyId));
+
     const hasSecondDriver = Boolean(p.secondDriverName || p.secondDriverCin);
 
     const payload: Record<string, unknown> = {
-      client_name: p.clientName,
-      client_cin: p.clientCin,
-      client_phone: p.clientPhone,
-      client_permit_number: p.clientPermit || null,
-      client_cin_date: d.locataire.ciDate || null,
-      client_permit_date: d.locataire.permisDate || null,
-      client_address: p.clientAddress || null,
+      client_name: isB2B ? (d.b2b?.companyName || p.clientName) : p.clientName,
+      client_cin: isB2B ? (d.b2b?.mf || '') : p.clientCin,
+      client_phone: isB2B ? (d.b2b?.phone || null) : p.clientPhone,
+      client_email: isB2B ? (d.b2b?.email || null) : null,
+      client_permit_number: isB2B ? null : (p.clientPermit || null),
+      client_cin_date: isB2B ? null : (d.locataire.ciDate || null),
+      client_permit_date: isB2B ? null : (d.locataire.permisDate || null),
+      client_address: isB2B ? (d.b2b?.address || null) : (p.clientAddress || null),
       car_id: p.car!.id,
       start_date: p.start!.toISOString(),
       end_date: p.end!.toISOString(),
@@ -611,10 +663,21 @@ async function confirmSaveAsReservation() {
       payment_method: contractData.value.paiement.mode || null,
       status,
       contract_number: p.contractNumber || null,
-      notes: `Réservation créée depuis le Contrat Vierge${d.preparedBy ? ' par ' + d.preparedBy : ''}.`,
+      agency_id: agencyId,
+      notes: `Réservation créée depuis le Contrat ${isB2B ? 'B2B (Agence)' : 'Vierge'}${d.preparedBy ? ' par ' + d.preparedBy : ''}.`,
     };
 
-    if (hasSecondDriver) {
+    if (isB2B) {
+      // Agency holds the "client" slot, so keep the real driver (السائق الأول)
+      // as the reservation's driver record instead of losing it.
+      payload.second_driver_name = p.clientName || null;
+      payload.second_driver_cin = p.clientCin || null;
+      payload.second_driver_phone = d.locataire.telephone || null;
+      payload.second_driver_permit_number = d.locataire.permis || null;
+      payload.second_driver_cin_date = d.locataire.ciDate || null;
+      payload.second_driver_permit_date = d.locataire.permisDate || null;
+      payload.second_driver_address = d.locataire.adresse || null;
+    } else if (hasSecondDriver) {
       payload.second_driver_name = p.secondDriverName || null;
       payload.second_driver_cin = p.secondDriverCin || null;
       payload.second_driver_phone = d.conducteur.telephone || null;
@@ -1526,6 +1589,8 @@ onMounted(async () => {
   // Always preload the fleet so the Véhicule picker is populated whether the
   // page opens in blank mode or from an existing reservation.
   fetchCars().catch((e) => console.error('fetchCars failed for contract builder:', e));
+  // Preload B2B agencies so the "Agences" picker is ready on first click.
+  fetchB2BClients().catch((e) => console.error('fetchB2BClients failed for contract builder:', e));
 
   if (route.params.id) {
     await loadReservation(route.params.id as string);
@@ -1709,6 +1774,53 @@ onMounted(async () => {
             <p class="sb-hint">Personne qui loue la voiture (peut être différente du conducteur).</p>
             <div class="sb-field"><label>Nom</label><input v-model="contractData.v2.renter.nom" /></div>
             <div class="sb-field"><label>Prénom</label><input v-model="contractData.v2.renter.prenom" /></div>
+          </div>
+        </div>
+
+        <!-- Agences (B2B) toggle — turns this into a B2B (company) rental -->
+        <button
+          v-if="contractTemplate !== 'v2'"
+          type="button"
+          class="sb-b2b-toggle"
+          :class="{ 'sb-b2b-toggle-on': contractData.b2b?.enabled }"
+          @click="toggleB2BMode"
+        >
+          <Building2 class="h-4 w-4" />
+          <span>{{ contractData.b2b?.enabled ? 'Agences (B2B) — activé' : 'Agences (B2B)' }}</span>
+          <Check v-if="contractData.b2b?.enabled" class="h-4 w-4" />
+        </button>
+
+        <!-- Locataire B2B (agence) — pick a company from the B2B clients DB -->
+        <div v-if="contractTemplate !== 'v2' && contractData.b2b?.enabled" class="sb-card">
+          <button class="sb-title" @click="toggleSection('b2b')">
+            <span>Locataire (Agence B2B)</span>
+            <ChevronDown class="h-4 w-4 transition-transform" :class="{ 'rotate-180': collapsedSections.b2b }" />
+          </button>
+          <div v-show="!collapsedSections.b2b" class="sb-body">
+            <p class="sb-hint sb-hint-accent">
+              <Building2 class="w-3 h-3" />
+              Choisissez une agence enregistrée dans vos Clients B2B.
+            </p>
+            <div class="sb-field">
+              <label>Agence</label>
+              <select :value="selectedB2BClientId ?? ''" @change="onB2BClientSelected(($event.target as HTMLSelectElement).value)">
+                <option value="">— Sélectionner une agence —</option>
+                <option v-for="c in b2bClients" :key="c.id" :value="c.id">{{ c.company_name }}</option>
+              </select>
+            </div>
+            <p v-if="b2bClients.length === 0" class="sb-hint">
+              Aucune agence trouvée. Ajoutez-en dans la page Clients B2B (Réservations → Agences).
+            </p>
+            <div class="sb-field"><label>Société (الشركة)</label><input v-model="contractData.b2b.companyName" /></div>
+            <div class="sb-row-2">
+              <div class="sb-field"><label>M.F</label><input v-model="contractData.b2b.mf" /></div>
+              <div class="sb-field"><label>Responsable</label><input v-model="contractData.b2b.contactName" /></div>
+            </div>
+            <div class="sb-row-2">
+              <div class="sb-field"><label>Téléphone</label><input v-model="contractData.b2b.phone" /></div>
+              <div class="sb-field"><label>Email</label><input v-model="contractData.b2b.email" /></div>
+            </div>
+            <div class="sb-field"><label>Adresse</label><input v-model="contractData.b2b.address" /></div>
           </div>
         </div>
 
@@ -2573,8 +2685,15 @@ onMounted(async () => {
               <!-- Preview state -->
               <template v-else>
                 <div class="cb-preview-grid">
+                  <div v-if="contractData.b2b?.enabled" class="cb-preview-row">
+                    <div class="cb-preview-label">Agence</div>
+                    <div class="cb-preview-value">
+                      <div class="font-semibold text-violet-700">{{ contractData.b2b.companyName || '—' }}</div>
+                      <div class="text-[11px] text-slate-500 font-mono"><span v-if="contractData.b2b.mf">MF: {{ contractData.b2b.mf }}</span><span v-if="contractData.b2b.phone"> · {{ contractData.b2b.phone }}</span></div>
+                    </div>
+                  </div>
                   <div class="cb-preview-row">
-                    <div class="cb-preview-label">Locataire</div>
+                    <div class="cb-preview-label">{{ contractData.b2b?.enabled ? 'Conducteur' : 'Locataire' }}</div>
                     <div class="cb-preview-value">
                       <div class="font-semibold text-slate-900">{{ reservationPreview.clientName }}</div>
                       <div class="text-[11px] text-slate-500 font-mono">{{ reservationPreview.clientCin }}<span v-if="reservationPreview.clientPhone"> · {{ reservationPreview.clientPhone }}</span></div>
@@ -2710,6 +2829,33 @@ onMounted(async () => {
   border-radius: 14px;
   overflow: hidden;
   min-width: 0;
+}
+
+/* Agences (B2B) toggle button — violet, echoes the reservations "Agences" button */
+.sb-b2b-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #7c3aed;
+  background: #f5f3ff;
+  border: 1px solid #ddd6fe;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.sb-b2b-toggle:hover { background: #ede9fe; }
+.sb-b2b-toggle-on {
+  color: #fff;
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  border-color: #6d28d9;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
 }
 
 .sb-title {
