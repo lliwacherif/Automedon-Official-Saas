@@ -245,11 +245,7 @@ function fmt3(v: number): string {
         <div class="ct-sec-hdr"><span>LOCATAIRE</span><span>المستأجر</span></div>
         <div class="ct-b2b-grid">
           <div class="ct-frow ct-b2b-full"><span class="ct-flbl">Société :</span><span class="ct-fline" :class="{ 'ct-empty': !data.b2b.companyName }">{{ data.b2b.companyName }}</span><span class="ct-flbl-ar">: الشركة</span></div>
-          <div class="ct-frow"><span class="ct-flbl">M.F :</span><span class="ct-fline" :class="{ 'ct-empty': !data.b2b.mf }">{{ data.b2b.mf }}</span><span class="ct-flbl-ar">: المعرف الجبائي</span></div>
-          <div class="ct-frow"><span class="ct-flbl">Responsable :</span><span class="ct-fline" :class="{ 'ct-empty': !data.b2b.contactName }">{{ data.b2b.contactName }}</span><span class="ct-flbl-ar">: المسؤول</span></div>
-          <div class="ct-frow"><span class="ct-flbl">Téléphone :</span><span class="ct-fline" :class="{ 'ct-empty': !data.b2b.phone }">{{ data.b2b.phone }}</span><span class="ct-flbl-ar">: الهاتف</span></div>
-          <div class="ct-frow"><span class="ct-flbl">Email :</span><span class="ct-fline" :class="{ 'ct-empty': !data.b2b.email }">{{ data.b2b.email }}</span><span class="ct-flbl-ar">: البريد</span></div>
-          <div class="ct-frow ct-b2b-full"><span class="ct-flbl">Adresse :</span><span class="ct-fline" :class="{ 'ct-empty': !data.b2b.address }">{{ data.b2b.address }}</span><span class="ct-flbl-ar">: العنوان</span></div>
+          <div class="ct-frow ct-b2b-full"><span class="ct-flbl">M.F :</span><span class="ct-fline" :class="{ 'ct-empty': !data.b2b.mf }">{{ data.b2b.mf }}</span><span class="ct-flbl-ar">: المعرف الجبائي</span></div>
         </div>
       </div>
 
