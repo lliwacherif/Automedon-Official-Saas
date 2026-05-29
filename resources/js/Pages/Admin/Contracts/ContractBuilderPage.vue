@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ArrowLeft, FileDown, Loader2, Save, Check, ChevronDown, Sparkles, Search, CalendarPlus, AlertCircle, ExternalLink, X, UserPlus, BookmarkPlus, Plus, Minus, Printer, Building2 } from 'lucide-vue-next';
+import { ArrowLeft, FileDown, Loader2, Save, Check, ChevronDown, Sparkles, Search, CalendarPlus, AlertCircle, ExternalLink, X, UserPlus, BookmarkPlus, Plus, Minus, Printer, Building2, Users } from 'lucide-vue-next';
 import ContractTemplate from '@/components/Contracts/ContractTemplate.vue';
 import ContractTemplateV2 from '@/components/Contracts/ContractTemplateV2.vue';
 import type { ContractData } from '@/components/Contracts/ContractTemplate.vue';
@@ -11,7 +11,8 @@ import { useAuthStore } from '@/stores/auth';
 import { useCars } from '@/composables/useCars';
 import { useFaithfulClients, type FaithfulClient } from '@/composables/useFaithfulClients';
 import { useReservations } from '@/composables/useReservations';
-import { useB2BClients } from '@/composables/useB2BClients';
+import { useB2BClients, type B2BClient } from '@/composables/useB2BClients';
+import { useB2BChauffeurs } from '@/composables/useB2BChauffeurs';
 // @ts-ignore
 // html-to-image captures the contract via SVG <foreignObject>, which
 // delegates rendering back to the browser's native engine. This is the
@@ -118,8 +119,18 @@ function onFleetCarSelected(value: string) {
 // B2B rental: an extra "Locataire" (company) section appears on the
 // document, fed by a company picked from the b2b_clients table.
 // ──────────────────────────────────────────────────────────────────
-const { clients: b2bClients, fetchClients: fetchB2BClients } = useB2BClients();
+const { clients: b2bClients, fetchClients: fetchB2BClients, createClient: createB2BClient } = useB2BClients();
+const { chauffeurs: b2bChauffeurs, fetchChauffeurs: fetchB2BChauffeurs, createChauffeur: createB2BChauffeur } = useB2BChauffeurs();
 const selectedB2BClientId = ref<number | null>(null);
+const selectedChauffeurId = ref<number | null>(null);
+
+// Chauffeurs registered under the currently selected agency. Lets the user
+// pick a driver from the agency's roster to fill the Locataire (السائق الأول).
+const agencyChauffeurs = computed(() =>
+  selectedB2BClientId.value
+    ? b2bChauffeurs.value.filter((c) => c.b2b_client_id === selectedB2BClientId.value)
+    : [],
+);
 
 function ensureB2B() {
   if (!contractData.value.b2b) {
@@ -131,14 +142,21 @@ function ensureB2B() {
 function toggleB2BMode() {
   const b2b = ensureB2B();
   b2b.enabled = !b2b.enabled;
-  if (b2b.enabled && b2bClients.value.length === 0) {
-    fetchB2BClients().catch((e) => console.error('fetchB2BClients failed:', e));
+  if (b2b.enabled) {
+    if (b2bClients.value.length === 0) {
+      fetchB2BClients().catch((e) => console.error('fetchB2BClients failed:', e));
+    }
+    if (b2bChauffeurs.value.length === 0) {
+      fetchB2BChauffeurs().catch((e) => console.error('fetchB2BChauffeurs failed:', e));
+    }
   }
 }
 
 function onB2BClientSelected(value: string) {
   const id = value ? Number(value) : null;
   selectedB2BClientId.value = id;
+  // Reset the chauffeur picker — its options depend on the chosen agency.
+  selectedChauffeurId.value = null;
   if (id === null) return;
   const c = b2bClients.value.find((x) => x.id === id);
   if (!c) return;
@@ -149,6 +167,161 @@ function onB2BClientSelected(value: string) {
   b2b.address = c.address || '';
   b2b.phone = c.phone || '';
   b2b.email = c.email || '';
+}
+
+// Pick a chauffeur from the selected agency → fill the Locataire (driver) fields.
+function selectChauffeur(value: string) {
+  const id = value ? Number(value) : null;
+  selectedChauffeurId.value = id;
+  if (id === null) return;
+  const ch = b2bChauffeurs.value.find((c) => c.id === id);
+  if (!ch) return;
+  contractData.value.locataire.nom = ch.nom || '';
+  contractData.value.locataire.prenom = ch.prenom || '';
+  contractData.value.locataire.permis = ch.permit_number || '';
+  contractData.value.locataire.ci = ch.cin || '';
+}
+
+// ──────────────────────────────────────────────────────────────────
+// B2B "save new agency?" proposal — when the admin types an agency whose
+// Matricule Fiscal (or name) isn't in b2b_clients yet, offer to register
+// it (and its driver as a chauffeur) before creating the reservation.
+// ──────────────────────────────────────────────────────────────────
+const showB2BProposalModal = ref(false);
+const b2bProposalLoading = ref(false);
+const b2bProposalError = ref<string | null>(null);
+const b2bProposalSuccess = ref<string | null>(null);
+const b2bProposalDismissed = ref(false);
+let b2bProposalResolver: (() => void) | null = null;
+const b2bProposalForm = ref({ company_name: '', mf: '', contact_name: '', phone: '', email: '', address: '' });
+const b2bProposalChauffeur = ref({ add: true, nom: '', prenom: '', permit_number: '', cin: '' });
+
+function findB2BClientByMfOrName(mf: string, name: string): B2BClient | undefined {
+  // Primary key is the Matricule Fiscal: a new MF is treated as a new agency
+  // (the whole point of the detection). Fall back to name only when no MF was
+  // entered, to avoid creating obvious duplicates.
+  const mfKey = (mf || '').trim().toLowerCase();
+  if (mfKey) {
+    return b2bClients.value.find((c) => (c.mf || '').trim().toLowerCase() === mfKey);
+  }
+  const nameKey = (name || '').trim().toLowerCase();
+  if (nameKey) {
+    return b2bClients.value.find((c) => (c.company_name || '').trim().toLowerCase() === nameKey);
+  }
+  return undefined;
+}
+
+// Resolves immediately unless a brand-new agency (unknown MF / name) is
+// detected, in which case it shows the proposal modal and resolves once
+// the admin saves or skips. Called before opening the reservation preview.
+async function maybeProposeB2BRegister(): Promise<void> {
+  if (!isBlankMode.value) return;
+  const d = contractData.value;
+  if (!d.b2b?.enabled) return;
+
+  const company = (d.b2b.companyName || '').trim();
+  const mf = (d.b2b.mf || '').trim();
+  if (!company) return;
+
+  // Decide purely from the data: if this MF (or name when no MF) already
+  // exists, just link the reservation to it — otherwise it's a new agency.
+  const existing = findB2BClientByMfOrName(mf, company);
+  if (existing) {
+    selectedB2BClientId.value = existing.id;
+    return;
+  }
+  if (b2bProposalDismissed.value) return;
+
+  return new Promise<void>((resolve) => {
+    b2bProposalForm.value = {
+      company_name: company,
+      mf,
+      contact_name: d.b2b?.contactName || '',
+      phone: d.b2b?.phone || '',
+      email: d.b2b?.email || '',
+      address: d.b2b?.address || '',
+    };
+    const loc = d.locataire;
+    b2bProposalChauffeur.value = {
+      add: Boolean((loc.nom || '').trim() || (loc.prenom || '').trim()),
+      nom: (loc.nom || '').trim(),
+      prenom: (loc.prenom || '').trim(),
+      permit_number: (loc.permis || '').trim(),
+      cin: (loc.ci || '').trim(),
+    };
+    b2bProposalError.value = null;
+    b2bProposalSuccess.value = null;
+    b2bProposalResolver = resolve;
+    showB2BProposalModal.value = true;
+  });
+}
+
+function dismissB2BProposal() {
+  b2bProposalDismissed.value = true;
+  showB2BProposalModal.value = false;
+  b2bProposalError.value = null;
+  const r = b2bProposalResolver;
+  b2bProposalResolver = null;
+  if (r) r();
+}
+
+async function confirmB2BProposal() {
+  if (b2bProposalLoading.value) return;
+  const form = b2bProposalForm.value;
+  if (!form.company_name.trim()) {
+    b2bProposalError.value = 'Le nom de la société est requis.';
+    return;
+  }
+  b2bProposalLoading.value = true;
+  b2bProposalError.value = null;
+  try {
+    const created: any = await createB2BClient({
+      company_name: form.company_name.trim(),
+      contact_name: form.contact_name || null,
+      address: form.address || null,
+      mf: form.mf || null,
+      phone: form.phone || null,
+      email: form.email || null,
+    });
+    if (created?.id) {
+      // Link the reservation to the freshly created agency and mirror the
+      // (possibly edited) fields back into the contract data.
+      selectedB2BClientId.value = created.id;
+      const b2b = ensureB2B();
+      b2b.companyName = form.company_name.trim();
+      b2b.mf = form.mf || '';
+      b2b.contactName = form.contact_name || '';
+      b2b.phone = form.phone || '';
+      b2b.email = form.email || '';
+      b2b.address = form.address || '';
+
+      const ch = b2bProposalChauffeur.value;
+      if (ch.add && ch.nom.trim()) {
+        try {
+          await createB2BChauffeur(created.id, {
+            nom: ch.nom.trim(),
+            prenom: ch.prenom.trim() || null,
+            permit_number: ch.permit_number.trim() || null,
+            cin: ch.cin.trim() || null,
+          });
+        } catch (e) {
+          console.warn('Could not save chauffeur for the new agency:', e);
+        }
+      }
+    }
+    b2bProposalSuccess.value = form.company_name.trim();
+    setTimeout(() => {
+      showB2BProposalModal.value = false;
+      b2bProposalSuccess.value = null;
+      const r = b2bProposalResolver;
+      b2bProposalResolver = null;
+      if (r) r();
+    }, 1300);
+  } catch (e: any) {
+    b2bProposalError.value = e?.message || "Erreur lors de l'enregistrement de l'agence.";
+  } finally {
+    b2bProposalLoading.value = false;
+  }
 }
 
 // ──────────────────────────────────────────────────────────────────
@@ -597,12 +770,15 @@ async function openSaveAsReservationModal() {
   saveAsReservationError.value = null;
   saveAsReservationSuccess.value = null;
 
-  // Before opening the preview, propose registering each unknown person
-  // (Locataire first, then Conducteur) as a Client Fidèle. Each await
-  // resolves immediately when there's nothing to propose, or once the
-  // admin closes the proposal modal.
-  await maybeProposeRegister('locataire');
-  await maybeProposeRegister('conducteur');
+  // Before opening the preview, propose registering missing data.
+  // B2B mode → offer to save the new agency (+ its chauffeur) to Clients B2B.
+  // Otherwise → propose registering each unknown person as a Client Fidèle.
+  if (contractData.value.b2b?.enabled) {
+    await maybeProposeB2BRegister();
+  } else {
+    await maybeProposeRegister('locataire');
+    await maybeProposeRegister('conducteur');
+  }
 
   showSaveAsReservationModal.value = true;
 }
@@ -1589,8 +1765,9 @@ onMounted(async () => {
   // Always preload the fleet so the Véhicule picker is populated whether the
   // page opens in blank mode or from an existing reservation.
   fetchCars().catch((e) => console.error('fetchCars failed for contract builder:', e));
-  // Preload B2B agencies so the "Agences" picker is ready on first click.
+  // Preload B2B agencies + their chauffeurs so the pickers are ready on first click.
   fetchB2BClients().catch((e) => console.error('fetchB2BClients failed for contract builder:', e));
+  fetchB2BChauffeurs().catch((e) => console.error('fetchB2BChauffeurs failed for contract builder:', e));
 
   if (route.params.id) {
     await loadReservation(route.params.id as string);
@@ -1831,6 +2008,20 @@ onMounted(async () => {
             <ChevronDown class="h-4 w-4 transition-transform" :class="{ 'rotate-180': collapsedSections.locataire }" />
           </button>
           <div v-show="!collapsedSections.locataire" class="sb-body">
+            <!-- B2B: pick a driver from the selected agency's chauffeurs -->
+            <template v-if="contractTemplate !== 'v2' && contractData.b2b?.enabled && selectedB2BClientId">
+              <div class="sb-field">
+                <label class="sb-label-flex"><Users class="w-3 h-3" /> Chauffeur de l'agence</label>
+                <select :value="selectedChauffeurId ?? ''" @change="selectChauffeur(($event.target as HTMLSelectElement).value)">
+                  <option value="">— Sélectionner un chauffeur —</option>
+                  <option v-for="ch in agencyChauffeurs" :key="ch.id" :value="ch.id">{{ ch.prenom }} {{ ch.nom }}<template v-if="ch.cin"> — {{ ch.cin }}</template></option>
+                </select>
+              </div>
+              <p v-if="agencyChauffeurs.length === 0" class="sb-hint">
+                Aucun chauffeur pour cette agence. Ajoutez-en dans Clients B2B → bouton « Chauffeurs ».
+              </p>
+              <div class="sb-divider"><span>ou saisir manuellement</span></div>
+            </template>
             <p class="sb-hint sb-hint-accent">
               <Search class="w-3 h-3" />
               Tapez un nom, prénom <strong>ou CIN</strong> pour rechercher dans vos Clients Fidèles et auto-remplir tous les champs.
@@ -2623,6 +2814,95 @@ onMounted(async () => {
       </Transition>
     </Teleport>
 
+    <!-- B2B "save new agency?" proposal modal -->
+    <Teleport to="body">
+      <Transition name="cb-modal">
+        <div v-if="showB2BProposalModal" class="cb-modal-root">
+          <div class="cb-modal-backdrop" @click="dismissB2BProposal"></div>
+          <div class="cb-modal-card cb-modal-card--narrow">
+            <header class="cb-modal-header">
+              <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-md shadow-purple-200">
+                  <Building2 class="w-4.5 h-4.5 text-white" />
+                </div>
+                <div>
+                  <h3 class="text-base font-bold text-slate-900">
+                    {{ b2bProposalSuccess ? 'Agence enregistrée' : 'Nouvelle agence détectée' }}
+                  </h3>
+                  <p class="text-xs text-slate-500">
+                    {{ b2bProposalSuccess
+                      ? 'Disponible désormais dans vos Clients B2B.'
+                      : "Ce Matricule Fiscal n'existe pas encore dans vos Clients B2B." }}
+                  </p>
+                </div>
+              </div>
+              <button @click="dismissB2BProposal" class="cb-modal-close" :disabled="b2bProposalLoading"><X class="h-4 w-4" /></button>
+            </header>
+
+            <div class="cb-modal-body">
+              <template v-if="b2bProposalSuccess">
+                <div class="cb-success">
+                  <div class="cb-success-icon"><Check class="h-6 w-6" /></div>
+                  <div class="cb-success-text">
+                    <p class="text-sm font-semibold text-slate-900"><span class="cb-res-number">{{ b2bProposalSuccess }}</span> est enregistrée</p>
+                    <p class="text-xs text-slate-500 mt-1">L'agence et son chauffeur sont disponibles dans vos Clients B2B.</p>
+                  </div>
+                </div>
+              </template>
+
+              <template v-else>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                  Souhaitez-vous enregistrer cette agence dans <strong>Clients B2B</strong> ?
+                </p>
+
+                <div class="cb-b2b-form">
+                  <div class="cb-b2b-field cb-b2b-field--full">
+                    <label>Société *</label>
+                    <input v-model="b2bProposalForm.company_name" type="text" placeholder="Nom de l'agence" />
+                  </div>
+                  <div class="cb-b2b-field"><label>M.F</label><input v-model="b2bProposalForm.mf" type="text" placeholder="Matricule fiscal" /></div>
+                  <div class="cb-b2b-field"><label>Responsable</label><input v-model="b2bProposalForm.contact_name" type="text" placeholder="Contact" /></div>
+                  <div class="cb-b2b-field"><label>Téléphone</label><input v-model="b2bProposalForm.phone" type="text" placeholder="Téléphone" /></div>
+                  <div class="cb-b2b-field"><label>Email</label><input v-model="b2bProposalForm.email" type="text" placeholder="Email" /></div>
+                  <div class="cb-b2b-field cb-b2b-field--full"><label>Adresse</label><input v-model="b2bProposalForm.address" type="text" placeholder="Adresse" /></div>
+                </div>
+
+                <label class="cb-b2b-chk">
+                  <input type="checkbox" v-model="b2bProposalChauffeur.add" />
+                  <span>Ajouter aussi le conducteur comme <strong>chauffeur</strong> de cette agence</span>
+                </label>
+                <div v-if="b2bProposalChauffeur.add" class="cb-b2b-form cb-b2b-form--muted">
+                  <div class="cb-b2b-field"><label>Prénom</label><input v-model="b2bProposalChauffeur.prenom" type="text" /></div>
+                  <div class="cb-b2b-field"><label>Nom</label><input v-model="b2bProposalChauffeur.nom" type="text" /></div>
+                  <div class="cb-b2b-field"><label>N° Permis</label><input v-model="b2bProposalChauffeur.permit_number" type="text" /></div>
+                  <div class="cb-b2b-field"><label>CIN / Passport</label><input v-model="b2bProposalChauffeur.cin" type="text" /></div>
+                </div>
+
+                <div v-if="b2bProposalError" class="cb-error-banner">
+                  <AlertCircle class="w-4 h-4 text-red-500 shrink-0" />
+                  <span>{{ b2bProposalError }}</span>
+                </div>
+              </template>
+            </div>
+
+            <footer class="cb-modal-footer">
+              <template v-if="b2bProposalSuccess">
+                <button @click="dismissB2BProposal" class="cb-btn cb-btn-primary"><Check class="h-4 w-4" /> C'est noté</button>
+              </template>
+              <template v-else>
+                <button @click="dismissB2BProposal" :disabled="b2bProposalLoading" class="cb-btn cb-btn-ghost">Ignorer</button>
+                <button @click="confirmB2BProposal" :disabled="b2bProposalLoading" class="cb-btn cb-btn-primary">
+                  <Loader2 v-if="b2bProposalLoading" class="h-4 w-4 animate-spin" />
+                  <Building2 v-else class="h-4 w-4" />
+                  Enregistrer l'agence
+                </button>
+              </template>
+            </footer>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
     <!-- Save-as-reservation confirmation modal -->
     <Teleport to="body">
       <Transition name="cb-modal">
@@ -3344,6 +3624,59 @@ onMounted(async () => {
   border-top: 1px solid #f1f5f9;
   background: #fafbfc;
 }
+
+/* B2B "save new agency?" proposal form */
+.cb-b2b-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+.cb-b2b-form--muted {
+  padding: 10px;
+  border-radius: 10px;
+  background: #faf5ff;
+  border: 1px dashed #e9d5ff;
+  margin-top: 8px;
+}
+.cb-b2b-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.cb-b2b-field--full { grid-column: 1 / -1; }
+.cb-b2b-field label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+}
+.cb-b2b-field input {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 10px;
+  font-size: 13px;
+  color: #1e293b;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.cb-b2b-field input:focus {
+  border-color: #a78bfa;
+  box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.2);
+}
+.cb-b2b-chk {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 12.5px;
+  color: #475569;
+  cursor: pointer;
+}
+.cb-b2b-chk input { margin-top: 2px; }
 
 .cb-btn {
   display: inline-flex;
