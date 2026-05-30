@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useSubOffices } from '@/composables/useSubOffices';
 import { format } from 'date-fns';
 
-export type CarBrand = 'Renault' | 'Dacia' | 'Skoda' | 'Hyundai' | 'Seat' | 'MG' | 'Mahindra' | 'Kia' | 'Honda' | 'Peugeot' | 'Cherry' | 'Geely' | 'Volkswagen' | 'Suzuki' | 'Chevrolet' | 'Fiat' | 'Toyota' | 'Haval' | 'Citroen' | 'Mercedes' | 'Audi' | 'Opel';
+export type CarBrand = 'Renault' | 'Dacia' | 'Skoda' | 'Hyundai' | 'Seat' | 'MG' | 'Mahindra' | 'Kia' | 'Honda' | 'Peugeot' | 'Cherry' | 'Geely' | 'Volkswagen' | 'Suzuki' | 'Chevrolet' | 'Fiat' | 'Toyota' | 'Haval' | 'Citroen' | 'Mercedes' | 'Audi' | 'Opel' | 'Nissan';
 export type CarStatus = 'disponible' | 'loue' | 'maintenance';
 
 export type CarPaperType = 'carte_grise' | 'assurance' | 'vignette' | 'visite_technique';
@@ -78,7 +78,8 @@ export function useCars() {
             'Citroen': [],
             'Mercedes': [],
             'Audi': [],
-            'Opel': []
+            'Opel': [],
+            'Nissan': []
         };
 
         cars.value.forEach(car => {
