@@ -32,6 +32,7 @@ import {
     ScrollText,
     CircleCheck,
     CreditCard,
+    CalendarClock,
 } from 'lucide-vue-next';
 
 const { t, locale } = useI18n();
@@ -190,6 +191,13 @@ import { formatDate, formatDateTime } from '@/utils/date';
                     </div>
                 </div>
                 <div class="flex items-center gap-2">
+                    <RouterLink
+                        :to="tenantPath('/admin/agenda')"
+                        class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-xl ring-1 ring-sky-200 transition-all"
+                    >
+                        <CalendarClock class="w-4 h-4" />
+                        Agenda
+                    </RouterLink>
                     <RouterLink
                         :to="tenantPath('/admin/services/b2b-clients')"
                         class="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-violet-700 bg-violet-50 hover:bg-violet-100 rounded-xl ring-1 ring-violet-200 transition-all"

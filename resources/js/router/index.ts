@@ -120,6 +120,12 @@ const routes = [
                 meta: { requiresAuth: true, requiresAdmin: true }
             },
             {
+                path: 'admin/agenda',
+                component: () => import('../Pages/Admin/Agenda/Index.vue'),
+                name: 'admin.agenda.index',
+                meta: { requiresAuth: true, requiresAdmin: true }
+            },
+            {
                 path: 'admin/reservations/:id',
                 component: () => import('../Pages/Admin/Reservations/Edit.vue'),
                 name: 'admin.reservations.show',
