@@ -350,27 +350,37 @@ const extendableReservationLoading = ref(false);
 async function refreshExtendableReservation() {
   extendableReservationLoading.value = true;
   try {
-    if (!selectedFleetCarId.value) {
-      extendableReservation.value = null;
-      return;
-    }
     const tenantId = tenantStore.currentTenant?.id;
     if (!tenantId) {
       extendableReservation.value = null;
       return;
     }
 
-    const nowIso = new Date().toISOString();
     let q: any = supabase
       .from('reservations')
       .select('id, reservation_number, car_id, start_date, end_date, duration_days, price_per_day, total_price, status, client_name')
-      .eq('car_id', selectedFleetCarId.value)
-      .eq('tenant_id', tenantId)
-      .in('status', ['confirmed', 'active'])
-      .gte('end_date', nowIso);
+      .eq('tenant_id', tenantId);
+
+    if (!isBlankMode.value && route.params.id) {
+      // Reservation contract → the prolongation must target THIS reservation,
+      // never another booking that merely shares the same car.
+      q = q.eq('id', Number(route.params.id));
+    } else if (selectedFleetCarId.value) {
+      // Blank contract → offer to extend the picked car's current/upcoming booking.
+      const nowIso = new Date().toISOString();
+      q = q
+        .eq('car_id', selectedFleetCarId.value)
+        .in('status', ['confirmed', 'active'])
+        .gte('end_date', nowIso);
+    } else {
+      extendableReservation.value = null;
+      return;
+    }
+
     if (authStore.role === 'sub_office' && authStore.currentUserId) {
       q = q.eq('created_by_tenant_user_id', authStore.currentUserId);
     }
+
     const { data, error } = await q
       .order('end_date', { ascending: false })
       .limit(1);
@@ -429,11 +439,20 @@ const prolongationValidation = computed<{ ok: boolean; errors: string[]; preview
     errors.push("La prolongation doit étendre la réservation, pas la raccourcir.");
   }
 
-  // The prolongation should start at or after the current end date.
+  // A prolongation can logically start "today" (the current date) — even when
+  // the reservation still has days left — or from the reservation's current
+  // end when that end is already in the past. So the earliest allowed "Du" is
+  // whichever comes first between today and the current end date.
+  const todayDateOnly = new Date();
+  todayDateOnly.setHours(0, 0, 0, 0);
   const originalEndDateOnly = new Date(originalEnd);
   originalEndDateOnly.setHours(0, 0, 0, 0);
-  if (duDate < originalEndDateOnly) {
-    errors.push(`La prolongation ne peut pas commencer avant la fin actuelle de la réservation (${formatLocalDate(originalEnd)}).`);
+  const minDuDate = originalEndDateOnly < todayDateOnly ? originalEndDateOnly : todayDateOnly;
+  if (duDate < minDuDate) {
+    const dd = String(minDuDate.getDate()).padStart(2, '0');
+    const mm = String(minDuDate.getMonth() + 1).padStart(2, '0');
+    const yyyy = minDuDate.getFullYear();
+    errors.push(`La date « Du » ne peut pas être antérieure au ${dd}/${mm}/${yyyy}.`);
   }
 
   if (errors.length === 0 && previewEnd) {
@@ -505,6 +524,20 @@ async function confirmApplyProlongation() {
 
     if (error) throw error;
 
+    // Write the applied prolongation onto the contract so the
+    // "Prolongation : Du … Au :" line is filled in on the printed document.
+    // "Du" falls back to the reservation's original end when left empty;
+    // "Au" is normalised to the new end date.
+    const fmtFr = (d: Date) => {
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      return `${dd}/${mm}/${d.getFullYear()}`;
+    };
+    if (!contractData.value.prolongation.du) {
+      contractData.value.prolongation.du = fmtFr(new Date(res.end_date));
+    }
+    contractData.value.prolongation.au = fmtFr(newEnd);
+
     applyProlongationSuccess.value = {
       reservationNumber: res.reservation_number,
       newEnd: formatLocalDate(newEnd),
@@ -514,6 +547,12 @@ async function confirmApplyProlongation() {
     // Refresh the local copy so the preview updates and a second
     // prolongation would start from the new baseline.
     await refreshExtendableReservation();
+
+    // Persist the contract so the prolongation survives a reload
+    // (the reservation row only stores the new end date, not Du/Au).
+    if (!isBlankMode.value) {
+      saveContract().catch((e) => console.error('Auto-save after prolongation failed:', e));
+    }
   } catch (e: any) {
     applyProlongationError.value = e?.message || "Erreur lors de la prolongation de la réservation.";
   } finally {
@@ -1771,6 +1810,9 @@ onMounted(async () => {
 
   if (route.params.id) {
     await loadReservation(route.params.id as string);
+    // Bind the prolongation block to THIS reservation (don't rely solely on the
+    // car watch, which wouldn't fire if the car isn't matched to the fleet).
+    await refreshExtendableReservation();
   } else {
     await loadBlankContract();
   }
