@@ -659,7 +659,7 @@ function fmt3(v: number): string {
 
 /* Prolongation */
 .ct-prolong-row { display: flex; align-items: center; gap: 6px; padding: 4px 7px; border-top: 1px solid #000; font-size: 8.5px; }
-.ct-prolong-line { border-bottom: none; flex: 1; font-size: 13px; font-weight: 700; color: #1040b0; font-family: 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', 'Noto Naskh Arabic', 'Geeza Pro', 'Consolas', 'Courier New', monospace; letter-spacing: 0.2px; padding-bottom: 2px; }
+.ct-prolong-line { border-bottom: none; flex: 1; min-width: 90px; min-height: 18px; font-size: 13px; font-weight: 700; color: #1040b0; font-family: 'Tahoma', 'Sakkal Majalla', 'Arial Unicode MS', 'Noto Naskh Arabic', 'Geeza Pro', 'Consolas', 'Courier New', monospace; letter-spacing: 0.2px; padding-bottom: 2px; }
 .ct-change-row { display: flex; align-items: center; gap: 6px; padding: 3px 7px; border-top: 1px solid #000; font-size: 8.5px; }
 
 /* Footer grid */
