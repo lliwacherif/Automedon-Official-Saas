@@ -334,6 +334,17 @@ export function useReservations() {
         const tenantId = tenantStore.currentTenant?.id;
 
         try {
+            // Block subcontracted vehicles from being reserved
+            const { data: stVehicle } = await (supabase
+                .from('sous_traitance_vehicles') as any)
+                .select('id')
+                .eq('car_id', carId)
+                .limit(1);
+            if (stVehicle && stVehicle.length > 0) {
+                console.warn('Car is assigned to a sous-traitance, not available for reservation.');
+                return false;
+            }
+
             let query = supabase
                 .from('reservations')
                 .select('id, reservation_number, start_date, end_date, status')

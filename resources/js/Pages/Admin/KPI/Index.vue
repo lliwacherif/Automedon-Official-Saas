@@ -10,8 +10,9 @@ import {
     Loader2, AlertCircle, BarChart3, CircleCheck, CircleX, Wrench,
     Users, AlertTriangle, Trophy, Award, Clock, Hash, Download, FileDown,
     PieChart as PieChartIcon, LineChart as LineChartIcon, Activity, Crown,
-    Target, Hourglass, Receipt, FileWarning,
+    Target, Hourglass, Receipt, FileWarning, Handshake,
 } from 'lucide-vue-next';
+import SousTraitancesPanel from '@/components/SousTraitancesPanel.vue';
 
 const {
     loading, error,
@@ -23,6 +24,9 @@ const {
 } = useKPI();
 
 const { exportToCsv } = useExport();
+
+// Sous-Traitances panel
+const showSousTraitances = ref(false);
 
 // ───────────────────────────────────────────────
 // Period switcher + custom date inputs
@@ -327,6 +331,16 @@ function handleExport() {
                             OK
                         </button>
                     </div>
+
+                    <!-- Sous-Traitances -->
+                    <button
+                        type="button"
+                        @click="showSousTraitances = true"
+                        class="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-xl shadow-md shadow-orange-200 hover:shadow-lg hover:shadow-orange-300 transition-all"
+                    >
+                        <Handshake class="w-3.5 h-3.5" />
+                        Sous-Traitances
+                    </button>
 
                     <!-- Export -->
                     <button
@@ -792,6 +806,9 @@ function handleExport() {
             </div>
         </div>
     </div>
+
+    <!-- Sous-Traitances Panel -->
+    <SousTraitancesPanel :show="showSousTraitances" @close="showSousTraitances = false" />
 </template>
 
 <style scoped>

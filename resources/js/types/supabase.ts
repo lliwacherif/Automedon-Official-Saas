@@ -357,6 +357,111 @@ export interface Database {
                     damage_images?: string[] | null
                 }
             }
+            sous_traitances: {
+                Row: {
+                    id: number
+                    tenant_id: string
+                    name: string
+                    description: string | null
+                    contract_range_start: string | null
+                    contract_range_end: string | null
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: number
+                    tenant_id?: string
+                    name: string
+                    description?: string | null
+                    contract_range_start?: string | null
+                    contract_range_end?: string | null
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: number
+                    tenant_id?: string
+                    name?: string
+                    description?: string | null
+                    contract_range_start?: string | null
+                    contract_range_end?: string | null
+                    created_at?: string
+                    updated_at?: string
+                }
+            }
+            sous_traitance_vehicles: {
+                Row: {
+                    id: number
+                    tenant_id: string
+                    sous_traitance_id: number
+                    car_id: number
+                    monthly_payment: number
+                    due_day: number
+                    assigned_at: string
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: number
+                    tenant_id?: string
+                    sous_traitance_id: number
+                    car_id: number
+                    monthly_payment: number
+                    due_day?: number
+                    assigned_at?: string
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: number
+                    tenant_id?: string
+                    sous_traitance_id?: number
+                    car_id?: number
+                    monthly_payment?: number
+                    due_day?: number
+                    assigned_at?: string
+                    created_at?: string
+                    updated_at?: string
+                }
+            }
+            sous_traitance_payments: {
+                Row: {
+                    id: number
+                    tenant_id: string
+                    sous_traitance_vehicle_id: number
+                    period_month: string
+                    amount: number
+                    due_date: string
+                    status: 'pending' | 'paid' | 'overdue'
+                    paid_at: string | null
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: number
+                    tenant_id?: string
+                    sous_traitance_vehicle_id: number
+                    period_month: string
+                    amount: number
+                    due_date: string
+                    status?: 'pending' | 'paid' | 'overdue'
+                    paid_at?: string | null
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: number
+                    tenant_id?: string
+                    sous_traitance_vehicle_id?: number
+                    period_month?: string
+                    amount?: number
+                    due_date?: string
+                    status?: 'pending' | 'paid' | 'overdue'
+                    paid_at?: string | null
+                    created_at?: string
+                    updated_at?: string
+                }
+            }
         }
         Views: {
             [_: string]: {

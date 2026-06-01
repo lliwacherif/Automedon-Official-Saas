@@ -14,8 +14,10 @@ import {
     CircleX,
     Wrench,
     FileText,
+    Handshake,
 } from 'lucide-vue-next';
 import CarPapersModal from '@/components/CarPapersModal.vue';
+import { useSousTraitances } from '@/composables/useSousTraitances';
 
 const { cars, carsByBrand, loading, fetchCars, deleteCar, updateCar } = useCars();
 const { tenantPath } = useTenantLink();
@@ -54,9 +56,15 @@ function paperCount(car: CarType): number {
     ].filter(Boolean).length;
 }
 
-onMounted(() => {
-    fetchCars();
+const { subcontractedCarIds, fetchSubcontractedCarIds } = useSousTraitances();
+
+onMounted(async () => {
+    await Promise.all([fetchCars(), fetchSubcontractedCarIds()]);
 });
+
+function isSubcontracted(carId: number): boolean {
+    return subcontractedCarIds.value.has(carId);
+}
 
 async function handleDelete(id: number) {
     if (confirm('Are you sure you want to delete this car?')) {
@@ -174,28 +182,33 @@ import { getBrandLogo } from '@/utils/carBrandLogo';
                                             </span>
                                         </td>
                                         <td class="px-5 py-3.5">
-                                            <div class="relative inline-flex">
-                                                <select 
-                                                    :value="car.status"
-                                                    @change="handleStatusChange(car.id, ($event.target as HTMLSelectElement).value as CarStatus)"
-                                                    :disabled="car.status !== 'maintenance'"
-                                                    title="Le statut ne peut être modifié manuellement que s'il est en maintenance."
-                                                    :class="[getStatusClass(car.status), { 'opacity-60 cursor-not-allowed': car.status !== 'maintenance' }]"
-                                                    class="status-select appearance-none pr-7 pl-2.5 py-1 text-xs font-bold rounded-lg border-0 focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-                                                >
-                                                    <option value="disponible">{{ $t('admin.fleet.disponible') }}</option>
-                                                    <option value="loue">{{ $t('admin.fleet.loue') }}</option>
-                                                    <option value="maintenance">{{ $t('admin.fleet.maintenance') }}</option>
-                                                </select>
-                                                <ChevronDown 
-                                                    v-if="car.status === 'maintenance'" 
-                                                    class="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 pointer-events-none" 
-                                                    :class="{
-                                                        'text-emerald-600': car.status === 'disponible',
-                                                        'text-blue-600': car.status === 'loue',
-                                                        'text-amber-600': car.status === 'maintenance',
-                                                    }"
-                                                />
+                                            <div class="flex items-center gap-2">
+                                                <div class="relative inline-flex">
+                                                    <select 
+                                                        :value="car.status"
+                                                        @change="handleStatusChange(car.id, ($event.target as HTMLSelectElement).value as CarStatus)"
+                                                        :disabled="car.status !== 'maintenance' || isSubcontracted(car.id)"
+                                                        title="Le statut ne peut être modifié manuellement que s'il est en maintenance."
+                                                        :class="[getStatusClass(car.status), { 'opacity-60 cursor-not-allowed': car.status !== 'maintenance' || isSubcontracted(car.id) }]"
+                                                        class="status-select appearance-none pr-7 pl-2.5 py-1 text-xs font-bold rounded-lg border-0 focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                                                    >
+                                                        <option value="disponible">{{ $t('admin.fleet.disponible') }}</option>
+                                                        <option value="loue">{{ $t('admin.fleet.loue') }}</option>
+                                                        <option value="maintenance">{{ $t('admin.fleet.maintenance') }}</option>
+                                                    </select>
+                                                    <ChevronDown 
+                                                        v-if="car.status === 'maintenance' && !isSubcontracted(car.id)" 
+                                                        class="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 pointer-events-none" 
+                                                        :class="{
+                                                            'text-emerald-600': car.status === 'disponible',
+                                                            'text-blue-600': car.status === 'loue',
+                                                            'text-amber-600': car.status === 'maintenance',
+                                                        }"
+                                                    />
+                                                </div>
+                                                <span v-if="isSubcontracted(car.id)" class="sous-traitance-badge">
+                                                    <Handshake class="w-3 h-3" /> Sous-Traitance
+                                                </span>
                                             </div>
                                         </td>
                                         <td class="px-5 py-3.5 text-center">
@@ -211,7 +224,7 @@ import { getBrandLogo } from '@/utils/carBrandLogo';
                                             </button>
                                         </td>
                                         <td class="px-5 py-3.5 text-right">
-                                            <div class="flex items-center justify-end gap-1">
+                                            <div v-if="!isSubcontracted(car.id)" class="flex items-center justify-end gap-1">
                                                 <RouterLink 
                                                     :to="tenantPath(`/admin/cars/${car.id}/edit`)" 
                                                     class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-indigo-50 transition-colors"
@@ -227,6 +240,7 @@ import { getBrandLogo } from '@/utils/carBrandLogo';
                                                     <Trash2 class="w-4 h-4 text-red-400" />
                                                 </button>
                                             </div>
+                                            <span v-else class="text-[11px] text-gray-400 italic">Délégué</span>
                                         </td>
                                     </tr>
                                 </tbody>
@@ -251,8 +265,8 @@ import { getBrandLogo } from '@/utils/carBrandLogo';
                                         <select 
                                             :value="car.status"
                                             @change="handleStatusChange(car.id, ($event.target as HTMLSelectElement).value as CarStatus)"
-                                            :disabled="car.status !== 'maintenance'"
-                                            :class="[getStatusClass(car.status), { 'opacity-60 cursor-not-allowed': car.status !== 'maintenance' }]"
+                                            :disabled="car.status !== 'maintenance' || isSubcontracted(car.id)"
+                                            :class="[getStatusClass(car.status), { 'opacity-60 cursor-not-allowed': car.status !== 'maintenance' || isSubcontracted(car.id) }]"
                                             class="status-select appearance-none pr-6 pl-2 py-1 text-xs font-bold rounded-lg border-0 focus:ring-2 focus:ring-indigo-500"
                                         >
                                             <option value="disponible">{{ $t('admin.fleet.disponible') }}</option>
@@ -260,10 +274,13 @@ import { getBrandLogo } from '@/utils/carBrandLogo';
                                             <option value="maintenance">{{ $t('admin.fleet.maintenance') }}</option>
                                         </select>
                                         <ChevronDown 
-                                            v-if="car.status === 'maintenance'" 
+                                            v-if="car.status === 'maintenance' && !isSubcontracted(car.id)" 
                                             class="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 text-amber-600 pointer-events-none" 
                                         />
                                     </div>
+                                    <span v-if="isSubcontracted(car.id)" class="sous-traitance-badge mt-1">
+                                        <Handshake class="w-3 h-3" /> Sous-Traitance
+                                    </span>
                                 </div>
                                 
                                 <div class="flex items-center justify-between gap-2 pt-3 border-t border-gray-100">
@@ -383,5 +400,22 @@ import { getBrandLogo } from '@/utils/carBrandLogo';
 .paper-button--mobile {
     padding: 0.4rem 0.75rem;
     font-size: 0.75rem;
+}
+
+/* Sous-Traitance badge */
+.sous-traitance-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.175rem 0.5rem;
+    font-size: 0.625rem;
+    font-weight: 800;
+    color: rgb(154 52 18);
+    background: rgb(255 237 213);
+    border-radius: 0.375rem;
+    box-shadow: inset 0 0 0 1px rgba(251, 146, 60, 0.3);
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
 }
 </style>
