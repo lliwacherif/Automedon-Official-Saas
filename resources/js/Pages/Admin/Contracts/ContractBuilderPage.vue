@@ -565,7 +565,7 @@ async function confirmApplyProlongation() {
 // reservation in one click. Available only in blank mode (where no
 // reservation backs the contract yet).
 // ──────────────────────────────────────────────────────────────────
-const { createReservation } = useReservations();
+const { createReservation, checkAvailability } = useReservations();
 
 const showSaveAsReservationModal = ref(false);
 const saveAsReservationLoading = ref(false);
@@ -900,6 +900,18 @@ async function confirmSaveAsReservation() {
       payload.second_driver_cin_date = d.conducteur.ciDate || null;
       payload.second_driver_permit_date = d.conducteur.permisDate || null;
       payload.second_driver_address = d.conducteur.adresse || null;
+    }
+
+    // ── Availability guard: prevent double bookings on the same car ──
+    const isAvailable = await checkAvailability(
+      p.car!.id,
+      p.start!.toISOString(),
+      p.end!.toISOString(),
+    );
+    if (!isAvailable) {
+      throw new Error(
+        "Ce véhicule est déjà réservé pour cette période. Veuillez choisir d'autres dates ou un autre véhicule.",
+      );
     }
 
     const created = await createReservation(payload as any);
@@ -1893,7 +1905,7 @@ onMounted(async () => {
           <button
             v-if="isBlankMode"
             @click="openSaveAsReservationModal"
-            :disabled="loading"
+            :disabled="loading || !!saveAsReservationSuccess"
             class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
             title="Créer une réservation à partir de ce contrat"
           >
